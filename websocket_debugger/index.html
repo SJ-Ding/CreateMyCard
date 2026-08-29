@@ -1,0 +1,2211 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>WebSocket API Debugger</title> <style> * { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f5f7fa; color: #1f2937; line-height: 1.6; } .container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+
+    /* Header */
+    header {
+        background: white; padding: 20px; border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;
+    }
+    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    h1 { font-size: 24px; }
+    .status-indicator { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #9ca3af; }
+    .status-dot.ready { background: #9ca3af; }
+    .status-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+    .status-dot.connected { background: #10b981; }
+    .status-dot.closed { background: #6b7280; }
+    .status-dot.error { background: #ef4444; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .server-url { display: flex; gap: 12px; align-items: center; }
+    .server-url label { font-weight: 500; white-space: nowrap; }
+    .server-url input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+
+    /* API Tabs */
+    .api-tabs {
+        display: flex; background: white; border-radius: 8px 8px 0 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;
+    }
+    .api-tab {
+        flex: 1; padding: 14px 16px; background: #f3f4f6; border: none;
+        border-bottom: 3px solid transparent; cursor: pointer;
+        font-size: 13px; font-weight: 500; transition: all 0.2s;
+        text-align: center; color: #6b7280;
+    }
+    .api-tab:hover { background: #e5e7eb; }
+    .api-tab.active { background: white; color: #2563eb; border-bottom-color: #2563eb; }
+
+    /* History Bar */
+    .history-bar {
+        display: flex; flex-direction: column; gap: 8px; padding: 12px 16px;
+        background: white; border-radius: 0 0 8px 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;
+    }
+    .history-section {
+        display: flex; align-items: center; gap: 8px; min-height: 32px;
+    }
+    .history-bar-label {
+        font-weight: 600; font-size: 12px; color: #6b7280;
+        white-space: nowrap; min-width: 90px;
+    }
+    .history-pills { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
+    .history-pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 4px 10px; background: #f3f4f6; border: 1px solid #d1d5db;
+        border-radius: 14px; cursor: pointer; font-size: 12px;
+        white-space: nowrap; transition: all 0.2s;
+    }
+    .history-pill:hover { background: #e5e7eb; }
+    .history-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
+    .history-pill .pill-id { font-weight: 600; }
+    .history-pill .pill-time { font-size: 10px; opacity: 0.7; }
+    .history-pill.transfer { background: #fef3c7; border-color: #f59e0b; }
+    .history-pill.transfer::before { content: '⤴'; margin-right: 2px; }
+    .history-empty { color: #9ca3af; font-size: 12px; }
+    .history-clear {
+        align-self: flex-end; padding: 3px 10px; background: #fee2e2;
+        color: #991b1b; border: 1px solid #fecaca; border-radius: 6px;
+        cursor: pointer; font-size: 11px;
+    }
+    .history-clear:hover { background: #fecaca; }
+
+    /* Main Layout */
+    .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 1024px) { .main-content { grid-template-columns: 1fr; } }
+    .panel {
+        background: white; border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px;
+        overflow: hidden; min-width: 0;
+    }
+    .panel-header { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+
+    /* Forms */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-weight: 500; margin-bottom: 6px; color: #374151; font-size: 14px; }
+    .form-group input[type="text"],
+    .form-group textarea,
+    .form-group select {
+        width: 100%; padding: 8px 12px; border: 1px solid #d1d5db;
+        border-radius: 6px; font-size: 14px; font-family: inherit;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; font-family: 'Courier New', monospace; }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+        outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; }
+    .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    .checkbox-group label { margin: 0; cursor: pointer; }
+
+    /* Collapsible */
+    .collapsible { border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 16px; }
+    .collapsible-header {
+        padding: 12px 16px; background: #f9fafb; cursor: pointer;
+        display: flex; justify-content: space-between; align-items: center;
+        font-weight: 500; user-select: none;
+    }
+    .collapsible-header:hover { background: #f3f4f6; }
+    .collapsible-toggle { font-size: 12px; transition: transform 0.2s; }
+    .collapsible.open .collapsible-toggle { transform: rotate(180deg); }
+    .collapsible-content { padding: 16px; display: none; }
+    .collapsible.open .collapsible-content { display: block; }
+
+    /* Buttons */
+    .button-group { display: flex; gap: 12px; margin-top: 20px; }
+    button {
+        padding: 10px 20px; border: none; border-radius: 6px;
+        font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #6b7280; color: white; }
+    .btn-secondary:hover { background: #4b5563; }
+    .btn-success { background: #10b981; color: white; }
+    .btn-success:hover { background: #059669; }
+    .btn-outline { background: white; color: #374151; border: 1px solid #d1d5db; }
+    .btn-outline:hover { background: #f9fafb; }
+    .btn-warning { background: #f59e0b; color: white; }
+    .btn-warning:hover { background: #d97706; }
+
+    /* Response Tabs */
+    .response-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab {
+        padding: 8px 16px; background: #f3f4f6; border: none;
+        border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s;
+    }
+    .tab.active { background: #2563eb; color: white; }
+
+    /* Stream Frames */
+    .response-log { max-height: 500px; overflow-y: auto; margin-bottom: 16px; }
+    .frame-card {
+        border: 1px solid #e5e7eb; border-radius: 6px;
+        margin-bottom: 12px; overflow: hidden; animation: fadeIn 0.2s;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .frame-header {
+        padding: 10px 16px; background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .frame-type { font-weight: 600; padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+    .frame-type.start { background: #dbeafe; color: #1e40af; }
+    .frame-type.partial { background: #fef3c7; color: #92400e; }
+    .frame-type.final { background: #d1fae5; color: #065f46; }
+    .frame-type.error { background: #fee2e2; color: #991b1b; }
+    .frame-timestamp { color: #6b7280; font-size: 12px; }
+    .frame-content { padding: 16px; }
+    .frame-content pre, #parsedContent, #rawStreamContent {
+        background: #f9fafb; padding: 12px; border-radius: 4px;
+        overflow-wrap: break-word; word-wrap: break-word;
+        word-break: break-all; white-space: pre-wrap;
+        font-size: 13px; line-height: 1.5; max-width: 100%;
+    }
+
+    /* Error Banner */
+    .error-banner {
+        background: #fee2e2; border: 1px solid #fecaca; color: #991b1b;
+        padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;
+    }
+
+    /* Transfer Banner */
+    .transfer-banner {
+        background: #fef3c7; border: 1px solid #fbbf24; color: #92400e;
+        padding: 10px 16px; border-radius: 6px; margin-bottom: 12px;
+    }
+    .transfer-banner-content {
+        display: flex; align-items: center; gap: 8px; font-size: 13px;
+    }
+    .transfer-icon {
+        font-size: 16px; font-weight: bold;
+    }
+    .required-badge { color: #ef4444; font-size: 12px; margin-left: 4px; }
+    .info-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+    /* Tree View */
+    .tree-search { margin-bottom: 12px; }
+    .tree-search input {
+        width: 100%; padding: 8px 12px;
+        border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;
+    }
+    .tree-container {
+        max-height: 500px; overflow-y: auto;
+        border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px;
+    }
+    .tree-node { margin-left: 20px; }
+    .tree-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    .tree-toggle {
+        cursor: pointer; width: 16px; text-align: center;
+        user-select: none; color: #6b7280; font-size: 12px;
+    }
+    .tree-toggle-spacer { width: 16px; }
+    .tree-checkbox { margin: 0; cursor: pointer; flex-shrink: 0; }
+    .tree-key { font-weight: 500; color: #2563eb; font-size: 13px; }
+    .tree-value {
+        color: #059669; font-family: 'Courier New', monospace;
+        font-size: 13px; word-break: break-all;
+    }
+    .tree-value.null { color: #9ca3af; font-style: italic; }
+    .tree-value.boolean { color: #7c3aed; }
+    .tree-value.number { color: #059669; }
+    .tree-value.string { color: #d97706; }
+    .tree-children { margin-left: 8px; }
+    .tree-children.collapsed { display: none; }
+    .tree-empty { color: #9ca3af; font-size: 14px; padding: 20px; text-align: center; }
+    .tree-row.highlight { background: #fef3c7; border-radius: 4px; }
+
+    /* Build View */
+    .build-section { margin-bottom: 16px; }
+    .build-section-heading {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 8px;
+    }
+    .build-section-actions { display: flex; gap: 6px; }
+    .build-section-title { font-weight: 600; color: #374151; font-size: 14px; }
+    .selected-clear {
+        padding: 3px 8px; background: white; color: #991b1b;
+        border: 1px solid #fecaca; border-radius: 4px; cursor: pointer;
+        font-size: 12px;
+    }
+    .selected-clear:hover:not(:disabled) { background: #fef2f2; }
+    .selected-clear:disabled { color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
+    .selected-restore {
+        padding: 3px 8px; background: white; color: #1d4ed8;
+        border: 1px solid #bfdbfe; border-radius: 4px; cursor: pointer;
+        font-size: 12px;
+    }
+    .selected-restore:hover:not(:disabled) { background: #eff6ff; }
+    .selected-restore:disabled { color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
+    .selected-items {
+        max-height: 250px; overflow-y: auto;
+        border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px;
+    }
+    .selected-item {
+        display: flex; align-items: center; gap: 8px;
+        padding: 4px 0; font-size: 13px;
+    }
+    .selected-item-source {
+        font-size: 11px; color: #6b7280; background: #f3f4f6;
+        padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+    }
+    .selected-item-path { color: #2563eb; font-family: monospace; font-size: 12px; word-break: break-all; }
+    .selected-item-value { color: #d97706; font-family: monospace; font-size: 12px; word-break: break-all; }
+    .selected-item-remove { cursor: pointer; color: #ef4444; font-weight: bold; margin-left: auto; flex-shrink: 0; }
+    .selected-empty { color: #9ca3af; font-size: 14px; padding: 12px; text-align: center; }
+    .quick-build-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .btn-quick-build {
+        background: #f3f4f6; color: #1f2937; border: 1px solid #d1d5db;
+        padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    .btn-quick-build:hover { background: #e5e7eb; }
+    .built-json {
+        width: 100%; min-height: 200px; padding: 12px;
+        border: 1px solid #d1d5db; border-radius: 6px;
+        font-family: 'Courier New', monospace; font-size: 13px;
+        resize: vertical; white-space: pre;
+        overflow-wrap: break-word; word-wrap: break-word;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 1000;
+        display: flex; justify-content: center; align-items: center;
+    }
+    .modal {
+        background: white; border-radius: 8px; width: 80%; max-width: 800px;
+        max-height: 80vh; display: flex; flex-direction: column;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25);
+    }
+    .modal-header {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
+    }
+    .modal-header h3 { font-size: 18px; }
+    .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; padding: 0 8px; }
+    .modal-body { flex: 1; overflow: auto; padding: 20px; }
+    .modal-body textarea {
+        width: 100%; height: 400px; padding: 12px;
+        border: 1px solid #d1d5db; border-radius: 6px;
+        font-family: 'Courier New', monospace; font-size: 13px;
+        resize: vertical; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;
+    }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 20px; border-top: 1px solid #e5e7eb; }
+
+    /* Toast */
+    .toast {
+        position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+        background: #1f2937; color: white; padding: 10px 24px;
+        border-radius: 6px; z-index: 2000; font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2); animation: toastIn 0.2s;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+    /* Hidden utility - MUST be last */
+    .hidden { display: none !important; }
+</style>
+
+</head> <body> <div class="container"> <header> <div class="header-top"> <h1>WebSocket API Debugger</h1> <div class="status-indicator"> <span class="status-dot ready" id="statusDot"></span> <span id="statusText">Ready</span> </div> </div> <div class="server-url"> <label>Server URL:</label> <input type="text" id="serverUrl" value="ws://127.0.0.1:8855"> </div> </header>
+
+    <!-- API Tabs -->
+    <div class="api-tabs" id="apiTabs">
+        <div class="api-tab active" data-api="getWidgetCapabilityOverview">getWidgetCapabilityOverview</div>
+        <div class="api-tab" data-api="getDataCapabilitySchemas">getDataCapabilitySchemas</div>
+        <div class="api-tab" data-api="generateWidgetCardCompactDsl">generateWidgetCardCompactDsl</div>
+    </div>
+
+    <!-- History Bar -->
+    <div class="history-bar" id="historyBar">
+        <div class="history-section">
+            <span class="history-bar-label">当前接口历史:</span>
+            <span class="history-empty" id="currentHistoryEmpty">暂无记录</span>
+            <div class="history-pills" id="currentHistoryPills"></div>
+        </div>
+        <div class="history-section">
+            <span class="history-bar-label">其他接口历史:</span>
+            <span class="history-empty" id="otherHistoryEmpty">暂无记录</span>
+            <div class="history-pills" id="otherHistoryPills"></div>
+        </div>
+        <button class="history-clear" id="clearHistoryBtn">清空历史</button>
+    </div>
+
+    <div class="main-content">
+        <!-- Left Panel -->
+        <div class="panel">
+            <div class="panel-header">Request Configuration</div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Common Envelope Fields</span>
+                    <span class="collapsible-toggle">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="form-group">
+                        <label>Session ID:</label>
+                        <input type="text" id="sessionId" value="7676c2c8-a6d3-413c-8074-c62ed30db8de">
+                    </div>
+                    <div class="form-group">
+                        <label>Interaction ID:</label>
+                        <input type="text" id="interactionId" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label>User ID:</label>
+                        <input type="text" id="userId" value="test-user-001">
+                    </div>
+                    <div class="form-group">
+                        <label>Bundle Name:</label>
+                        <input type="text" id="bundleName" value="com.omega_w_0823.hmservice">
+                    </div>
+                    <div class="form-group">
+                        <label>Version:</label>
+                        <input type="text" id="version" value="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label>Utterance:</label>
+                        <input type="text" id="utterance" value="">
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Device Info</span>
+                    <span class="collapsible-toggle">▼</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="form-group">
+                        <label>Country Code:</label>
+                        <input type="text" id="countryCode" value="CN">
+                    </div>
+                    <div class="form-group">
+                        <label>Device Formation:</label>
+                        <input type="text" id="deviceFormation" value="HDSpeaker">
+                    </div>
+                    <div class="form-group">
+                        <label>Device Type:</label>
+                        <input type="text" id="deviceType" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Locale:</label>
+                        <input type="text" id="locale" value="zh-CN">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Type:</label>
+                        <input type="text" id="phoneType" value="CLS-AL30">
+                    </div>
+                    <div class="form-group">
+                        <label>Product Version:</label>
+                        <input type="text" id="prdVer" value="11.7.5.205">
+                    </div>
+                    <div class="form-group">
+                        <label>System Version:</label>
+                        <input type="text" id="sysVer" value="EmotionUI_9.0.0">
+                    </div>
+                    <div class="form-group">
+                        <label>ROM Version:</label>
+                        <input type="text" id="romVersion" value="CLS-AL30 6.0.0.328">
+                    </div>
+                    <div class="form-group">
+                        <label>Time:</label>
+                        <input type="text" id="time" value="20260707115342975">
+                    </div>
+                </div>
+            </div>
+
+            <div id="interfaceFields"></div>
+
+            <div class="button-group">
+                <button class="btn-secondary" id="previewBtn">Preview JSON</button>
+                <button class="btn-primary" id="sendBtn">Send Request</button>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="panel">
+            <div class="panel-header">Response</div>
+            <div id="errorBanner" class="error-banner hidden"></div>
+
+            <div id="transferBanner" class="transfer-banner hidden">
+                <div class="transfer-banner-content">
+                    <span class="transfer-icon">⤴</span>
+                    <span id="transferBannerText">Viewing history from another interface</span>
+                </div>
+            </div>
+
+            <div class="response-tabs">
+                <button class="tab active" data-tab="stream">Stream Frames</button>
+                <button class="tab" data-tab="parsed">Parsed Result</button>
+                <button class="tab" data-tab="build">Build JSON</button>
+            </div>
+
+            <div id="streamView" class="response-log"></div>
+
+            <div id="parsedView" class="hidden">
+                <div class="tree-search">
+                    <input type="text" id="treeSearch" placeholder="Filter by keyword...">
+                </div>
+                <div class="tree-container" id="treeContainer">
+                    <div class="tree-empty">No parsed result yet. Send a request first.</div>
+                </div>
+            </div>
+
+            <div id="buildView" class="hidden">
+                <div class="build-section">
+                    <div class="build-section-heading">
+                        <div class="build-section-title">Selected Items (<span id="selectedCount">0</span>)</div>
+                        <div class="build-section-actions">
+                            <button class="selected-restore" id="restoreParsedSelectionsBtn" type="button" disabled>
+                                Restore parsed selections
+                            </button>
+                            <button class="selected-clear" id="clearSelectedBtn" type="button" disabled>
+                                Clear selected
+                            </button>
+                        </div>
+                    </div>
+                    <div class="selected-items" id="selectedItems">
+                        <div class="selected-empty">No items selected. Use checkboxes in Parsed Result.</div>
+                    </div>
+                </div>
+                <div class="build-section">
+                    <div class="build-section-title">Quick Build:</div>
+                    <div class="quick-build-buttons" id="quickBuildButtons"></div>
+                </div>
+
+                <div class="build-section" id="quickTransferSection" style="display: none;">
+                    <div class="build-section-title">Quick Transfer (Smart Build):</div>
+                    <div class="quick-build-buttons" id="quickTransferButtons"></div>
+                </div>
+                <div class="build-section">
+                    <div class="build-section-title">Built JSON:</div>
+                    <textarea class="built-json" id="builtJson" placeholder="Built JSON will appear here. You can also edit manually."></textarea>
+                </div>
+                <div class="button-group">
+                    <button class="btn-secondary" id="copyBuiltBtn">Copy JSON</button>
+                    <button class="btn-primary" id="applyToFormBtn">Apply to Form</button>
+                    <button class="btn-outline" id="clearBuildBtn">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModal" class="modal-overlay hidden">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Request JSON Preview</h3>
+            <button class="modal-close" id="closePreviewModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <textarea id="previewContent" readonly></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" id="copyPreviewBtn">Copy to Clipboard</button>
+            <button class="btn-primary" id="closePreviewBtn">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ===== Utilities =====
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    }
+
+    function formatTimestamp() {
+        return new Date().toLocaleTimeString();
+    }
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard) return navigator.clipboard.writeText(text);
+        return new Promise((resolve, reject) => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); resolve(); }
+            catch (e) { reject(e); }
+            document.body.removeChild(ta);
+        });
+    }
+
+    function deepClone(obj) {
+        return JSON.parse(JSON.stringify(obj));
+    }
+
+    // ===== Config =====
+    const Config = (() => {
+        const ENDPOINTS = {
+            getWidgetCapabilityOverview: '/api/v1/ws/tools/getWidgetCapabilityOverview',
+            getDataCapabilitySchemas: '/api/v1/ws/tools/getDataCapabilitySchemas',
+            generateWidgetCardCompactDsl: '/api/v1/ws/tools/generateWidgetCardCompactDsl'
+        };
+        return { ENDPOINTS };
+    })();
+
+    // ===== Python Repr Parser =====
+    const PythonReprParser = (() => {
+        function parse(reprString) {
+            if (!reprString || typeof reprString !== 'string') return null;
+            try { return JSON.parse(reprString); } catch (e) {}
+            const parsed = extractAndParseData(reprString);
+            if (parsed) return parsed;
+            try { return convertPythonReprToJson(reprString); } catch (e) {}
+            return null;
+        }
+
+        function extractAndParseData(str) {
+            const dataStart = str.indexOf('data=');
+            if (dataStart === -1) return null;
+            const afterData = str.substring(dataStart + 5).trim();
+            if (!afterData.startsWith('{')) return null;
+
+            let depth = 0, endIndex = -1, inString = false, stringChar = '';
+            for (let i = 0; i < afterData.length; i++) {
+                const ch = afterData[i];
+                if (inString) {
+                    if (ch === '\\' && i + 1 < afterData.length) { i++; continue; }
+                    if (ch === stringChar) inString = false;
+                    continue;
+                }
+                if (ch === "'" || ch === '"') { inString = true; stringChar = ch; continue; }
+                if (ch === '{' || ch === '[') depth++;
+                if (ch === '}' || ch === ']') {
+                    depth--;
+                    if (depth === 0) { endIndex = i; break; }
+                }
+            }
+            if (endIndex === -1) return null;
+            const dataStr = afterData.substring(0, endIndex + 1);
+            try { return convertPythonReprToJson(dataStr); }
+            catch (e) { return null; }
+        }
+
+        function convertPythonReprToJson(str) {
+            let inString = false, stringStartChar = '', output = '';
+            for (let i = 0; i < str.length; i++) {
+                const ch = str[i];
+                if (!inString) {
+                    if (ch === "'" || ch === '"') {
+                        inString = true; stringStartChar = ch; output += '"';
+                    } else if (str.substring(i, i + 4) === 'True') {
+                        output += 'true'; i += 3;
+                    } else if (str.substring(i, i + 5) === 'False') {
+                        output += 'false'; i += 4;
+                    } else if (str.substring(i, i + 4) === 'None') {
+                        output += 'null'; i += 3;
+                    } else {
+                        output += ch;
+                    }
+                } else {
+                    if (ch === '\\' && i + 1 < str.length) {
+                        const next = str[i + 1];
+                        if (next === "'") output += "'";
+                        else if (next === '"') output += '\\"';
+                        else if (next === 'n') output += '\\n';
+                        else if (next === 't') output += '\\t';
+                        else if (next === '\\') output += '\\\\';
+                        else output += '\\' + next;
+                        i++;
+                    } else if (ch === stringStartChar) {
+                        inString = false; output += '"';
+                    } else if (ch === '"') {
+                        output += '\\"';
+                    } else {
+                        output += ch;
+                    }
+                }
+            }
+            return JSON.parse(output);
+        }
+
+        return { parse };
+    })();
+
+    // ===== Form Manager =====
+    const FormManager = (() => {
+        const interfaceConfigs = {
+            getWidgetCapabilityOverview: [
+                { id: 'odid', label: 'ODID', type: 'text', required: false, placeholder: '5e64f3e9-0a80-d719-d689-3c36eca5eeb6' },
+                { id: 'contentBundleName', label: 'Bundle Name (Content)', type: 'text', required: false, placeholder: 'com.omega_w_0823.hmservice' }
+            ],
+            getDataCapabilitySchemas: [
+                { id: 'odid', label: 'ODID', type: 'text', required: false, placeholder: '5e64f3e9-0a80-d719-d689-3c36eca5eeb6' },
+                { id: 'contentBundleName', label: 'Bundle Name (Content)', type: 'text', required: false, placeholder: 'com.omega_w_0823.hmservice' },
+                { id: 'dataCapabilityIds', label: 'Data Capability IDs', type: 'text', required: true, placeholder: 'ViewWeather,GetCalendarEvents', help: 'Comma-separated list (required)' }
+            ],
+            generateWidgetCardCompactDsl: [
+                { id: 'userQuery', label: 'User Query', type: 'text', required: true, placeholder: '帮我做通勤卡片，包含天气' },
+                { id: 'title', label: 'Title', type: 'text', required: true, placeholder: '通勤日常' },
+                { id: 'description', label: 'Description', type: 'text', required: true, placeholder: '天气速览' },
+                { id: 'size', label: 'Size', type: 'select', required: false, options: ['2x2', '2x4'], default: '2x2' },
+                { id: 'odid', label: 'ODID', type: 'text', required: false, placeholder: '5e64f3e9-0a80-d719-d689-3c36eca5eeb6' },
+                { id: 'contentBundleName', label: 'Bundle Name (Content)', type: 'text', required: false, placeholder: 'com.omega_w_0823.hmservice' },
+                { id: 'sourceArtifactUrl', label: 'Source Artifact URL (Edit Mode)', type: 'text', required: false, placeholder: 'Leave empty for create mode' },
+                { id: 'candidateAssetIds', label: 'Candidate Asset IDs', type: 'text', required: false, placeholder: 'asset.drop_1,asset.clock_fill', help: 'Comma-separated list' },
+                { id: 'candidateDataBindings', label: 'Candidate Data Bindings (JSON)', type: 'textarea', required: false },
+                { id: 'candidateEventCandidates', label: 'Candidate Event Candidates (JSON)', type: 'textarea', required: false },
+                { id: 'allowDegradation', label: 'Allow Degradation', type: 'checkbox', required: false, default: true }
+            ]
+        };
+
+        // Per-interface form state storage
+        const formStates = {};
+
+        function renderFields(interfaceName) {
+            const container = document.getElementById('interfaceFields');
+            const fields = interfaceConfigs[interfaceName] || [];
+
+            let html = '<div class="collapsible open"><div class="collapsible-header"><span>Interface-Specific Parameters</span><span class="collapsible-toggle">▼</span></div><div class="collapsible-content">';
+
+            fields.forEach(field => {
+                const requiredMark = field.required ? '<span class="required-badge">*</span>' : '';
+                const helpText = field.help ? `<div class="info-text">${field.help}</div>` : '';
+
+                html += `<div class="form-group"><label>${field.label}${requiredMark}:</label>`;
+
+                if (field.type === 'select') {
+                    html += `<select id="${field.id}">`;
+                    field.options.forEach(opt => {
+                        const selected = opt === field.default ? 'selected' : '';
+                        html += `<option value="${opt}" ${selected}>${opt}</option>`;
+                    });
+                    html += '</select>';
+                } else if (field.type === 'textarea') {
+                    html += `<textarea id="${field.id}" placeholder="${field.placeholder || ''}"></textarea>`;
+                } else if (field.type === 'checkbox') {
+                    const checked = field.default ? 'checked' : '';
+                    html += `<div class="checkbox-group"><input type="checkbox" id="${field.id}" ${checked}><label for="${field.id}">Enable</label></div>`;
+                } else {
+                    html += `<input type="text" id="${field.id}" placeholder="${field.placeholder || ''}" value="${field.default || ''}">`;
+                }
+
+                html += helpText + '</div>';
+            });
+
+            html += '</div></div>';
+            container.innerHTML = html;
+
+            container.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    header.parentElement.classList.toggle('open');
+                });
+            });
+
+            // Restore saved state if exists
+            if (formStates[interfaceName]) {
+                restoreFormState(interfaceName);
+            }
+        }
+
+        function saveFormState(interfaceName) {
+            const fields = interfaceConfigs[interfaceName] || [];
+            const state = {};
+            fields.forEach(field => {
+                const el = document.getElementById(field.id);
+                if (!el) return;
+                if (field.type === 'checkbox') {
+                    state[field.id] = el.checked;
+                } else {
+                    state[field.id] = el.value;
+                }
+            });
+            formStates[interfaceName] = state;
+        }
+
+        function restoreFormState(interfaceName) {
+            const state = formStates[interfaceName];
+            if (!state) return;
+            const fields = interfaceConfigs[interfaceName] || [];
+            fields.forEach(field => {
+                const el = document.getElementById(field.id);
+                if (!el || state[field.id] === undefined) return;
+                if (field.type === 'checkbox') {
+                    el.checked = state[field.id];
+                } else {
+                    el.value = state[field.id];
+                }
+            });
+        }
+
+        function collectData(interfaceName) {
+            const fields = interfaceConfigs[interfaceName] || [];
+            const content = {};
+
+            fields.forEach(field => {
+                const element = document.getElementById(field.id);
+                if (!element) return;
+
+                let value;
+                if (field.type === 'checkbox') {
+                    value = element.checked;
+                } else if (field.type === 'textarea') {
+                    const text = element.value.trim();
+                    if (text) {
+                        try { value = JSON.parse(text); }
+                        catch (e) { throw new Error(`Invalid JSON in ${field.label}: ${e.message}`); }
+                    }
+                } else {
+                    value = element.value.trim();
+                }
+
+                if (field.required && !value && value !== false) {
+                    throw new Error(`${field.label} is required`);
+                }
+
+                if (value !== '' && value !== undefined && value !== false) {
+                    if (field.id === 'dataCapabilityIds') {
+                        content[field.id] = value.split(',').map(s => s.trim()).filter(s => s);
+                    } else if (field.id === 'candidateAssetIds') {
+                        content[field.id] = value.split(',').map(s => s.trim()).filter(s => s);
+                    } else if (field.id === 'allowDegradation') {
+                        content.options = { allowDegradation: value };
+                    } else if (field.id === 'contentBundleName') {
+                        content.bundleName = value;
+                    } else {
+                        content[field.id] = value;
+                    }
+                }
+            });
+
+            return content;
+        }
+
+        function applyToForm(jsonObj, stayOnCurrent) {
+            let targetInterface = null;
+
+            if (!stayOnCurrent) {
+                if (jsonObj.dataCapabilityIds) {
+                    targetInterface = 'getDataCapabilitySchemas';
+                } else if (jsonObj.userQuery || jsonObj.candidateDataBindings ||
+                           jsonObj.candidateEventCandidates || jsonObj.candidateAssetIds) {
+                    targetInterface = 'generateWidgetCardCompactDsl';
+                }
+
+                if (targetInterface && targetInterface !== AppState.currentInterface) {
+                    saveFormState(AppState.currentInterface);
+                    AppState.currentInterface = targetInterface;
+                    updateApiTabs();
+                    renderFields(targetInterface);
+                    HistoryManager.renderBar();
+                }
+            }
+
+            let appliedCount = 0;
+            Object.entries(jsonObj).forEach(([key, value]) => {
+                const el = document.getElementById(key);
+                if (!el) return;
+
+                if (el.tagName === 'TEXTAREA') {
+                    el.value = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+                } else if (el.tagName === 'SELECT') {
+                    el.value = value;
+                } else if (el.type === 'checkbox') {
+                    el.checked = value;
+                } else {
+                    if (Array.isArray(value)) {
+                        el.value = value.join(',');
+                    } else if (typeof value === 'object') {
+                        el.value = JSON.stringify(value, null, 2);
+                    } else {
+                        el.value = value;
+                    }
+                }
+                appliedCount++;
+            });
+
+            return { targetInterface: stayOnCurrent ? null : targetInterface, appliedCount };
+        }
+
+        return { renderFields, collectData, applyToForm, interfaceConfigs, saveFormState, restoreFormState };
+    })();
+
+    // ===== App State =====
+    const AppState = (() => {
+        let currentInterface = 'getWidgetCapabilityOverview';
+        return {
+            get currentInterface() { return currentInterface; },
+            set currentInterface(v) { currentInterface = v; }
+        };
+    })();
+
+    // ===== History Manager =====
+    const HistoryManager = (() => {
+        let history = [];
+        let currentId = null;
+        let nextId = 1;
+
+        function add(interfaceName, request, frames, parsedResult) {
+            const id = nextId++;
+            const entry = {
+                id, timestamp: formatTimestamp(), interfaceName,
+                request, frames: [...frames], parsedResult,
+                rawStreamContent: frames.find(f =>
+                    f.data?.reply?.streamInfo?.streamType === 'final'
+                )?.data?.reply?.streamInfo?.streamContent || ''
+            };
+            history.push(entry);
+            currentId = id;
+            renderBar();
+            return entry;
+        }
+
+        function detachCurrent() {
+            currentId = null;
+            hideTransferBanner();
+            renderBar();
+        }
+
+        function load(id) {
+            const entry = history.find(h => h.id === id);
+            if (!entry) return;
+
+            // Always show the response, regardless of interface
+            currentId = id;
+            renderBar();
+            ResponseRenderer.renderFromHistory(entry);
+
+            // Show transfer banner if viewing a different interface's history
+            const banner = document.getElementById('transferBanner');
+            const bannerText = document.getElementById('transferBannerText');
+            if (entry.interfaceName !== AppState.currentInterface) {
+                bannerText.textContent = `Viewing #${entry.id} from ${getShortName(entry.interfaceName)} → Select fields and use "Build JSON" then "Apply to Form" to push to ${getShortName(AppState.currentInterface)}`;
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        function hideTransferBanner() {
+            document.getElementById('transferBanner').classList.add('hidden');
+        }
+
+        function getCurrent() {
+            return history.find(h => h.id === currentId);
+        }
+
+        function getById(id) {
+            return history.find(entry => entry.id === id);
+        }
+
+        function getAll() { return history; }
+
+        function clear() {
+            history = [];
+            currentId = null;
+            nextId = 1;
+            hideTransferBanner();
+            renderBar();
+            ResponseRenderer.clear();
+        }
+
+        function setCurrentId(id) { currentId = id; }
+
+        function renderBar() {
+            const currentPills = document.getElementById('currentHistoryPills');
+            const otherPills = document.getElementById('otherHistoryPills');
+            const currentEmpty = document.getElementById('currentHistoryEmpty');
+            const otherEmpty = document.getElementById('otherHistoryEmpty');
+
+            const currentHistory = history.filter(h => h.interfaceName === AppState.currentInterface);
+            const otherHistory = history.filter(h => h.interfaceName !== AppState.currentInterface);
+
+            // Current interface history
+            if (currentHistory.length === 0) {
+                currentEmpty.classList.remove('hidden');
+                currentPills.innerHTML = '';
+            } else {
+                currentEmpty.classList.add('hidden');
+                currentPills.innerHTML = currentHistory.map(item => {
+                    const active = item.id === currentId ? 'active' : '';
+                    return `<div class="history-pill ${active}" data-id="${item.id}">
+                        <span class="pill-id">#${item.id}</span>
+                        <span class="pill-time">${item.timestamp}</span>
+                    </div>`;
+                }).join('');
+                currentPills.querySelectorAll('.history-pill').forEach(pill => {
+                    pill.addEventListener('click', () => load(parseInt(pill.dataset.id)));
+                });
+            }
+
+            // Other interface history
+            if (otherHistory.length === 0) {
+                otherEmpty.classList.remove('hidden');
+                otherPills.innerHTML = '';
+            } else {
+                otherEmpty.classList.add('hidden');
+                otherPills.innerHTML = otherHistory.map(item => {
+                    return `<div class="history-pill transfer" data-id="${item.id}">
+                        <span class="pill-id">#${item.id}</span>
+                        <span class="pill-time">${item.timestamp}</span>
+                        <span class="pill-name" style="font-size:10px;opacity:0.8">${getShortName(item.interfaceName)}</span>
+                    </div>`;
+                }).join('');
+                otherPills.querySelectorAll('.history-pill').forEach(pill => {
+                    pill.addEventListener('click', () => load(parseInt(pill.dataset.id)));
+                });
+            }
+        }
+
+        function getShortName(name) {
+            const map = {
+                'getWidgetCapabilityOverview': 'Overview',
+                'getDataCapabilitySchemas': 'Schemas',
+                'generateWidgetCardCompactDsl': 'CompactDsl'
+            };
+            return map[name] || name.substring(0, 12);
+        }
+
+        return {
+            add, load, detachCurrent, getCurrent, getById, getAll, clear, setCurrentId, renderBar
+        };
+    })();
+
+    // ===== Data Transfer Module =====
+    const DataTransfer = (() => {
+        /**
+         * Build transferable data from a history entry for a target interface.
+         */
+        function buildFromHistory(entry, targetInterface) {
+            const parsed = entry.parsedResult;
+            if (!parsed) return null;
+
+            const sourceInterface = entry.interfaceName;
+
+            // Overview → Schemas: extract dataCapabilityIds
+            if (sourceInterface === 'getWidgetCapabilityOverview' && targetInterface === 'getDataCapabilitySchemas') {
+                return buildOverviewToSchemas(parsed);
+            }
+
+            // Overview → CompactDsl: extract assets, events
+            if (sourceInterface === 'getWidgetCapabilityOverview' && targetInterface === 'generateWidgetCardCompactDsl') {
+                return buildOverviewToCompactDsl(parsed);
+            }
+
+            // Schemas → CompactDsl: extract data bindings with schemas
+            if (sourceInterface === 'getDataCapabilitySchemas' && targetInterface === 'generateWidgetCardCompactDsl') {
+                return buildSchemasToCompactDsl(parsed);
+            }
+
+            // Schemas → Overview: extract dataCapabilityIds
+            if (sourceInterface === 'getDataCapabilitySchemas' && targetInterface === 'getWidgetCapabilityOverview') {
+                return buildSchemasToOverview(parsed);
+            }
+
+            // CompactDsl → Overview or Schemas: limited transfer
+            if (sourceInterface === 'generateWidgetCardCompactDsl') {
+                return buildCompactDslToOther(parsed, targetInterface);
+            }
+
+            return null;
+        }
+
+        function buildOverviewToSchemas(parsed) {
+            const ids = (parsed.dataCapabilities || []).map(c => c.id).filter(Boolean);
+            if (ids.length === 0) return null;
+            return { dataCapabilityIds: ids };
+        }
+
+        function buildOverviewToCompactDsl(parsed) {
+            const result = {};
+
+            // Asset candidates
+            const assets = (parsed.assetCandidates || []).map(a => a.id).filter(Boolean);
+            if (assets.length > 0) result.candidateAssetIds = assets;
+
+            // Event candidates
+            const events = (parsed.eventCapabilities || []).map(e => ({
+                capabilityId: e.id,
+                action: e.actionTemplate || { call: '', args: {} }
+            })).filter(e => e.capabilityId);
+            if (events.length > 0) result.candidateEventCandidates = events;
+
+            return Object.keys(result).length > 0 ? result : null;
+        }
+
+        function buildSchemasToCompactDsl(parsed) {
+            const result = {};
+            const capabilities = parsed.dataCapabilities || [];
+
+            if (capabilities.length === 0) return null;
+
+            // Build candidateDataBindings from schemas
+            const bindings = capabilities.map(cap => {
+                const binding = {
+                    capabilityId: cap.id || '',
+                    arguments: buildDefaultArguments(cap.inputSchema),
+                    writeResultTo: cap.defaultWriteResultTo || '',
+                    candidateOutputFields: buildOutputFieldsFromSchema(cap.outputSchema)
+                };
+                return binding;
+            });
+
+            result.candidateDataBindings = bindings;
+            return result;
+        }
+
+        function buildSchemasToOverview(parsed) {
+            const ids = (parsed.dataCapabilities || []).map(c => c.id).filter(Boolean);
+            if (ids.length === 0) return null;
+            // Overview doesn't take dataCapabilityIds, but we can note it
+            return null;
+        }
+
+        function buildCompactDslToOther(parsed, targetInterface) {
+            if (targetInterface === 'getDataCapabilitySchemas') {
+                const dataCaps = parsed.effectiveCapabilities?.data || [];
+                if (dataCaps.length > 0) return { dataCapabilityIds: dataCaps };
+            }
+            return null;
+        }
+
+        /**
+         * Build default arguments from inputSchema, using placeholder for required fields
+         */
+        function buildDefaultArguments(inputSchema) {
+            if (!inputSchema || !inputSchema.properties) return {};
+            const args = {};
+            const required = inputSchema.required || [];
+
+            Object.entries(inputSchema.properties).forEach(([key, schema]) => {
+                if (schema.sampleValue !== undefined) {
+                    args[key] = schema.sampleValue;
+                } else if (required.includes(key)) {
+                    // Use default placeholder for required fields
+                    if (schema.type === 'string') args[key] = '请输入';
+                    else if (schema.type === 'integer' || schema.type === 'number') args[key] = 0;
+                    else if (schema.type === 'boolean') args[key] = false;
+                    else if (schema.type === 'array') args[key] = [];
+                    else if (schema.type === 'object') args[key] = {};
+                }
+            });
+
+            return args;
+        }
+
+        /**
+         * Build output fields list from outputSchema, selecting all leaf paths
+         */
+        function buildOutputFieldsFromSchema(outputSchema) {
+            if (!outputSchema || !outputSchema.properties) return [];
+            const fields = [];
+
+            Object.entries(outputSchema.properties).forEach(([key, schema]) => {
+                if (schema.properties) {
+                    // Nested object - extract leaf paths
+                    Object.entries(schema.properties).forEach(([subKey, subSchema]) => {
+                        if (subSchema.properties) {
+                            // 2-level nested
+                            Object.keys(subSchema.properties).forEach(thirdKey => {
+                                fields.push(`/${key}/${subKey}/${thirdKey}`);
+                            });
+                        } else {
+                            fields.push(`/${key}/${subKey}`);
+                        }
+                    });
+                } else {
+                    fields.push(`/${key}`);
+                }
+            });
+
+            return fields;
+        }
+
+        /**
+         * Apply transfer data to the target interface form
+         */
+        function applyTransferData(transferData, targetInterface) {
+            let appliedCount = 0;
+
+            Object.entries(transferData).forEach(([key, value]) => {
+                const el = document.getElementById(key);
+                if (!el) return;
+
+                if (el.tagName === 'TEXTAREA') {
+                    el.value = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+                } else if (el.tagName === 'SELECT') {
+                    el.value = value;
+                } else if (el.type === 'checkbox') {
+                    el.checked = value;
+                } else {
+                    if (Array.isArray(value)) {
+                        el.value = value.join(',');
+                    } else if (typeof value === 'object') {
+                        el.value = JSON.stringify(value, null, 2);
+                    } else {
+                        el.value = String(value);
+                    }
+                }
+                appliedCount++;
+            });
+
+            return appliedCount;
+        }
+
+        return { buildFromHistory, applyTransferData, buildDefaultArguments, buildOutputFieldsFromSchema };
+    })();
+
+    // ===== JSON Subset Builder =====
+    const JsonSubsetBuilder = (() => {
+        function build(selections) {
+            const selectionsByHistory = groupSelectionsByHistory(selections);
+            let result = {};
+
+            selectionsByHistory.forEach(historySelections => {
+                const historyEntry = HistoryManager.getById(historySelections[0].historyId);
+                if (!historyEntry || !historyEntry.parsedResult) return;
+
+                const subset = buildFromSource(historyEntry.parsedResult, historySelections);
+                result = mergeValues(result, subset);
+            });
+
+            return result;
+        }
+
+        function getSelectedCollectionItems(selections, collectionName) {
+            const items = [];
+            const itemKeys = new Set();
+
+            selections.forEach(selection => {
+                const historyEntry = HistoryManager.getById(selection.historyId);
+                const source = historyEntry?.parsedResult;
+                const collection = source?.[collectionName];
+                if (!Array.isArray(collection)) return;
+
+                const indexes = getSelectedIndexes(selection.path, collectionName, collection.length);
+                indexes.forEach(index => {
+                    const item = collection[index];
+                    const itemKey = JSON.stringify(item);
+                    if (itemKeys.has(itemKey)) return;
+                    itemKeys.add(itemKey);
+                    items.push(item);
+                });
+            });
+
+            return items;
+        }
+
+        function groupSelectionsByHistory(selections) {
+            const groups = new Map();
+            selections.forEach(selection => {
+                const group = groups.get(selection.historyId) || [];
+                group.push(selection);
+                groups.set(selection.historyId, group);
+            });
+            return groups;
+        }
+
+        function buildFromSource(source, selections) {
+            const selectedPaths = new Set(selections.map(selection =>
+                getMinimalParentPath(selection.path)
+            ));
+            return buildNode(source, '', selectedPaths, true);
+        }
+
+        function getMinimalParentPath(path) {
+            const parts = path.split('.');
+            let lastArrayIndex = -1;
+            parts.forEach((part, index) => {
+                if (/^\d+$/.test(part)) lastArrayIndex = index;
+            });
+            if (lastArrayIndex >= 0) return parts.slice(0, lastArrayIndex + 1).join('.');
+            if (parts.length === 1) return path;
+            return parts.slice(0, -1).join('.');
+        }
+
+        function buildNode(value, path, selectedPaths, isRoot) {
+            if (selectedPaths.has(path)) return cloneValue(value);
+            const containsSelection = containsSelectedPath(path, selectedPaths);
+            if (Array.isArray(value)) return buildArray(value, path, selectedPaths, containsSelection);
+            if (isPlainObject(value)) return buildObject(value, path, selectedPaths, isRoot);
+            return cloneValue(value);
+        }
+
+        function buildArray(value, path, selectedPaths, containsSelection) {
+            if (!containsSelection) return [];
+
+            return value.reduce((items, item, index) => {
+                const itemPath = joinPath(path, String(index));
+                if (containsSelectedPath(itemPath, selectedPaths)) {
+                    items.push(buildNode(item, itemPath, selectedPaths, false));
+                }
+                return items;
+            }, []);
+        }
+
+        function buildObject(value, path, selectedPaths, isRoot) {
+            const result = {};
+
+            Object.entries(value).forEach(([key, childValue]) => {
+                const childPath = joinPath(path, key);
+                if (containsSelectedPath(childPath, selectedPaths)) {
+                    result[key] = buildNode(childValue, childPath, selectedPaths, false);
+                } else if (isRoot) {
+                    result[key] = buildRootPlaceholder(childValue);
+                }
+            });
+
+            return result;
+        }
+
+        function buildRootPlaceholder(value) {
+            if (Array.isArray(value)) return [];
+            if (isPlainObject(value)) return {};
+            return cloneValue(value);
+        }
+
+        function containsSelectedPath(path, selectedPaths) {
+            if (!path) return selectedPaths.size > 0;
+            return [...selectedPaths].some(selectedPath =>
+                selectedPath === path || selectedPath.startsWith(`${path}.`)
+            );
+        }
+
+        function getSelectedIndexes(path, collectionName, length) {
+            if (path === collectionName) return Array.from({ length }, (_, index) => index);
+            const prefix = `${collectionName}.`;
+            if (!path.startsWith(prefix)) return [];
+
+            const index = Number(path.slice(prefix.length).split('.')[0]);
+            const isValidIndex = Number.isInteger(index) && index >= 0 && index < length;
+            return isValidIndex ? [index] : [];
+        }
+
+        function mergeValues(current, incoming) {
+            if (Array.isArray(current) && Array.isArray(incoming)) {
+                return mergeArrays(current, incoming);
+            }
+            if (isPlainObject(current) && isPlainObject(incoming)) {
+                const result = { ...current };
+                Object.entries(incoming).forEach(([key, incomingValue]) => {
+                    result[key] = key in result
+                        ? mergeValues(result[key], incomingValue)
+                        : cloneValue(incomingValue);
+                });
+                return result;
+            }
+            return cloneValue(incoming);
+        }
+
+        function mergeArrays(current, incoming) {
+            const result = [...current];
+            const itemKeys = new Set(result.map(item => JSON.stringify(item)));
+            incoming.forEach(item => {
+                const itemKey = JSON.stringify(item);
+                if (itemKeys.has(itemKey)) return;
+                itemKeys.add(itemKey);
+                result.push(cloneValue(item));
+            });
+            return result;
+        }
+
+        function joinPath(path, key) { return path ? `${path}.${key}` : key; }
+        function isPlainObject(value) {
+            return value !== null && typeof value === 'object' && !Array.isArray(value);
+        }
+        function cloneValue(value) { return JSON.parse(JSON.stringify(value)); }
+
+        return { build, buildFromSource, getSelectedCollectionItems };
+    })();
+
+    // ===== Selection Manager =====
+    const SelectionManager = (() => {
+        let selections = [];
+        let onChangeCallback = null;
+
+        function setOnChange(callback) { onChangeCallback = callback; }
+        function add(historyId, interfaceName, path, key, value) {
+            selections = selections.filter(s => !(s.historyId === historyId && s.path === path));
+            selections.push({ historyId, interfaceName, path, key, value });
+            notifyChange();
+        }
+        function remove(historyId, path) {
+            selections = selections.filter(s => !(s.historyId === historyId && s.path === path));
+            notifyChange();
+        }
+        function clear() { selections = []; notifyChange(); }
+        function getAll() { return selections; }
+        function retain(items) {
+            const retainedKeys = new Set(items.map(item => getSelectionKey(item.historyId, item.path)));
+            const retainedSelections = selections.filter(selection =>
+                retainedKeys.has(getSelectionKey(selection.historyId, selection.path))
+            );
+            const removedCount = selections.length - retainedSelections.length;
+            selections = retainedSelections;
+            if (removedCount > 0) notifyChange();
+            return removedCount;
+        }
+        function addAll(items) {
+            const knownKeys = new Set(selections.map(selection =>
+                getSelectionKey(selection.historyId, selection.path)
+            ));
+            const newSelections = items.filter(item => {
+                const selectionKey = getSelectionKey(item.historyId, item.path);
+                if (knownKeys.has(selectionKey)) return false;
+                knownKeys.add(selectionKey);
+                return true;
+            });
+            if (newSelections.length > 0) {
+                selections.push(...newSelections);
+                notifyChange();
+            }
+            return newSelections.length;
+        }
+        function has(historyId, path) {
+            return selections.some(selection =>
+                selection.historyId === historyId && selection.path === path
+            );
+        }
+        function getSelectionKey(historyId, path) { return `${historyId}:${path}`; }
+        function notifyChange() { if (onChangeCallback) onChangeCallback(); }
+
+        return { add, remove, clear, retain, addAll, getAll, has, setOnChange };
+    })();
+
+    // ===== Tree Renderer =====
+    const TreeRenderer = (() => {
+        let searchTerm = '';
+
+        function setSearchTerm(term) { searchTerm = term.toLowerCase(); }
+
+        function render(obj, container, historyId, interfaceName) {
+            container.innerHTML = '';
+            if (!obj || typeof obj !== 'object') {
+                container.innerHTML = '<div class="tree-empty">No parsed result available.</div>';
+                return;
+            }
+
+            if (Array.isArray(obj)) {
+                obj.forEach((item, index) => {
+                    createNode(item, `[${index}]`, `${index}`, container, historyId, interfaceName, 0);
+                });
+            } else {
+                Object.entries(obj).forEach(([k, v]) => {
+                    createNode(v, k, k, container, historyId, interfaceName, 0);
+                });
+            }
+            syncSelectionStates(container);
+        }
+
+        function createNode(value, label, path, container, historyId, interfaceName, depth) {
+            const isObject = typeof value === 'object' && value !== null;
+            const isArray = Array.isArray(value);
+            const shouldCollapse = depth >= 2 || (isArray && value.length > 5);
+
+            const node = document.createElement('div');
+            node.className = 'tree-node';
+            const row = document.createElement('div');
+            row.className = 'tree-row';
+
+            if (searchTerm && label.toLowerCase().includes(searchTerm)) {
+                row.classList.add('highlight');
+            }
+
+            if (isObject) {
+                const toggle = document.createElement('span');
+                toggle.className = 'tree-toggle';
+                toggle.textContent = shouldCollapse ? '▶' : '▼';
+                row.appendChild(toggle);
+            } else {
+                const spacer = document.createElement('span');
+                spacer.className = 'tree-toggle-spacer';
+                row.appendChild(spacer);
+            }
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'tree-checkbox';
+            checkbox.dataset.historyId = historyId;
+            checkbox.dataset.path = path;
+            checkbox.dataset.key = label;
+            checkbox.checked = SelectionManager.has(historyId, path);
+            row.appendChild(checkbox);
+
+            const keyLabel = document.createElement('span');
+            keyLabel.className = 'tree-key';
+            keyLabel.textContent = label;
+            if (searchTerm && label.toLowerCase().includes(searchTerm)) {
+                keyLabel.style.background = '#fef3c7';
+            }
+            row.appendChild(keyLabel);
+
+            if (!isObject) {
+                const colon = document.createElement('span');
+                colon.textContent = ': ';
+                colon.style.color = '#6b7280';
+                row.appendChild(colon);
+
+                const valueLabel = document.createElement('span');
+                const valType = value === null ? 'null' : typeof value;
+                valueLabel.className = `tree-value ${valType}`;
+                valueLabel.textContent = JSON.stringify(value);
+                row.appendChild(valueLabel);
+            }
+
+            node.appendChild(row);
+
+            if (isObject) {
+                const children = document.createElement('div');
+                children.className = 'tree-children' + (shouldCollapse ? ' collapsed' : '');
+
+                if (isArray) {
+                    value.forEach((item, index) => {
+                        createNode(item, `[${index}]`, `${path}.${index}`, children, historyId, interfaceName, depth + 1);
+                    });
+                } else {
+                    Object.entries(value).forEach(([k, v]) => {
+                        createNode(v, k, `${path}.${k}`, children, historyId, interfaceName, depth + 1);
+                    });
+                }
+
+                node.appendChild(children);
+
+                const toggle = row.querySelector('.tree-toggle');
+                if (toggle) {
+                    toggle.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        children.classList.toggle('collapsed');
+                        toggle.textContent = children.classList.contains('collapsed') ? '▶' : '▼';
+                    });
+                }
+
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        SelectionManager.add(historyId, interfaceName, path, label, value);
+                    } else {
+                        SelectionManager.remove(historyId, path);
+                    }
+                    children.querySelectorAll('input.tree-checkbox').forEach(cb => {
+                        cb.checked = e.target.checked;
+                        if (e.target.checked) {
+                            SelectionManager.add(
+                                parseInt(cb.dataset.historyId), interfaceName,
+                                cb.dataset.path, cb.dataset.key,
+                                getValueFromPath(value, cb.dataset.path, path)
+                            );
+                        } else {
+                            SelectionManager.remove(parseInt(cb.dataset.historyId), cb.dataset.path);
+                        }
+                    });
+                    updateParentState(node);
+                });
+            } else {
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        SelectionManager.add(historyId, interfaceName, path, label, value);
+                    } else {
+                        SelectionManager.remove(historyId, path);
+                    }
+                    updateParentState(node.parentElement);
+                });
+            }
+
+            container.appendChild(node);
+        }
+
+        function getValueFromPath(rootObj, fullPath, basePath) {
+            const relativePath = fullPath.substring(basePath.length);
+            const parts = relativePath.split('.').filter(p => p);
+            let current = rootObj;
+            for (const part of parts) {
+                const arrMatch = part.match(/^\[(\d+)\]$/);
+                const idx = arrMatch ? parseInt(arrMatch[1]) : part;
+                if (current && typeof current === 'object') {
+                    current = current[idx];
+                } else {
+                    return null;
+                }
+            }
+            return current;
+        }
+
+        function updateParentState(node) {
+            let current = node;
+            while (current) {
+                const parent = current.parentElement?.closest('.tree-node');
+                if (!parent) break;
+                const parentCheckbox = parent.querySelector(':scope > .tree-row > .tree-checkbox');
+                if (!parentCheckbox) break;
+                const children = parent.querySelector(':scope > .tree-children');
+                if (!children) break;
+                const childCheckboxes = children.querySelectorAll(':scope > .tree-node > .tree-row > .tree-checkbox');
+                let checkedCount = 0;
+                childCheckboxes.forEach(cb => { if (cb.checked) checkedCount++; });
+                if (checkedCount === 0) {
+                    parentCheckbox.checked = false;
+                    parentCheckbox.indeterminate = false;
+                } else if (checkedCount === childCheckboxes.length) {
+                    parentCheckbox.checked = true;
+                    parentCheckbox.indeterminate = false;
+                } else {
+                    parentCheckbox.checked = false;
+                    parentCheckbox.indeterminate = true;
+                }
+                current = parent;
+            }
+        }
+
+        function syncSelectionStates(container) {
+            const treeNodes = [...container.querySelectorAll('.tree-node')].reverse();
+            treeNodes.forEach(node => {
+                const checkbox = node.querySelector(':scope > .tree-row > .tree-checkbox');
+                const children = node.querySelector(':scope > .tree-children');
+                if (!checkbox || !children) return;
+
+                const childCheckboxes = children.querySelectorAll(
+                    ':scope > .tree-node > .tree-row > .tree-checkbox'
+                );
+                const checkedCount = [...childCheckboxes].filter(child => child.checked).length;
+                checkbox.indeterminate = checkedCount > 0 && checkedCount < childCheckboxes.length;
+                checkbox.checked = checkedCount > 0 && checkedCount === childCheckboxes.length;
+            });
+        }
+
+        function refreshSelectionStates(container) {
+            container.querySelectorAll('.tree-checkbox').forEach(checkbox => {
+                const historyId = parseInt(checkbox.dataset.historyId, 10);
+                checkbox.checked = SelectionManager.has(historyId, checkbox.dataset.path);
+                checkbox.indeterminate = false;
+            });
+            syncSelectionStates(container);
+        }
+
+        function getCheckedSelections(container, entry) {
+            if (!entry || !entry.parsedResult) return [];
+
+            return [...container.querySelectorAll('.tree-checkbox')]
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => {
+                    const historyId = parseInt(checkbox.dataset.historyId, 10);
+                    return {
+                        historyId,
+                        interfaceName: entry.interfaceName,
+                        path: checkbox.dataset.path,
+                        key: checkbox.dataset.key,
+                        value: getValueFromPath(entry.parsedResult, checkbox.dataset.path, '')
+                    };
+                });
+        }
+
+        return { render, setSearchTerm, refreshSelectionStates, getCheckedSelections };
+    })();
+
+    // ===== WebSocket Client =====
+    const WebSocketClient = (() => {
+        let ws = null;
+
+        function connect(url, path, payload, onMessage, onStatus) {
+            const fullUrl = url + path;
+            onStatus('connecting', 'Connecting...');
+            ws = new WebSocket(fullUrl);
+
+            ws.onopen = () => {
+                onStatus('connected', 'Connected');
+                ws.send(JSON.stringify(payload, null, 2));
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    onMessage(data);
+                } catch (e) { console.error('Failed to parse message:', e); }
+            };
+
+            ws.onclose = (event) => { onStatus('closed', `Closed (${event.code})`); };
+            ws.onerror = () => { onStatus('error', 'Error'); };
+        }
+
+        function close() { if (ws) { ws.close(); ws = null; } }
+
+        return { connect, close };
+    })();
+
+    // ===== Response Renderer =====
+    const ResponseRenderer = (() => {
+        let currentFrames = [];
+
+        function appendFrame(frame) {
+            const streamType = frame.reply?.streamInfo?.streamType || 'unknown';
+            currentFrames.push({ type: streamType, timestamp: formatTimestamp(), data: frame });
+            renderStreamView();
+        }
+
+        function renderStreamView() {
+            const container = document.getElementById('streamView');
+            container.innerHTML = currentFrames.map(frame => {
+                const typeClass = frame.type === 'final_error' ? 'error' : frame.type;
+                const content = JSON.stringify(frame.data, null, 2);
+                return `
+                    <div class="frame-card">
+                        <div class="frame-header">
+                            <span class="frame-type ${typeClass}">${frame.type.toUpperCase()}</span>
+                            <span class="frame-timestamp">${frame.timestamp}</span>
+                        </div>
+                        <div class="frame-content">
+                            <pre>${escapeHtml(content)}</pre>
+                        </div>
+                    </div>`;
+            }).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function renderFromHistory(entry) {
+            currentFrames = entry.frames;
+            renderStreamView();
+            if (entry.parsedResult) {
+                TreeRenderer.render(entry.parsedResult, document.getElementById('treeContainer'), entry.id, entry.interfaceName);
+            } else {
+                document.getElementById('treeContainer').innerHTML =
+                    '<div class="tree-empty">No parsed result available.</div>';
+            }
+        }
+
+        function clear() {
+            currentFrames = [];
+            document.getElementById('streamView').innerHTML = '';
+            document.getElementById('treeContainer').innerHTML =
+                '<div class="tree-empty">No parsed result yet. Send a request first.</div>';
+        }
+
+        function showError(message) {
+            const banner = document.getElementById('errorBanner');
+            banner.textContent = message;
+            banner.classList.remove('hidden');
+            setTimeout(() => banner.classList.add('hidden'), 5000);
+        }
+
+        return { appendFrame, renderFromHistory, clear, showError };
+    })();
+
+    // ===== Build Manager =====
+    const BuildManager = (() => {
+        function render() {
+            const selections = SelectionManager.getAll();
+            const container = document.getElementById('selectedItems');
+            const countEl = document.getElementById('selectedCount');
+            const clearSelectedBtn = document.getElementById('clearSelectedBtn');
+            const restoreParsedSelectionsBtn = document.getElementById('restoreParsedSelectionsBtn');
+            const currentEntry = HistoryManager.getCurrent();
+            const parsedSelections = getParsedSelections(currentEntry);
+            const hasRestorableSelection = parsedSelections.some(selection =>
+                !SelectionManager.has(selection.historyId, selection.path)
+            );
+            countEl.textContent = selections.length;
+            clearSelectedBtn.disabled = selections.length === 0;
+            restoreParsedSelectionsBtn.disabled = !hasRestorableSelection;
+
+            // Check if we're in transfer mode
+            const isTransferMode = currentEntry && currentEntry.interfaceName !== AppState.currentInterface;
+            const quickTransferSection = document.getElementById('quickTransferSection');
+
+            if (isTransferMode) {
+                // Show Quick Transfer section with smart transfer buttons
+                quickTransferSection.style.display = 'block';
+                renderQuickTransferButtons(currentEntry);
+            } else {
+                quickTransferSection.style.display = 'none';
+            }
+
+            if (selections.length === 0) {
+                container.innerHTML = '<div class="selected-empty">No items selected. Use checkboxes in Parsed Result.</div>';
+                renderQuickBuildButtons([]);
+                return;
+            }
+
+            container.innerHTML = selections.map((s, i) => {
+                const valStr = typeof s.value === 'object' ? JSON.stringify(s.value).substring(0, 100) : JSON.stringify(s.value);
+                return `<div class="selected-item">
+                    <span class="selected-item-source">#${s.historyId} ${s.interfaceName}</span>
+                    <span class="selected-item-path">${s.path} (${s.key}):</span>
+                    <span class="selected-item-value">${escapeHtml(valStr)}</span>
+                    <span class="selected-item-remove" data-index="${i}">&times;</span>
+                </div>`;
+            }).join('');
+
+            container.querySelectorAll('.selected-item-remove').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.dataset.index);
+                    const sel = selections[idx];
+                    SelectionManager.remove(sel.historyId, sel.path);
+                    refreshTreeSelectionStates();
+                });
+            });
+
+            renderQuickBuildButtons(selections);
+        }
+
+        function renderQuickTransferButtons(sourceEntry) {
+            const container = document.getElementById('quickTransferButtons');
+            const targetInterface = AppState.currentInterface;
+            const buttons = [];
+
+            // Generate smart transfer buttons based on source→target interface pair
+            const transferData = DataTransfer.buildFromHistory(sourceEntry, targetInterface);
+
+            if (transferData && Object.keys(transferData).length > 0) {
+                buttons.push({
+                    label: `Transfer to ${getShortName(targetInterface)}`,
+                    action: () => {
+                        document.getElementById('builtJson').value = JSON.stringify(transferData, null, 2);
+                        showToast('Transfer data built! Click "Apply to Form" to push to current interface.');
+                    }
+                });
+            }
+
+            if (buttons.length === 0) {
+                container.innerHTML = '<div style="color: #9ca3af; font-size: 13px;">No automatic transfer available for this interface pair.</div>';
+            } else {
+                container.innerHTML = buttons.map((b, i) =>
+                    `<button class="btn-quick-build" data-index="${i}" style="background: #fef3c7; border-color: #f59e0b;">${b.label}</button>`
+                ).join('');
+
+                container.querySelectorAll('.btn-quick-build').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        buttons[parseInt(btn.dataset.index)].action();
+                    });
+                });
+            }
+        }
+
+        function getShortName(name) {
+            const map = {
+                'getWidgetCapabilityOverview': 'Overview',
+                'getDataCapabilitySchemas': 'Schemas',
+                'generateWidgetCardCompactDsl': 'CompactDsl'
+            };
+            return map[name] || name.substring(0, 12);
+        }
+
+        function renderQuickBuildButtons(selections) {
+            const container = document.getElementById('quickBuildButtons');
+            const buttons = [];
+
+            if (selections.length === 0) {
+                container.innerHTML =
+                    '<div class="selected-empty">Select fields in Parsed Result to enable quick build.</div>';
+                return;
+            }
+
+            const dataCapabilities = JsonSubsetBuilder.getSelectedCollectionItems(
+                selections, 'dataCapabilities'
+            );
+            if (dataCapabilities.length > 0) {
+                buttons.push({
+                    label: `Build dataCapabilityIds (${dataCapabilities.length})`,
+                    action: () => quickBuildDataCapabilityIds(dataCapabilities)
+                });
+            }
+
+            const assetCandidates = JsonSubsetBuilder.getSelectedCollectionItems(
+                selections, 'assetCandidates'
+            );
+            if (assetCandidates.length > 0) {
+                buttons.push({
+                    label: `Build candidateAssetIds (${assetCandidates.length})`,
+                    action: () => quickBuildCandidateAssetIds(assetCandidates)
+                });
+            }
+
+            const eventCapabilities = JsonSubsetBuilder.getSelectedCollectionItems(
+                selections, 'eventCapabilities'
+            );
+            if (eventCapabilities.length > 0) {
+                buttons.push({
+                    label: `Build candidateEventCandidates (${eventCapabilities.length})`,
+                    action: () => quickBuildCandidateEventCandidates(eventCapabilities)
+                });
+            }
+
+            const dataCapsWithSchema = dataCapabilities.filter(capability =>
+                capability.inputSchema || capability.outputSchema
+            );
+            if (dataCapsWithSchema.length > 0) {
+                buttons.push({
+                    label: `Build candidateDataBindings (${dataCapsWithSchema.length})`,
+                    action: () => quickBuildCandidateDataBindings(dataCapsWithSchema)
+                });
+            }
+
+            // Build all as JSON - preserve structure
+            buttons.push({
+                label: 'Build All as JSON',
+                action: () => quickBuildAll(selections)
+            });
+
+            // Quick Transfer buttons - smart transfer based on source→target interface
+            const currentEntry = HistoryManager.getCurrent();
+            if (currentEntry && currentEntry.interfaceName !== AppState.currentInterface) {
+                const sourceInterface = currentEntry.interfaceName;
+                const targetInterface = AppState.currentInterface;
+                const transferKey = `${sourceInterface}→${targetInterface}`;
+
+                const transferLabels = {
+                    'getWidgetCapabilityOverview→getDataCapabilitySchemas': 'Quick Transfer: dataCapabilityIds',
+                    'getWidgetCapabilityOverview→generateWidgetCardCompactDsl': 'Quick Transfer: assets + events',
+                    'getDataCapabilitySchemas→generateWidgetCardCompactDsl': 'Quick Transfer: candidateDataBindings',
+                    'getDataCapabilitySchemas→getWidgetCapabilityOverview': 'Quick Transfer: capabilityIds',
+                    'generateWidgetCardCompactDsl→getDataCapabilitySchemas': 'Quick Transfer: effectiveCapabilities.data'
+                };
+
+                if (transferLabels[transferKey]) {
+                    buttons.push({
+                        label: transferLabels[transferKey],
+                        action: () => quickTransferFromHistory(currentEntry, targetInterface)
+                    });
+                }
+            }
+
+            container.innerHTML = buttons.map((b, i) =>
+                `<button class="btn-quick-build" data-index="${i}">${b.label}</button>`
+            ).join('');
+
+            container.querySelectorAll('.btn-quick-build').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    buttons[parseInt(btn.dataset.index)].action();
+                });
+            });
+        }
+
+        function quickBuildDataCapabilityIds(capabilities) {
+            const ids = capabilities.map(capability => capability.id).filter(Boolean);
+            setBuiltJson({ dataCapabilityIds: ids });
+        }
+
+        function quickBuildCandidateAssetIds(assets) {
+            const ids = assets.map(asset => asset.id).filter(Boolean);
+            setBuiltJson({ candidateAssetIds: ids });
+        }
+
+        function quickBuildCandidateEventCandidates(events) {
+            const candidates = events.map(event => {
+                return {
+                    capabilityId: event.id || '',
+                    action: event.actionTemplate || event.action || { call: '', args: {} }
+                };
+            }).filter(c => c !== null);
+            setBuiltJson({ candidateEventCandidates: candidates });
+        }
+
+        function quickBuildCandidateDataBindings(capabilities) {
+            const bindings = capabilities.map(cap => {
+                return {
+                    capabilityId: cap.id || '',
+                    arguments: DataTransfer.buildDefaultArguments(cap.inputSchema),
+                    writeResultTo: cap.defaultWriteResultTo || '',
+                    candidateOutputFields: DataTransfer.buildOutputFieldsFromSchema(cap.outputSchema)
+                };
+            }).filter(b => b !== null);
+            setBuiltJson({ candidateDataBindings: bindings });
+        }
+
+        /** Build selected content as a hierarchy-preserving source subset. */
+        function quickBuildAll(selections) {
+            if (selections.length === 0) return;
+            setBuiltJson(JsonSubsetBuilder.build(selections));
+        }
+
+        function quickTransferFromHistory(entry, targetInterface) {
+            const transferData = DataTransfer.buildFromHistory(entry, targetInterface);
+            if (!transferData || Object.keys(transferData).length === 0) {
+                showToast('No transferable data from this history entry');
+                return;
+            }
+            setBuiltJson(transferData);
+            showToast('Quick transfer JSON built. Review and click "Apply to Form".');
+        }
+
+        function setBuiltJson(obj) {
+            document.getElementById('builtJson').value = JSON.stringify(obj, null, 2);
+            showToast('JSON built! Review and edit as needed.');
+        }
+
+        function copyBuiltJson() {
+            const text = document.getElementById('builtJson').value;
+            if (!text.trim()) { showToast('Nothing to copy'); return; }
+            copyToClipboard(text).then(() => showToast('Copied!')).catch(() => showToast('Failed to copy'));
+        }
+
+        function applyToForm() {
+            const text = document.getElementById('builtJson').value;
+            if (!text.trim()) { showToast('No JSON to apply'); return; }
+            try {
+                const jsonObj = JSON.parse(text);
+                // Detect transfer mode: if viewing a different interface's history, stay on current interface
+                const currentEntry = HistoryManager.getCurrent();
+                const isTransferMode = currentEntry && currentEntry.interfaceName !== AppState.currentInterface;
+                const result = FormManager.applyToForm(jsonObj, isTransferMode);
+                if (isTransferMode) {
+                    showToast(`Applied ${result.appliedCount} field(s) to current interface (${AppState.currentInterface})`);
+                } else {
+                    showToast(`Applied ${result.appliedCount} field(s) to ${result.targetInterface || 'current interface'}`);
+                }
+            } catch (e) {
+                showToast('Invalid JSON: ' + e.message);
+            }
+        }
+
+        function clearBuild() {
+            SelectionManager.clear();
+            document.getElementById('builtJson').value = '';
+            refreshTreeSelectionStates();
+            render();
+        }
+
+        function clearSelectedItems() {
+            if (SelectionManager.getAll().length === 0) return;
+            const removedCount = SelectionManager.retain(getParsedSelections(HistoryManager.getCurrent()));
+            refreshTreeSelectionStates();
+            if (removedCount === 0) {
+                showToast('No accumulated selected items to clear.');
+                return;
+            }
+            showToast(`${removedCount} accumulated selected item(s) cleared. Built JSON was kept.`);
+        }
+
+        function restoreParsedSelections() {
+            const restoredCount = SelectionManager.addAll(getParsedSelections(HistoryManager.getCurrent()));
+            if (restoredCount === 0) {
+                showToast('No checked Parsed Result items to restore.');
+                return;
+            }
+            refreshTreeSelectionStates();
+            showToast(`${restoredCount} Parsed Result item(s) restored.`);
+        }
+
+        function refreshTreeSelectionStates() {
+            TreeRenderer.refreshSelectionStates(document.getElementById('treeContainer'));
+        }
+
+        function getParsedSelections(entry) {
+            return TreeRenderer.getCheckedSelections(document.getElementById('treeContainer'), entry);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+            document.getElementById('streamView').classList.toggle('hidden', tabName !== 'stream');
+            document.getElementById('parsedView').classList.toggle('hidden', tabName !== 'parsed');
+            document.getElementById('buildView').classList.toggle('hidden', tabName !== 'build');
+        }
+
+        return {
+            render, copyBuiltJson, applyToForm, clearBuild, clearSelectedItems,
+            restoreParsedSelections, switchTab
+        };
+    })();
+
+    // ===== UI Helpers =====
+    function updateApiTabs() {
+        document.querySelectorAll('.api-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.api === AppState.currentInterface);
+        });
+    }
+
+    // ===== Main Controller =====
+    const MainController = (() => {
+        function init() {
+            // API tab switching
+            document.querySelectorAll('.api-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const newInterface = tab.dataset.api;
+                    if (newInterface === AppState.currentInterface) return;
+
+                    // Save current form state
+                    FormManager.saveFormState(AppState.currentInterface);
+
+                    // Switch interface
+                    AppState.currentInterface = newInterface;
+                    updateApiTabs();
+                    FormManager.renderFields(newInterface);
+                    HistoryManager.renderBar();
+
+                    // Load current interface's latest history if exists
+                    const currentHistory = HistoryManager.getAll()
+                        .filter(h => h.interfaceName === newInterface);
+                    if (currentHistory.length > 0) {
+                        const latest = currentHistory[currentHistory.length - 1];
+                        HistoryManager.setCurrentId(latest.id);
+                        ResponseRenderer.renderFromHistory(latest);
+                        HistoryManager.renderBar();
+                    } else {
+                        ResponseRenderer.clear();
+                    }
+                });
+            });
+
+            // Initial render
+            FormManager.renderFields('getWidgetCapabilityOverview');
+
+            // Collapsible toggles
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    header.parentElement.classList.toggle('open');
+                });
+            });
+
+            // Preview & Send
+            document.getElementById('previewBtn').addEventListener('click', previewJson);
+            document.getElementById('sendBtn').addEventListener('click', sendRequest);
+
+            // Response tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    BuildManager.switchTab(e.target.dataset.tab);
+                });
+            });
+
+            // Tree search
+            document.getElementById('treeSearch').addEventListener('input', (e) => {
+                TreeRenderer.setSearchTerm(e.target.value);
+                const entry = HistoryManager.getCurrent();
+                if (entry && entry.parsedResult) {
+                    TreeRenderer.render(entry.parsedResult, document.getElementById('treeContainer'), entry.id, entry.interfaceName);
+                }
+            });
+
+            // Build view buttons
+            document.getElementById('copyBuiltBtn').addEventListener('click', () => BuildManager.copyBuiltJson());
+            document.getElementById('applyToFormBtn').addEventListener('click', () => BuildManager.applyToForm());
+            document.getElementById('clearBuildBtn').addEventListener('click', () => BuildManager.clearBuild());
+            document.getElementById('clearSelectedBtn').addEventListener('click', () => {
+                BuildManager.clearSelectedItems();
+            });
+            document.getElementById('restoreParsedSelectionsBtn').addEventListener('click', () => {
+                BuildManager.restoreParsedSelections();
+            });
+
+            // Preview modal
+            document.getElementById('closePreviewModal').addEventListener('click', () => {
+                document.getElementById('previewModal').classList.add('hidden');
+            });
+            document.getElementById('closePreviewBtn').addEventListener('click', () => {
+                document.getElementById('previewModal').classList.add('hidden');
+            });
+            document.getElementById('copyPreviewBtn').addEventListener('click', () => {
+                const text = document.getElementById('previewContent').value;
+                copyToClipboard(text).then(() => showToast('Copied!')).catch(() => showToast('Failed to copy'));
+            });
+
+            // Clear history
+            document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+                HistoryManager.clear();
+            });
+
+            // Callbacks
+            SelectionManager.setOnChange(() => { BuildManager.render(); });
+
+            // Initial render
+            BuildManager.render();
+            HistoryManager.renderBar();
+        }
+
+        function buildEnvelope() {
+            const interfaceName = AppState.currentInterface;
+            const content = FormManager.collectData(interfaceName);
+
+            return {
+                content,
+                deviceInfo: {
+                    countryCode: document.getElementById('countryCode').value,
+                    deviceFormation: document.getElementById('deviceFormation').value,
+                    deviceType: parseInt(document.getElementById('deviceType').value) || 0,
+                    locale: document.getElementById('locale').value,
+                    phoneType: document.getElementById('phoneType').value,
+                    prdVer: document.getElementById('prdVer').value,
+                    sysVer: document.getElementById('sysVer').value,
+                    romVersion: document.getElementById('romVersion').value,
+                    time: document.getElementById('time').value
+                },
+                session: {
+                    sessionId: document.getElementById('sessionId').value,
+                    interactionId: document.getElementById('interactionId').value,
+                    isNew: false
+                },
+                userAuth: { user: { userId: document.getElementById('userId').value } },
+                utterance: { original: document.getElementById('utterance').value, type: 'text' },
+                version: document.getElementById('version').value,
+                bundleName: document.getElementById('bundleName').value
+            };
+        }
+
+        function previewJson() {
+            try {
+                const envelope = buildEnvelope();
+                const modal = document.getElementById('previewModal');
+                document.getElementById('previewContent').value = JSON.stringify(envelope, null, 2);
+                modal.classList.remove('hidden');
+            } catch (e) {
+                ResponseRenderer.showError(e.message);
+            }
+        }
+
+        function sendRequest() {
+            try {
+                HistoryManager.detachCurrent();
+                SelectionManager.clear();
+                ResponseRenderer.clear();
+                BuildManager.switchTab('stream');
+                const envelope = buildEnvelope();
+                const serverUrl = document.getElementById('serverUrl').value;
+                const interfaceName = AppState.currentInterface;
+                const path = Config.ENDPOINTS[interfaceName];
+
+                let parsedResult = null;
+                const frames = [];
+
+                WebSocketClient.connect(
+                    serverUrl, path, envelope,
+                    (frame) => {
+                        ResponseRenderer.appendFrame(frame);
+                        frames.push({ type: frame.reply?.streamInfo?.streamType, timestamp: formatTimestamp(), data: frame });
+
+                        const streamType = frame.reply?.streamInfo?.streamType;
+                        if (streamType === 'final') {
+                            const content = frame.reply?.streamInfo?.streamContent || '';
+                            parsedResult = PythonReprParser.parse(content);
+
+                            const entry = HistoryManager.add(interfaceName, envelope, frames, parsedResult);
+
+                            if (parsedResult) {
+                                TreeRenderer.render(parsedResult, document.getElementById('treeContainer'), entry.id, entry.interfaceName);
+                            } else {
+                                document.getElementById('treeContainer').innerHTML =
+                                    '<div class="tree-empty">Failed to parse streamContent. View raw content in Stream Frames.</div>';
+                            }
+
+                            setTimeout(() => WebSocketClient.close(), 1000);
+                        } else if (streamType === 'final_error') {
+                            HistoryManager.add(interfaceName, envelope, frames, null);
+                            setTimeout(() => WebSocketClient.close(), 1000);
+                        }
+                    },
+                    (status, text) => {
+                        document.getElementById('statusDot').className = `status-dot ${status}`;
+                        document.getElementById('statusText').textContent = text;
+                        if (status === 'error') {
+                            ResponseRenderer.showError('Connection error. Check console for details.');
+                        }
+                    }
+                );
+            } catch (e) {
+                ResponseRenderer.showError(e.message);
+            }
+        }
+
+        return { init };
+    })();
+
+    document.addEventListener('DOMContentLoaded', MainController.init);
+</script>
+
+</body> </html>
