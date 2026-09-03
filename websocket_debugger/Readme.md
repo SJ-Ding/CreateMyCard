@@ -1,5 +1,26 @@
 # WebSocket API Debugger - 设计文档与使用说明
 
+## 智能体多轮调试
+
+页面新增“智能体对话”模式。先在 `widget_service/.env` 设置
+`WIDGET_SERVICE_ENABLE_AGENT_DEBUGGER=true`，配置共享的 DeepSeek 官方 HTTP URL、API Key，并通过
+`WIDGET_SERVICE_AGENT_LLM_MODEL` 单独指定 Agent 模型。微服务模型继续由
+`WIDGET_SERVICE_DEEPSEEK_PLATFORM_HTTP_MODEL` 指定，两者可以使用不同模型，
+再启动 `cloud/start_websocket_server.py`。智能体连接
+`/api/v1/ws/agent/chat`，服务端负责会话、Skill 渐进加载、权限模拟和编辑链；浏览器仍会通过独立
+WebSocket 实际调用三个既有云接口。
+
+智能体模式仅接受本机和 `file://` 页面连接。普通对话气泡不会显示内部产物地址。页面顶部的“接口调用
+路径”同时显示手工接口历史和智能体产生的三个云接口节点；点击智能体节点可查看请求参数与响应，修改业务
+参数后点击“从此节点重放”，会从该工具调用前的会话快照创建新分支并继续对话。Skill 加载内容、重复的
+调用/结果块以及 WebSocket 原始帧不会显示在节点详情中，手工接口节点只读。刷新页面会尝试在服务端 TTL
+内恢复当前会话；“新建会话”会清除这条调试上下文。
+
+点击任一已完成的 Agent 节点还会同步切换聊天区和服务端多轮上下文。父节点只显示并恢复到自身为止的
+消息，不混入任何子分支；随后发送的新需求会从所选节点继续形成新路径。执行中的轮次需先停止或等待完成。
+
+连续编辑还需设置 `WIDGET_SERVICE_ENABLE_WIDGET_EDIT=true`，修改后重启本地服务。
+
 ## 1. 项目概述
 
 ### 1.1 项目定位

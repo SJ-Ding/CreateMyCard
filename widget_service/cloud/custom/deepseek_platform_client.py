@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import httpx
 import websockets
 
 from app.logger import logger
@@ -23,7 +24,7 @@ TimestampProvider = Callable[[], int]
 
 
 class DeepSeekPlatformClient:
-    """使用 DeepSeek Platform WebSocket 协议生成完整模型文本。"""
+    """按配置使用 DeepSeek 官方 HTTP 或原 Platform WebSocket 生成文本。"""
 
     def __init__(
             self,
@@ -31,18 +32,30 @@ class DeepSeekPlatformClient:
             *,
             secret_loader: SecretLoader | None = None,
             timestamp_provider: TimestampProvider | None = None,
+            http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self.settings = settings
         self._secret_loader = secret_loader or sts_config.get_sts_config
         self._timestamp_provider = timestamp_provider or self._current_timestamp_ms
+        self._http_client = http_client
 
     async def generate(
             self,
             messages: list[dict[str, str]],
             request_context: ModelRequestContext,
     ) -> str:
-        """发送一次非工具调用请求，并返回 finalText 内容。"""
+        """通过配置选择的传输方式发送请求并返回完整文本。"""
         self._validate_configuration()
+        if self.settings.deepseek_platform_transport == "http":
+            return await self._generate_http(messages)
+        return await self._generate_websocket(messages, request_context)
+
+    async def _generate_websocket(
+            self,
+            messages: list[dict[str, str]],
+            request_context: ModelRequestContext,
+    ) -> str:
+        """使用原 Platform WebSocket 协议生成完整模型文本。"""
         headers = self._build_headers(request_context)
         body = self._build_body(messages, request_context)
         partial_texts: list[str] = []
@@ -114,11 +127,181 @@ class DeepSeekPlatformClient:
             partial_output="".join(partial_texts),
         )
 
+    async def _generate_http(self, messages: list[dict[str, str]]) -> str:
+        """调用 DeepSeek 官方非流式 Chat Completions HTTP 接口。"""
+        request_body = self._build_http_body(messages)
+        headers = {
+            "Authorization": (
+                f"Bearer {self.settings.deepseek_platform_http_api_key}"
+            ),
+            "Content-Type": "application/json",
+        }
+        started_at = time.perf_counter()
+        try:
+            response = await self._post_http(request_body, headers)
+            response_data = self._decode_http_response(response)
+            self._raise_for_http_error(response, response_data)
+            final_text, usage = self._extract_http_result(response_data)
+            self._log_http_metrics(started_at, final_text, usage)
+            return final_text
+        except ModelTransportError:
+            raise
+        except httpx.TimeoutException as exc:
+            self._log_http_error("request_timeout", exc)
+            raise ModelTransportError(
+                "DeepSeek official HTTP request timed out",
+                code="MODEL_REQUEST_TIMEOUT",
+            ) from exc
+        except httpx.RequestError as exc:
+            self._log_http_error("request_failed", exc)
+            raise ModelTransportError(
+                "DeepSeek official HTTP request failed",
+            ) from exc
+        except Exception as exc:
+            self._log_http_error("unexpected_error", exc)
+            raise ModelTransportError(
+                "DeepSeek official HTTP request failed",
+            ) from exc
+
+    async def _post_http(
+            self,
+            request_body: dict[str, Any],
+            headers: dict[str, str],
+    ) -> httpx.Response:
+        request_url = self.settings.deepseek_platform_http_url
+        if self._http_client is not None:
+            return await self._http_client.post(
+                request_url,
+                json=request_body,
+                headers=headers,
+            )
+        async with httpx.AsyncClient(
+                timeout=self.settings.model_request_timeout_seconds,
+                trust_env=False,
+        ) as http_client:
+            return await http_client.post(
+                request_url,
+                json=request_body,
+                headers=headers,
+            )
+
+    def _build_http_body(
+            self,
+            messages: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        thinking_type = (
+            "enabled" if self.settings.deepseek_enable_thinking else "disabled"
+        )
+        return {
+            "model": self.settings.deepseek_platform_http_model,
+            "messages": [dict(message) for message in messages],
+            "stream": False,
+            "temperature": self.settings.deepseek_temperature,
+            "top_p": self.settings.deepseek_top_p,
+            "max_tokens": self.settings.deepseek_max_tokens,
+            "thinking": {"type": thinking_type},
+        }
+
+    @staticmethod
+    def _decode_http_response(response: httpx.Response) -> dict[str, Any]:
+        try:
+            response_data = response.json()
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ModelTransportError(
+                "DeepSeek official HTTP returned invalid JSON",
+                code=str(response.status_code),
+            ) from exc
+        if not isinstance(response_data, dict):
+            raise ModelTransportError(
+                "DeepSeek official HTTP returned an invalid response shape",
+                code=str(response.status_code),
+            )
+        return response_data
+
+    @staticmethod
+    def _raise_for_http_error(
+            response: httpx.Response,
+            response_data: dict[str, Any],
+    ) -> None:
+        if not response.is_error:
+            return
+        error = response_data.get("error")
+        error_data = error if isinstance(error, dict) else {}
+        error_code = error_data.get("code") or response.status_code
+        error_message = error_data.get("message") or response.reason_phrase
+        raise ModelTransportError(
+            "DeepSeek official HTTP returned error: "
+            f"code={error_code}, message={error_message}",
+            code=str(error_code),
+        )
+
+    @staticmethod
+    def _extract_http_result(
+            response_data: dict[str, Any],
+    ) -> tuple[str, dict[str, Any]]:
+        choices = response_data.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise ModelTransportError(
+                "DeepSeek official HTTP response has no choices",
+                code="MODEL_EMPTY_OUTPUT",
+            )
+        first_choice = choices[0]
+        if not isinstance(first_choice, dict):
+            raise ModelTransportError(
+                "DeepSeek official HTTP returned an invalid choice",
+                code="MODEL_EMPTY_OUTPUT",
+            )
+        message = first_choice.get("message")
+        message_data = message if isinstance(message, dict) else {}
+        content = message_data.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise ModelTransportError(
+                "DeepSeek official HTTP returned empty content",
+                code="MODEL_EMPTY_OUTPUT",
+            )
+        usage = response_data.get("usage")
+        usage_data = usage if isinstance(usage, dict) else {}
+        return content, usage_data
+
+    @staticmethod
+    def _log_http_metrics(
+            started_at: float,
+            final_text: str,
+            usage: dict[str, Any],
+    ) -> None:
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        logger.info(
+            f"{_MODULE} http_metrics "
+            f"duration_ms={duration_ms}ms "
+            f"input_tokens={usage.get('prompt_tokens')} "
+            f"completion_tokens={usage.get('completion_tokens')} "
+            f"total_tokens={usage.get('total_tokens')} "
+            f"output_length={len(final_text)}"
+        )
+
+    @staticmethod
+    def _log_http_error(event: str, exc: Exception) -> None:
+        logger.error(
+            f"{_MODULE} http_{event} exception_type={type(exc).__name__} "
+            f"exception={exc!r}"
+        )
+
     def _validate_configuration(self) -> None:
+        if self.settings.deepseek_platform_transport == "http":
+            self._validate_http_configuration()
+            return
         if not self.settings.deepseek_platform_access_key.strip():
             raise ModelTransportError("DeepSeek Platform access key is not configured")
         if not self.settings.deepseek_platform_ws_url.strip():
             raise ModelTransportError("DeepSeek Platform WebSocket URL is not configured")
+
+    def _validate_http_configuration(self) -> None:
+        if not self.settings.deepseek_platform_http_api_key.strip():
+            raise ModelTransportError("DeepSeek official HTTP API key is not configured")
+        if not self.settings.deepseek_platform_http_url.strip():
+            raise ModelTransportError("DeepSeek official HTTP URL is not configured")
+        if not self.settings.deepseek_platform_http_model.strip():
+            raise ModelTransportError("DeepSeek official HTTP model is not configured")
 
     def _build_headers(
             self,

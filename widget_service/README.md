@@ -54,21 +54,28 @@ The service follows `docs/AGENTS.md`:
   `cloud/custom/llmclient.py` as fallback by default. Configure them with `WIDGET_SERVICE_OPENAI_MASTER_CLIENT` and
   `WIDGET_SERVICE_OPENAI_FALLBACK_CLIENT`, and control fallback with `WIDGET_SERVICE_ENABLE_OPENAI_FALLBACK`; tool
   callers cannot select a backend or physical client directly.
-- DeepSeek Platform reads its SK only from the STS key configured by
-  `WIDGET_SERVICE_DEEPSEEK_PLATFORM_SECRET_KEY_STS_CONFIG_KEY`, whose default is
-  `genui.deepseek.platform.secret.key`. Its remaining static request fields use the
-  `WIDGET_SERVICE_DEEPSEEK_PLATFORM_*` settings; session, interaction, device, country, App version, and App name
-  prefer the current WebSocket request context.
+- DeepSeek Platform 默认保留原 WebSocket 传输。设置
+  `WIDGET_SERVICE_DEEPSEEK_PLATFORM_TRANSPORT=http` 可选择官方非流式 Chat Completions HTTP 接口；同时配置
+  `WIDGET_SERVICE_DEEPSEEK_PLATFORM_HTTP_URL`、`WIDGET_SERVICE_DEEPSEEK_PLATFORM_HTTP_MODEL`，以及
+  `WIDGET_SERVICE_DEEPSEEK_PLATFORM_HTTP_API_KEY` 或官方标准环境变量 `DEEPSEEK_API_KEY`。WebSocket 模式
+  继续只从 `WIDGET_SERVICE_DEEPSEEK_PLATFORM_SECRET_KEY_STS_CONFIG_KEY` 指定的 STS 配置读取 SK；会话、交互、
+  设备、国家码、App 版本和 App 名优先使用当前请求上下文。
+- 本机接口调试器可通过 `WIDGET_SERVICE_ENABLE_AGENT_DEBUGGER=true` 开启
+  `/api/v1/ws/agent/chat`。该接口与微服务共享 DeepSeek HTTP URL 和 API Key，但使用独立的
+  `WIDGET_SERVICE_AGENT_LLM_MODEL` 及 `WIDGET_SERVICE_AGENT_LLM_*` 推理参数；微服务仍使用
+  `WIDGET_SERVICE_DEEPSEEK_PLATFORM_HTTP_MODEL`。因此可以用同一账号分别配置 Agent 编排模型和
+  A2UI 微服务生成模型。该接口
+  只接受本机或 `file://` 调试页连接；会话保存在进程内存中，默认 30 分钟过期。它不会改变三个
+  正式工具接口，浏览器仍会实际调用它们。Skill 根目录由 `WIDGET_SERVICE_AGENT_SKILL_ROOT` 指定，
+  默认是仓库同级的 `skills` 目录。
 - The llmclient WebSocket request is configured by the `WIDGET_SERVICE_DEEPSEEK_*` settings in `.env.example`,
   covering credentials, endpoint, model/user/request identifiers, sampling, maximum tokens, thinking/usage flags,
   and receive timeout. These fields have defaults matching the client behavior before configuration extraction.
-- All real model calls share one application-lifetime runtime and one process-level concurrency limit. MEP uses a
-  shared async `httpx.AsyncClient`, DeepSeek Platform uses async WebSocket, and the unchanged synchronous llmclient
-  runs in a dedicated executor. Configure the
-  shared limit with `WIDGET_SERVICE_MODEL_MAX_CONCURRENCY`, queue timeout with
-  `WIDGET_SERVICE_MODEL_QUEUE_TIMEOUT_SECONDS`, and execution timeout with
-  `WIDGET_SERVICE_MODEL_REQUEST_TIMEOUT_SECONDS`. Queue waits are coroutine waits and do not occupy worker threads.
-  A timed-out llmclient call retains its permit until the underlying synchronous call actually finishes.
+- 所有真实模型调用共享应用生命周期运行时和进程级并发限制。MEP 使用共享异步 `httpx.AsyncClient`，
+  DeepSeek Platform 使用配置选择的异步 HTTP/WebSocket 传输，原同步 llmclient 继续在专用执行器中运行。
+  `WIDGET_SERVICE_MODEL_MAX_CONCURRENCY` 配置共享并发限制，`WIDGET_SERVICE_MODEL_QUEUE_TIMEOUT_SECONDS`
+  配置排队超时，`WIDGET_SERVICE_MODEL_REQUEST_TIMEOUT_SECONDS` 配置执行超时。排队等待不占用工作线程；
+  llmclient 调用超时后仍持有许可，直到底层同步调用实际结束。
 - If MEP ends a Design request with `6241/Early stop due to aborted` after emitting a non-empty candidate, the
   candidate continues through the strict Design converter and validation flow. Empty output and non-Design requests
   remain model failures.

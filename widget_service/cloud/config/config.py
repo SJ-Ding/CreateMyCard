@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_APP_VERSION = ".".join(("11", "7", "5", "205"))
@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     openai_master_client: Literal["deepseek_platform", "llmclient"] = "deepseek_platform"
     openai_fallback_client: Literal["deepseek_platform", "llmclient"] = "llmclient"
     enable_openai_fallback: bool = True
-    # DeepSeek Platform 使用 STS 中的 SK 签名；普通配置中只保存 AK 和 STS key 名。
+    # WebSocket 使用 STS 中的 SK 签名；官方 HTTP 使用独立 API Key。
+    deepseek_platform_transport: Literal["websocket", "http"] = "websocket"
     deepseek_platform_access_key: str = ""
     deepseek_platform_secret_key_sts_config_key: str = "genui.deepseek.platform.secret.key"
     deepseek_platform_ws_url: str = ""
@@ -62,6 +63,31 @@ class Settings(BaseSettings):
     deepseek_platform_message_name: str = "llmRecognize"
     deepseek_platform_default_country_code: str = "CN"
     deepseek_platform_default_app_name: str = "com.huawei.hmos.vassistant"
+    deepseek_platform_http_url: str = "https://api.deepseek.com/chat/completions"
+    deepseek_platform_http_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "deepseek_platform_http_api_key",
+            "WIDGET_SERVICE_DEEPSEEK_PLATFORM_HTTP_API_KEY",
+            "DEEPSEEK_API_KEY",
+        ),
+    )
+    deepseek_platform_http_model: str = "deepseek-v4-flash"
+    enable_agent_debugger: bool = False
+    agent_llm_model: str = "deepseek-v4-pro"
+    agent_llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    agent_llm_top_p: float = Field(default=0.9, ge=0.0, le=1.0)
+    agent_llm_max_tokens: int = Field(default=16_384, ge=1)
+    agent_llm_enable_thinking: bool = False
+    agent_llm_request_timeout_seconds: float = Field(default=120.0, gt=0.0)
+    agent_skill_root: str = "skills"
+    agent_session_ttl_seconds: int = Field(default=1800, ge=60, le=86400)
+    agent_max_sessions: int = Field(default=100, ge=1, le=1000)
+    agent_max_model_steps: int = Field(default=12, ge=1, le=50)
+    agent_max_tool_calls: int = Field(default=8, ge=1, le=50)
+    agent_tool_result_timeout_seconds: float = Field(default=180.0, gt=0.0, le=900.0)
+    agent_user_message_max_chars: int = Field(default=16 * 1024, ge=1, le=1024 * 1024)
+    agent_tool_result_max_bytes: int = Field(default=2 * 1024 * 1024, ge=1024, le=16 * 1024 * 1024)
     # llmclient 使用的 DeepSeek 兼容 WebSocket 请求参数；默认值保持原客户端行为。
     deepseek_api_key: str = "AccessService"
     deepseek_model: str = "deepseek-ai/DeepSeek-V4-Flash"
@@ -176,6 +202,11 @@ class Settings(BaseSettings):
     def resolved_repair_system_prompt_file(self) -> Path:
         """获取校验错误修复提示词文件路径。"""
         return self._resolve_repository_file(self.repair_system_prompt_file)
+
+    @property
+    def resolved_agent_skill_root(self) -> Path:
+        """返回调试智能体允许读取的 Skill 根目录。"""
+        return self._resolve_repository_file(self.agent_skill_root)
 
     @property
     def system_prompt(self) -> str:

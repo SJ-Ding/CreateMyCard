@@ -375,18 +375,65 @@
     /* Hidden utility - MUST be last */
     .hidden { display: none !important; }
 </style>
+<link rel="stylesheet" href="agent-debugger.css">
 
 </head> <body> <div class="container"> <header> <div class="header-top"> <h1>WebSocket API Debugger</h1> <div class="status-indicator"> <span class="status-dot ready" id="statusDot"></span> <span id="statusText">Ready</span> </div> </div> <div class="server-url"> <label>Server URL:</label> <input type="text" id="serverUrl" value="ws://127.0.0.1:8855"> </div> </header>
 
+    <div id="agentModeBar">
+        <button id="manualModeButton" class="mode-button active" type="button">接口调试</button>
+        <button id="agentModeButton" class="mode-button" type="button">智能体对话</button>
+    </div>
+
+    <section id="agentFlowPanel" class="flow-panel">
+        <div class="agent-panel-header">
+            <span>接口调用路径</span>
+            <span class="flow-hint">点击节点查看请求与响应；分支表示从历史节点重放</span>
+        </div>
+        <div id="agentFlowCanvas" class="flow-canvas">
+            <div class="flow-empty">暂无接口调用</div>
+        </div>
+    </section>
+
+    <div id="agentDebugger" class="hidden-mode">
+        <section class="agent-panel">
+            <div class="agent-panel-header">
+                <span>智能体对话</span>
+                <span id="agentSessionStatus" class="agent-session-status">未连接</span>
+            </div>
+            <div id="agentMessages" class="agent-messages"></div>
+            <div class="agent-composer">
+                <textarea id="agentInput" placeholder="输入卡片需求；Ctrl+Enter 发送"></textarea>
+                <div class="agent-actions">
+                    <button id="agentResetBtn" class="btn-secondary" type="button">新建会话</button>
+                    <button id="agentStopBtn" class="btn-outline" type="button" disabled>停止</button>
+                    <button id="agentSendBtn" class="btn-primary" type="button">发送</button>
+                </div>
+            </div>
+        </section>
+        <section class="agent-panel node-detail-panel">
+            <div class="agent-panel-header"><span>节点详情</span><span id="agentNodeStatus">未选择节点</span></div>
+            <div id="agentNodeEmpty" class="node-empty">请点击上方路径中的接口节点。</div>
+            <div id="agentNodeDetail" class="node-detail hidden-mode">
+                <label for="agentNodeRequest">调用参数（可编辑）</label>
+                <textarea id="agentNodeRequest" spellcheck="false"></textarea>
+                <div class="node-detail-actions">
+                    <button id="agentReplayBtn" class="btn-primary" type="button">从此节点重放</button>
+                </div>
+                <label for="agentNodeResponse">接口响应</label>
+                <pre id="agentNodeResponse"></pre>
+            </div>
+        </section>
+    </div>
+
     <!-- API Tabs -->
-    <div class="api-tabs" id="apiTabs">
+    <div class="api-tabs manual-debugger" id="apiTabs">
         <div class="api-tab active" data-api="getWidgetCapabilityOverview">getWidgetCapabilityOverview</div>
         <div class="api-tab" data-api="getDataCapabilitySchemas">getDataCapabilitySchemas</div>
         <div class="api-tab" data-api="generateWidgetCardCompactDsl">generateWidgetCardCompactDsl</div>
     </div>
 
     <!-- History Bar -->
-    <div class="history-bar" id="historyBar">
+    <div class="history-bar manual-debugger" id="historyBar">
         <div class="history-section">
             <span class="history-bar-label">当前接口历史:</span>
             <span class="history-empty" id="currentHistoryEmpty">暂无记录</span>
@@ -400,7 +447,7 @@
         <button class="history-clear" id="clearHistoryBtn">清空历史</button>
     </div>
 
-    <div class="main-content">
+    <div class="main-content manual-debugger">
         <!-- Left Panel -->
         <div class="panel">
             <div class="panel-header">Request Configuration</div>
@@ -3085,5 +3132,6 @@
 
     document.addEventListener('DOMContentLoaded', MainController.init);
 </script>
+<script src="agent-debugger.js" defer></script>
 
 </body> </html>

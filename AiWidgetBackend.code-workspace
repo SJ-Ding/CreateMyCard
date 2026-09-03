@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "widget_service",
+			"name": "backend"
+		},
+		{
+			"path": "websocket_debugger"
+		},
+		{
+			"path": "skills"
+		}
+	],
+	"settings": {
+		
+	}
+}

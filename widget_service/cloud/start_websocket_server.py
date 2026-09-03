@@ -7,11 +7,13 @@ import uvicorn
 from anyio import to_thread
 from fastapi import FastAPI, Request, Response
 
+from api.agent_routes import router as agent_router
 from api.routes import router
 from app.logger import logger
 from app.websocket_metrics import report_websocket_metrics, websocket_metrics
 from config.config import get_settings
 from custom.model_runtime import ModelExecutionRuntime
+from services.agent_debugger.runtime import AgentRuntime
 
 _MODULE = "[Main]"
 
@@ -35,11 +37,13 @@ def create_app() -> FastAPI:
     入参：无。
     出参：配置好路由和日志中间件的 FastAPI 应用。
     """
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         configure_anyio_thread_pool()
         model_runtime = ModelExecutionRuntime()
         _app.state.model_runtime = model_runtime
+        _app.state.agent_runtime = AgentRuntime(get_settings())
         """启动并回收 WebSocket 全局统计打印任务。"""
         reporter = asyncio.create_task(report_websocket_metrics(websocket_metrics))
         try:
@@ -49,6 +53,8 @@ def create_app() -> FastAPI:
             with suppress(asyncio.CancelledError):
                 await reporter
             await model_runtime.aclose()
+            await _app.state.agent_runtime.close()
+
     fastapi_app = FastAPI(
         title="Widget Service",
         version="0.1.0",
@@ -56,6 +62,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     fastapi_app.include_router(router)
+    fastapi_app.include_router(agent_router)
 
     @fastapi_app.middleware("http")
     async def request_logging_middleware(request: Request, call_next) -> Response:
