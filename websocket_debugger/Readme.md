@@ -305,7 +305,13 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 
 从 Schema 构建 `candidateDataBindings` 时：
 - `arguments`：必填字段使用默认占位值（string → `"请输入"`，integer → `0`，boolean → `false`），优先使用 `sampleValue`
-- `candidateOutputFields`：从 `outputSchema` 提取所有叶子节点路径（如 `/location/districtName`、`/current/temperatureText`）
+- `candidateOutputFields`：完整选择 `outputSchema` 时递归提取全部叶子节点路径；按属性选择时只从已选
+  `properties` 分支提取。数组默认生成 1 个元素路径；可在 Parsed Result 的数组 Schema 节点设置
+  1～100 个元素，数量 `N` 会生成下标 `/0`～`/(N-1)`（如数量 4 生成
+  `/daily/0/date`～`/daily/3/date`），嵌套数组分别设置并递归组合
+- 数组数量只控制候选输出路径，不会自动修改输入参数，也不保证运行时一定返回相同数量的元素
+- 单个能力展开后的候选输出路径最多 5,000 条；超过时会提示缩小一个或多个数组的 `Items`，避免嵌套
+  数组的乘积使页面失去响应
 - `writeResultTo`：直接取自 `defaultWriteResultTo`
 
 ---
@@ -340,6 +346,7 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 - 三个接口以 Tab 按钮形式展示，替代传统的下拉框选择
 - 切换接口时自动保存当前表单状态，返回时还原
 - Tab 底部蓝色边框指示当前激活的接口
+- Interface-Specific Parameters 中的必填文本参数未输入时，在预览或发送请求前使用其提示内容填充
 
 ### 5.3 History Bar（历史记录）
 
@@ -348,9 +355,11 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 - **当前接口历史**：显示当前选中接口的请求记录，点击直接加载该请求的响应到右侧面板
 - **其他接口历史**：显示其他接口的请求记录，黄色背景带 `⤴` 符号标识，点击后：
   1. 在 Response 面板中显示该历史记录的完整响应
-  2. 出现 Transfer Banner 提示用户可以选择字段并推送
-  3. 用户通过 Parsed Result 选择字段 → Build JSON 构建 → Apply to Form 推送到当前接口表单
-- **发送新请求**：发送前取消当前加载记录及其已选字段的引用；服务端完成响应后，自动激活本次新产生的测试记录
+  2. 用户可通过 Parsed Result 选择字段 → Build JSON 构建 → Apply to Form 推送到当前接口表单
+- **发送新请求**：保留当前 Parsed Result 的字段选择、数组数量和 Built JSON，并让新请求记录关联其来源；
+  服务端完成响应后自动激活本次新记录
+- **失败后回改**：若关联来源的新请求失败，Response 顶部显示恢复提示。点击 **Edit source selection** 可返回
+  原 Parsed Result，复选框和 `Items` 数量保持发送前状态，可修改后重新构建、Apply to Form 并再次发送
 
 ### 5.4 Response 面板的三个 Tab
 
@@ -363,26 +372,34 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 - 将 `streamContent` 中的 Python repr 格式解析为 JSON 并渲染为可交互的树形结构
 - **关键词搜索**：顶部搜索框支持按关键词过滤和高亮节点
 - **多选能力**：每个节点带复选框，支持父子联动选择
+- **数组元素数量**：`getDataCapabilitySchemas` 的 `outputSchema` 数组节点提供 `Items` 数字框，默认 1、
+  范围 1～100；填写 4 表示生成下标 0～3。嵌套数组可分别设置，搜索或折叠树后仍保留配置
 - 深层节点自动折叠，大型数组（>5项）默认收起
 
 #### Build JSON（构建JSON）
-- **Selected Items**：展示所有已选字段，支持逐个删除。
-  - **Clear selected**：只移除累加的历史选择，保留当前 Parsed Result 中仍勾选的条目及其勾选状态。
-  - **Restore parsed selections**：将当前 Parsed Result 中勾选的条目重新添加至此列表。
-  - 上述两项操作均不会删除已构建的 JSON。
+- **Selected Items**：按“返回集合 → 能力/事件/素材条目 → 已选分支”树状展示；条目优先使用 `id`、
+  `key`、`name` 等业务标识，并补充类型、描述、示例值、必填状态及数组数量，不再逐项重复请求编号。
+  父分支产生的内部选择会压缩成一个可读节点，删除该节点会同步取消整条实际选择分支。列表和 Quick
+  Build 始终只处理当前加载的 Parsed Result；切换历史后会显示该历史各自保留的选择
+  - **Clear selected**：清除当前 Parsed Result 的选择和复选框状态，保留 Built JSON 与数组数量
 - **Quick Build**：根据选中内容智能生成结构化 JSON
-  - 列表元素中的叶子节点会提升为最小父对象参与构建。例如选择 `dataCapabilities.1.id` 时，会使用包含 `id` 与 `description` 的完整能力项。
+  - 普通列表元素中的叶子节点会提升为最小父对象参与构建。例如选择 `dataCapabilities.1.id` 时，会使用包含 `id` 与 `description` 的完整能力项。
+  - `getDataCapabilitySchemas` 的 `inputSchema/outputSchema.properties` 支持按属性选择。选择属性内部字段时
+    只提升到该属性定义，不会自动选中整个能力项；复选框同步展示实际参与构建的属性分支。
+  - 选中任意 `dataCapabilities[]` 能力内容时，其 `inputSchema.required` 声明的属性会自动参与构建；
+    作为其它选择的必填依赖时，属性复选框显示为 `required` 并锁定，取消该能力的其它选择后自动解除。
+  - 手动构建 `candidateDataBindings` 时，`arguments` 和 `candidateOutputFields` 只使用选中的 Schema 属性，
+    并自动补充能力 ID、写入路径及必要的 Schema 上下文。
   - `Build dataCapabilityIds` — 从选中能力所在的完整列表元素提取 ID，符合 Schema 查询接口的入参格式。
   - `Build candidateAssetIds` — 从选中素材所在的完整列表元素提取 ID。
   - `Build candidateEventCandidates` — 从选中事件所在的完整列表元素构建事件候选。
   - `Build candidateDataBindings` — 从选中 Schema 所在的完整列表元素构建完整绑定结构。
-  - `Build All as JSON` — 按原始层级构建 JSON 子集：选中数组项保持为数组元素，未选中的同级数组保留为空数组，不会产生 `"[1]"` 这类对象键。
+  - `Build Selected as JSON` — 按原始层级构建 JSON 子集：选中数组项保持为数组元素，未选中的同级数组保留为空数组，不会产生 `"[1]"` 这类对象键。
   - 未选择字段时不显示无效的构建操作，提示先在 Parsed Result 中选择字段
-- **Quick Transfer**：跨接口查看历史时出现，一键智能构建转换数据
 - **Built JSON**：可编辑的 JSON 文本区域，支持手动调整
 - **Apply to Form**：将构建的 JSON 推送到当前接口的表单字段，并保持在 Build JSON 视图
 - **Copy JSON**：复制到剪贴板
-- **Clear**：同时清空 Selected Items、Parsed Result 勾选状态与 Built JSON；如只需移除累加的历史选择，应使用 **Clear selected**
+- **Clear**：清空当前 Parsed Result 的选择、数组数量与 Built JSON；只需清除选择时使用 **Clear selected**
 
 ### 5.5 跨接口数据传递流程
 
@@ -392,9 +409,8 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 步骤1: 在 getWidgetCapabilityOverview 接口发送请求，获得能力概览
 步骤2: 切换到 getDataCapabilitySchemas 接口
 步骤3: 点击"其他接口历史"中的 Overview 历史记录
-步骤4: Response 面板显示该历史的结果，出现 Transfer Banner
-步骤5: 方式一：点击 Quick Transfer 按钮自动构建 dataCapabilityIds
-       方式二：在 Parsed Result 中手动勾选需要的能力ID
+步骤4: Response 面板显示该历史的结果
+步骤5: 在 Parsed Result 中手动勾选需要的能力ID并构建 dataCapabilityIds
 步骤6: 在 Build JSON 中确认/编辑构建结果
 步骤7: 点击 "Apply to Form" 推送到左侧表单
 步骤8: 补充/修改参数后发送请求
@@ -404,7 +420,9 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 - 点击其他接口历史时**不会自动推送数据**，而是先展示结果让用户选择
 - 表单状态在接口切换时自动保存和恢复
 - Apply to Form 在跨接口模式下**不会切换接口**，只填充当前接口的表单字段
-- 点击 Send Request 后会解除此前历史记录的关联，并切换到 Stream Frames 显示本次响应；最终响应会作为新的当前测试记录
+- 点击 Send Request 后会切换到 Stream Frames 显示本次响应，同时保留并关联来源 Parsed Result；新请求处理中、
+  成功或失败后均可通过 Response 顶部的 **Edit source selection** 返回来源继续调整
+- 请求表单校验会在切换响应视图前执行；若 JSON 格式或必填参数不合法，仍停留在当前 Parsed Result，不会丢失编辑上下文
 
 ### 5.6 Preview JSON（请求预览）
 
@@ -429,9 +447,12 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 │ History  │ Selection │ TreeRdr   │ BuildMgr      │
 │ Manager  │ Manager   │           │               │
 │ 历史记录  │ 选择管理   │ 树形渲染  │ JSON构建      │
-├──────────┼───────────┼───────────┼───────────────┤
-│ DataTransfer        │ PythonReprParser           │
-│ 跨接口数据转换       │ Python repr → JSON 解析    │
+├──────────────────────┬───────────────────────────┤
+│ SchemaBuilder        │ ArrayExpansionManager     │
+│ 参数与输出路径构建     │ 数组数量与展开状态          │
+├──────────────────────┴───────────────────────────┤
+│ PythonReprParser                                  │
+│ Python repr → JSON 解析                           │
 └─────────────────────┴────────────────────────────┘
 ```
 
@@ -443,12 +464,13 @@ getWidgetCapabilityOverview  →  getDataCapabilitySchemas  →  generateWidgetC
 | **PythonReprParser** | 将服务端返回的 Python repr 格式字符串解析为 JSON 对象，使用状态机处理单/双引号、转义字符、Python 布尔值/None |
 | **FormManager** | 管理三个接口的表单定义、渲染、数据收集、状态保存/恢复 |
 | **WebSocketClient** | 封装 WebSocket 连接生命周期（连接、发送、接收、关闭） |
-| **HistoryManager** | 管理请求历史记录，分当前接口和其他接口渲染，处理跨接口查看 |
+| **HistoryManager** | 管理请求历史记录及其来源关联，分当前接口和其他接口渲染，处理跨接口查看与失败后回改 |
 | **SelectionManager** | 管理 Parsed Result 中的多选状态 |
 | **TreeRenderer** | 将 JSON 对象渲染为可折叠、可搜索、可选择的树形结构 |
-| **BuildManager** | 管理 Build JSON 面板，提供 Quick Build 和 Quick Transfer 功能 |
-| **DataTransfer** | 核心转换逻辑，根据源接口→目标接口的组合，智能构建可传递的数据结构 |
-| **ResponseRenderer** | 管理右侧 Response 面板的三个 Tab 视图 |
+| **BuildManager** | 管理 Build JSON 面板，按用户选择提供 JSON 构建功能 |
+| **SchemaBuilder** | 根据选中的输入、输出 Schema 构建参数占位值与输出字段路径 |
+| **ArrayExpansionManager** | 按请求和完整 Schema 路径保存数组元素数量，为嵌套数组构建独立下标 |
+| **ResponseRenderer** | 管理右侧 Response 面板的三个 Tab 视图及来源 Parsed Result 的恢复入口 |
 | **AppState** | 全局状态管理，跟踪当前选中的接口 |
 
 ---
@@ -501,11 +523,11 @@ websocket_test_from_gui/
 2. 在 Parsed Result 中查看返回的数据能力、事件能力、素材资源
 3. 切换到 `getDataCapabilitySchemas` Tab
 4. 点击"其他接口历史"中的 Overview 记录
-5. 点击 Quick Transfer 自动构建 `dataCapabilityIds`，或手动勾选需要的能力
+5. 手动勾选需要的能力并构建 `dataCapabilityIds`
 6. 点击 Apply to Form，参数自动填入表单
 7. 点击 Send 获取 Schema 详情
 8. 切换到 `generateWidgetCardCompactDsl` Tab
-9. 从 Schemas 历史中 Quick Transfer 构建 `candidateDataBindings`
+9. 从 Schemas 历史中选择所需字段并构建 `candidateDataBindings`
 10. 从 Overview 历史中选取素材和事件
 11. 填写 userQuery、title、description
 12. 点击 Send 生成卡片

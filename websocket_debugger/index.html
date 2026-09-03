@@ -59,8 +59,8 @@
     .history-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
     .history-pill .pill-id { font-weight: 600; }
     .history-pill .pill-time { font-size: 10px; opacity: 0.7; }
-    .history-pill.transfer { background: #fef3c7; border-color: #f59e0b; }
-    .history-pill.transfer::before { content: '⤴'; margin-right: 2px; }
+    .history-pill.other-interface { background: #fef3c7; border-color: #f59e0b; }
+    .history-pill.other-interface::before { content: '⤴'; margin-right: 2px; }
     .history-empty { color: #9ca3af; font-size: 12px; }
     .history-clear {
         align-self: flex-end; padding: 3px 10px; background: #fee2e2;
@@ -151,6 +151,7 @@
     .frame-type.partial { background: #fef3c7; color: #92400e; }
     .frame-type.final { background: #d1fae5; color: #065f46; }
     .frame-type.error { background: #fee2e2; color: #991b1b; }
+    .frame-type.unknown { background: #e5e7eb; color: #374151; }
     .frame-timestamp { color: #6b7280; font-size: 12px; }
     .frame-content { padding: 16px; }
     .frame-content pre, #parsedContent, #rawStreamContent {
@@ -165,18 +166,27 @@
         background: #fee2e2; border: 1px solid #fecaca; color: #991b1b;
         padding: 12px 16px; border-radius: 6px; margin-bottom: 16px;
     }
+    .source-recovery-banner {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; margin-bottom: 12px; padding: 10px 12px;
+        border: 1px solid #93c5fd; border-radius: 7px;
+        background: #eff6ff; color: #1e3a8a;
+    }
+    .source-recovery-banner.failed {
+        border-color: #fbbf24; background: #fffbeb; color: #92400e;
+    }
+    .source-recovery-copy { min-width: 0; }
+    .source-recovery-title { font-size: 12px; font-weight: 700; }
+    .source-recovery-detail {
+        margin-top: 2px; color: #475569; font-size: 11px; line-height: 1.35;
+    }
+    .source-recovery-action {
+        flex-shrink: 0; padding: 5px 9px; border: 1px solid #60a5fa;
+        border-radius: 5px; background: white; color: #1d4ed8;
+        cursor: pointer; font-size: 11px; font-weight: 600;
+    }
+    .source-recovery-action:hover { background: #dbeafe; }
 
-    /* Transfer Banner */
-    .transfer-banner {
-        background: #fef3c7; border: 1px solid #fbbf24; color: #92400e;
-        padding: 10px 16px; border-radius: 6px; margin-bottom: 12px;
-    }
-    .transfer-banner-content {
-        display: flex; align-items: center; gap: 8px; font-size: 13px;
-    }
-    .transfer-icon {
-        font-size: 16px; font-weight: bold;
-    }
     .required-badge { color: #ef4444; font-size: 12px; margin-left: 4px; }
     .info-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
 
@@ -198,7 +208,25 @@
     }
     .tree-toggle-spacer { width: 16px; }
     .tree-checkbox { margin: 0; cursor: pointer; flex-shrink: 0; }
+    .tree-checkbox:disabled { cursor: not-allowed; }
+    .tree-row.required-selection .tree-key::after {
+        content: ' required'; color: #dc2626; font-size: 10px; font-weight: 600;
+        margin-left: 5px;
+    }
     .tree-key { font-weight: 500; color: #2563eb; font-size: 13px; }
+    .array-expansion-control {
+        display: inline-flex; align-items: center; gap: 5px; margin-left: 8px;
+        padding: 2px 6px; border: 1px solid #bfdbfe; border-radius: 5px;
+        background: #eff6ff; color: #1e40af; font-size: 11px; white-space: nowrap;
+    }
+    .array-expansion-input {
+        width: 52px; padding: 1px 4px; border: 1px solid #93c5fd;
+        border-radius: 4px; background: white; color: #1f2937; font-size: 12px;
+    }
+    .array-expansion-input:focus {
+        outline: 2px solid #bfdbfe; border-color: #2563eb;
+    }
+    .array-expansion-hint { color: #64748b; }
     .tree-value {
         color: #059669; font-family: 'Courier New', monospace;
         font-size: 13px; word-break: break-all;
@@ -227,28 +255,73 @@
     }
     .selected-clear:hover:not(:disabled) { background: #fef2f2; }
     .selected-clear:disabled { color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
-    .selected-restore {
-        padding: 3px 8px; background: white; color: #1d4ed8;
-        border: 1px solid #bfdbfe; border-radius: 4px; cursor: pointer;
-        font-size: 12px;
-    }
-    .selected-restore:hover:not(:disabled) { background: #eff6ff; }
-    .selected-restore:disabled { color: #9ca3af; border-color: #e5e7eb; cursor: not-allowed; }
     .selected-items {
-        max-height: 250px; overflow-y: auto;
-        border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px;
+        max-height: 360px; overflow-y: auto; background: #f8fafc;
+        border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;
     }
-    .selected-item {
-        display: flex; align-items: center; gap: 8px;
-        padding: 4px 0; font-size: 13px;
+    .selected-group + .selected-group { margin-top: 12px; }
+    .selected-group-header {
+        display: flex; align-items: center; gap: 7px; margin-bottom: 7px;
+        color: #334155; font-size: 12px; font-weight: 700;
+        letter-spacing: 0.02em; text-transform: uppercase;
     }
-    .selected-item-source {
-        font-size: 11px; color: #6b7280; background: #f3f4f6;
-        padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+    .selected-group-count {
+        min-width: 20px; padding: 1px 6px; border-radius: 999px;
+        background: #e2e8f0; color: #475569; text-align: center;
+        font-size: 10px; font-weight: 600;
     }
-    .selected-item-path { color: #2563eb; font-family: monospace; font-size: 12px; word-break: break-all; }
-    .selected-item-value { color: #d97706; font-family: monospace; font-size: 12px; word-break: break-all; }
-    .selected-item-remove { cursor: pointer; color: #ef4444; font-weight: bold; margin-left: auto; flex-shrink: 0; }
+    .selected-entity {
+        margin-left: 6px; padding: 8px 8px 8px 13px;
+        border-left: 2px solid #93c5fd; background: white;
+    }
+    .selected-entity + .selected-entity { margin-top: 6px; }
+    .selected-entity-header { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    .selected-entity-id {
+        min-width: 0; color: #1e3a8a; font-size: 13px; font-weight: 700;
+        overflow-wrap: anywhere;
+    }
+    .selected-entity-description {
+        margin-top: 2px; color: #64748b; font-size: 11px; line-height: 1.35;
+        display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+        overflow: hidden;
+    }
+    .selected-required-note {
+        margin-top: 4px; color: #b45309; font-size: 10px; line-height: 1.35;
+    }
+    .selected-badge {
+        padding: 1px 5px; border-radius: 999px; background: #eef2ff;
+        color: #4338ca; font-size: 10px; white-space: nowrap;
+    }
+    .selected-badge.required { background: #fef2f2; color: #b91c1c; }
+    .selected-branches { margin-top: 6px; margin-left: 4px; }
+    .selected-branch {
+        display: grid; grid-template-columns: 10px minmax(0, 1fr) auto;
+        align-items: start; column-gap: 7px; padding: 5px 0;
+    }
+    .selected-branch + .selected-branch { border-top: 1px dashed #e2e8f0; }
+    .selected-branch-marker {
+        width: 7px; height: 7px; margin-top: 5px; border-radius: 50%;
+        background: #60a5fa; box-shadow: 0 0 0 3px #dbeafe;
+    }
+    .selected-branch-main { min-width: 0; }
+    .selected-branch-label {
+        color: #1f2937; font-size: 12px; font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+    .selected-branch-meta {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+        margin-top: 3px;
+    }
+    .selected-branch-summary {
+        color: #64748b; font-size: 11px; line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+    .selected-item-remove {
+        border: 0; border-radius: 4px; padding: 1px 6px; background: transparent;
+        color: #dc2626; cursor: pointer; font-size: 16px; line-height: 1.2;
+    }
+    .selected-item-remove:hover { background: #fef2f2; }
+    .selected-item-remove:focus-visible { outline: 2px solid #fecaca; }
     .selected-empty { color: #9ca3af; font-size: 14px; padding: 12px; text-align: center; }
     .quick-build-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
     .btn-quick-build {
@@ -422,12 +495,14 @@
         <div class="panel">
             <div class="panel-header">Response</div>
             <div id="errorBanner" class="error-banner hidden"></div>
-
-            <div id="transferBanner" class="transfer-banner hidden">
-                <div class="transfer-banner-content">
-                    <span class="transfer-icon">⤴</span>
-                    <span id="transferBannerText">Viewing history from another interface</span>
+            <div id="sourceRecoveryBanner" class="source-recovery-banner hidden" role="status">
+                <div class="source-recovery-copy">
+                    <div id="sourceRecoveryTitle" class="source-recovery-title"></div>
+                    <div id="sourceRecoveryDetail" class="source-recovery-detail"></div>
                 </div>
+                <button id="editSourceSelectionBtn" class="source-recovery-action" type="button">
+                    Edit source selection
+                </button>
             </div>
 
             <div class="response-tabs">
@@ -452,9 +527,6 @@
                     <div class="build-section-heading">
                         <div class="build-section-title">Selected Items (<span id="selectedCount">0</span>)</div>
                         <div class="build-section-actions">
-                            <button class="selected-restore" id="restoreParsedSelectionsBtn" type="button" disabled>
-                                Restore parsed selections
-                            </button>
                             <button class="selected-clear" id="clearSelectedBtn" type="button" disabled>
                                 Clear selected
                             </button>
@@ -469,10 +541,6 @@
                     <div class="quick-build-buttons" id="quickBuildButtons"></div>
                 </div>
 
-                <div class="build-section" id="quickTransferSection" style="display: none;">
-                    <div class="build-section-title">Quick Transfer (Smart Build):</div>
-                    <div class="quick-build-buttons" id="quickTransferButtons"></div>
-                </div>
                 <div class="build-section">
                     <div class="build-section-title">Built JSON:</div>
                     <textarea class="built-json" id="builtJson" placeholder="Built JSON will appear here. You can also edit manually."></textarea>
@@ -541,6 +609,20 @@
 
     function deepClone(obj) {
         return JSON.parse(JSON.stringify(obj));
+    }
+
+    const ARRAY_ITEM_COUNT_MIN = 1;
+    const ARRAY_ITEM_COUNT_MAX = 100;
+    const OUTPUT_FIELD_PATH_LIMIT = 5000;
+
+    function normalizeArrayItemCount(value) {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) return ARRAY_ITEM_COUNT_MIN;
+        const integerValue = Math.floor(numericValue);
+        return Math.min(
+            ARRAY_ITEM_COUNT_MAX,
+            Math.max(ARRAY_ITEM_COUNT_MIN, integerValue)
+        );
     }
 
     // ===== Config =====
@@ -746,6 +828,12 @@
                 const element = document.getElementById(field.id);
                 if (!element) return;
 
+                const supportsPlaceholder = field.type === 'text' || field.type === 'textarea';
+                const placeholder = (field.placeholder || '').trim();
+                if (field.required && supportsPlaceholder && !element.value.trim() && placeholder) {
+                    element.value = placeholder;
+                }
+
                 let value;
                 if (field.type === 'checkbox') {
                     value = element.checked;
@@ -845,11 +933,12 @@
         let currentId = null;
         let nextId = 1;
 
-        function add(interfaceName, request, frames, parsedResult) {
+        function add(interfaceName, request, frames, parsedResult, options = {}) {
             const id = nextId++;
             const entry = {
                 id, timestamp: formatTimestamp(), interfaceName,
                 request, frames: [...frames], parsedResult,
+                sourceHistoryId: options.sourceHistoryId || null,
                 rawStreamContent: frames.find(f =>
                     f.data?.reply?.streamInfo?.streamType === 'final'
                 )?.data?.reply?.streamInfo?.streamContent || ''
@@ -862,7 +951,6 @@
 
         function detachCurrent() {
             currentId = null;
-            hideTransferBanner();
             renderBar();
         }
 
@@ -875,19 +963,6 @@
             renderBar();
             ResponseRenderer.renderFromHistory(entry);
 
-            // Show transfer banner if viewing a different interface's history
-            const banner = document.getElementById('transferBanner');
-            const bannerText = document.getElementById('transferBannerText');
-            if (entry.interfaceName !== AppState.currentInterface) {
-                bannerText.textContent = `Viewing #${entry.id} from ${getShortName(entry.interfaceName)} → Select fields and use "Build JSON" then "Apply to Form" to push to ${getShortName(AppState.currentInterface)}`;
-                banner.classList.remove('hidden');
-            } else {
-                banner.classList.add('hidden');
-            }
-        }
-
-        function hideTransferBanner() {
-            document.getElementById('transferBanner').classList.add('hidden');
         }
 
         function getCurrent() {
@@ -904,7 +979,8 @@
             history = [];
             currentId = null;
             nextId = 1;
-            hideTransferBanner();
+            ArrayExpansionManager.clear();
+            SelectionManager.clear();
             renderBar();
             ResponseRenderer.clear();
         }
@@ -945,7 +1021,7 @@
             } else {
                 otherEmpty.classList.add('hidden');
                 otherPills.innerHTML = otherHistory.map(item => {
-                    return `<div class="history-pill transfer" data-id="${item.id}">
+                    return `<div class="history-pill other-interface" data-id="${item.id}">
                         <span class="pill-id">#${item.id}</span>
                         <span class="pill-time">${item.timestamp}</span>
                         <span class="pill-name" style="font-size:10px;opacity:0.8">${getShortName(item.interfaceName)}</span>
@@ -967,112 +1043,17 @@
         }
 
         return {
-            add, load, detachCurrent, getCurrent, getById, getAll, clear, setCurrentId, renderBar
+            add, load, detachCurrent, getCurrent, getById, getAll, clear,
+            setCurrentId, renderBar, getShortName
         };
     })();
 
-    // ===== Data Transfer Module =====
-    const DataTransfer = (() => {
-        /**
-         * Build transferable data from a history entry for a target interface.
-         */
-        function buildFromHistory(entry, targetInterface) {
-            const parsed = entry.parsedResult;
-            if (!parsed) return null;
-
-            const sourceInterface = entry.interfaceName;
-
-            // Overview → Schemas: extract dataCapabilityIds
-            if (sourceInterface === 'getWidgetCapabilityOverview' && targetInterface === 'getDataCapabilitySchemas') {
-                return buildOverviewToSchemas(parsed);
-            }
-
-            // Overview → CompactDsl: extract assets, events
-            if (sourceInterface === 'getWidgetCapabilityOverview' && targetInterface === 'generateWidgetCardCompactDsl') {
-                return buildOverviewToCompactDsl(parsed);
-            }
-
-            // Schemas → CompactDsl: extract data bindings with schemas
-            if (sourceInterface === 'getDataCapabilitySchemas' && targetInterface === 'generateWidgetCardCompactDsl') {
-                return buildSchemasToCompactDsl(parsed);
-            }
-
-            // Schemas → Overview: extract dataCapabilityIds
-            if (sourceInterface === 'getDataCapabilitySchemas' && targetInterface === 'getWidgetCapabilityOverview') {
-                return buildSchemasToOverview(parsed);
-            }
-
-            // CompactDsl → Overview or Schemas: limited transfer
-            if (sourceInterface === 'generateWidgetCardCompactDsl') {
-                return buildCompactDslToOther(parsed, targetInterface);
-            }
-
-            return null;
-        }
-
-        function buildOverviewToSchemas(parsed) {
-            const ids = (parsed.dataCapabilities || []).map(c => c.id).filter(Boolean);
-            if (ids.length === 0) return null;
-            return { dataCapabilityIds: ids };
-        }
-
-        function buildOverviewToCompactDsl(parsed) {
-            const result = {};
-
-            // Asset candidates
-            const assets = (parsed.assetCandidates || []).map(a => a.id).filter(Boolean);
-            if (assets.length > 0) result.candidateAssetIds = assets;
-
-            // Event candidates
-            const events = (parsed.eventCapabilities || []).map(e => ({
-                capabilityId: e.id,
-                action: e.actionTemplate || { call: '', args: {} }
-            })).filter(e => e.capabilityId);
-            if (events.length > 0) result.candidateEventCandidates = events;
-
-            return Object.keys(result).length > 0 ? result : null;
-        }
-
-        function buildSchemasToCompactDsl(parsed) {
-            const result = {};
-            const capabilities = parsed.dataCapabilities || [];
-
-            if (capabilities.length === 0) return null;
-
-            // Build candidateDataBindings from schemas
-            const bindings = capabilities.map(cap => {
-                const binding = {
-                    capabilityId: cap.id || '',
-                    arguments: buildDefaultArguments(cap.inputSchema),
-                    writeResultTo: cap.defaultWriteResultTo || '',
-                    candidateOutputFields: buildOutputFieldsFromSchema(cap.outputSchema)
-                };
-                return binding;
-            });
-
-            result.candidateDataBindings = bindings;
-            return result;
-        }
-
-        function buildSchemasToOverview(parsed) {
-            const ids = (parsed.dataCapabilities || []).map(c => c.id).filter(Boolean);
-            if (ids.length === 0) return null;
-            // Overview doesn't take dataCapabilityIds, but we can note it
-            return null;
-        }
-
-        function buildCompactDslToOther(parsed, targetInterface) {
-            if (targetInterface === 'getDataCapabilitySchemas') {
-                const dataCaps = parsed.effectiveCapabilities?.data || [];
-                if (dataCaps.length > 0) return { dataCapabilityIds: dataCaps };
-            }
-            return null;
-        }
-
+    // ===== Schema Builder =====
+    const SchemaBuilder = (() => {
         /**
          * Build default arguments from inputSchema, using placeholder for required fields
          */
-        function buildDefaultArguments(inputSchema) {
+        function buildDefaultArguments(inputSchema, includeOptional = false) {
             if (!inputSchema || !inputSchema.properties) return {};
             const args = {};
             const required = inputSchema.required || [];
@@ -1080,79 +1061,142 @@
             Object.entries(inputSchema.properties).forEach(([key, schema]) => {
                 if (schema.sampleValue !== undefined) {
                     args[key] = schema.sampleValue;
-                } else if (required.includes(key)) {
-                    // Use default placeholder for required fields
-                    if (schema.type === 'string') args[key] = '请输入';
-                    else if (schema.type === 'integer' || schema.type === 'number') args[key] = 0;
-                    else if (schema.type === 'boolean') args[key] = false;
-                    else if (schema.type === 'array') args[key] = [];
-                    else if (schema.type === 'object') args[key] = {};
+                } else if (required.includes(key) || includeOptional) {
+                    args[key] = buildSchemaPlaceholder(schema, includeOptional);
                 }
             });
 
             return args;
         }
 
+        function buildSchemaPlaceholder(schema, includeOptional) {
+            if (schema.type === 'string') return '请输入';
+            if (schema.type === 'integer' || schema.type === 'number') return 0;
+            if (schema.type === 'boolean') return false;
+            if (schema.type === 'array') return [];
+            if (schema.type === 'object' || schema.properties) {
+                return buildDefaultArguments(schema, includeOptional);
+            }
+            return null;
+        }
+
         /**
          * Build output fields list from outputSchema, selecting all leaf paths
          */
-        function buildOutputFieldsFromSchema(outputSchema) {
-            if (!outputSchema || !outputSchema.properties) return [];
+        function buildOutputFieldsFromSchema(outputSchema, resolveArrayItemCount = () => 1) {
+            if (!outputSchema || typeof outputSchema !== 'object') return [];
             const fields = [];
-
-            Object.entries(outputSchema.properties).forEach(([key, schema]) => {
-                if (schema.properties) {
-                    // Nested object - extract leaf paths
-                    Object.entries(schema.properties).forEach(([subKey, subSchema]) => {
-                        if (subSchema.properties) {
-                            // 2-level nested
-                            Object.keys(subSchema.properties).forEach(thirdKey => {
-                                fields.push(`/${key}/${subKey}/${thirdKey}`);
-                            });
-                        } else {
-                            fields.push(`/${key}/${subKey}`);
-                        }
-                    });
-                } else {
-                    fields.push(`/${key}`);
-                }
-            });
-
+            collectOutputFieldPaths(
+                outputSchema,
+                '',
+                '',
+                fields,
+                resolveArrayItemCount
+            );
             return fields;
         }
 
-        /**
-         * Apply transfer data to the target interface form
-         */
-        function applyTransferData(transferData, targetInterface) {
-            let appliedCount = 0;
+        function collectOutputFieldPaths(
+            schema,
+            outputPath,
+            schemaPath,
+            fields,
+            resolveArrayItemCount
+        ) {
+            if (!schema || typeof schema !== 'object') return;
 
-            Object.entries(transferData).forEach(([key, value]) => {
-                const el = document.getElementById(key);
-                if (!el) return;
-
-                if (el.tagName === 'TEXTAREA') {
-                    el.value = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-                } else if (el.tagName === 'SELECT') {
-                    el.value = value;
-                } else if (el.type === 'checkbox') {
-                    el.checked = value;
-                } else {
-                    if (Array.isArray(value)) {
-                        el.value = value.join(',');
-                    } else if (typeof value === 'object') {
-                        el.value = JSON.stringify(value, null, 2);
-                    } else {
-                        el.value = String(value);
-                    }
+            if (schema.type === 'array' && schema.items) {
+                const itemCount = normalizeArrayItemCount(
+                    resolveArrayItemCount(schemaPath)
+                );
+                for (let index = 0; index < itemCount; index++) {
+                    collectOutputFieldPaths(
+                        schema.items,
+                        `${outputPath}/${index}`,
+                        joinSchemaPath(schemaPath, 'items'),
+                        fields,
+                        resolveArrayItemCount
+                    );
                 }
-                appliedCount++;
-            });
+                return;
+            }
 
-            return appliedCount;
+            const properties = schema.properties;
+            if (properties && Object.keys(properties).length > 0) {
+                Object.entries(properties).forEach(([key, childSchema]) => {
+                    collectOutputFieldPaths(
+                        childSchema,
+                        `${outputPath}/${escapeJsonPointerSegment(key)}`,
+                        joinSchemaPath(schemaPath, `properties.${key}`),
+                        fields,
+                        resolveArrayItemCount
+                    );
+                });
+                return;
+            }
+
+            const isCompositeSchema = schema.type === 'object' || schema.type === 'array';
+            if (outputPath && !isCompositeSchema) {
+                if (fields.length >= OUTPUT_FIELD_PATH_LIMIT) {
+                    throw new RangeError(
+                        `Output field expansion exceeds ${OUTPUT_FIELD_PATH_LIMIT} paths. `
+                        + 'Reduce one or more array item counts.'
+                    );
+                }
+                fields.push(outputPath);
+            }
         }
 
-        return { buildFromHistory, applyTransferData, buildDefaultArguments, buildOutputFieldsFromSchema };
+        function joinSchemaPath(path, segment) {
+            return path ? `${path}.${segment}` : segment;
+        }
+
+        function escapeJsonPointerSegment(segment) {
+            return segment.replace(/~/g, '~0').replace(/\//g, '~1');
+        }
+
+        return { buildDefaultArguments, buildOutputFieldsFromSchema };
+    })();
+
+    // ===== Output Array Expansion Manager =====
+    const ArrayExpansionManager = (() => {
+        const itemCounts = new Map();
+
+        function get(historyId, schemaPath) {
+            return itemCounts.get(getStateKey(historyId, schemaPath))
+                || ARRAY_ITEM_COUNT_MIN;
+        }
+
+        function set(historyId, schemaPath, value) {
+            const itemCount = normalizeArrayItemCount(value);
+            itemCounts.set(getStateKey(historyId, schemaPath), itemCount);
+            return itemCount;
+        }
+
+        function clear(historyId) {
+            if (historyId === undefined) {
+                itemCounts.clear();
+                return;
+            }
+            const prefix = `${historyId}:`;
+            [...itemCounts.keys()].forEach(key => {
+                if (key.startsWith(prefix)) itemCounts.delete(key);
+            });
+        }
+
+        function createCapabilityResolver(historyId, collectionIndex) {
+            const basePath = `dataCapabilities.${collectionIndex}.outputSchema`;
+            return schemaPath => get(
+                historyId,
+                schemaPath ? `${basePath}.${schemaPath}` : basePath
+            );
+        }
+
+        function getStateKey(historyId, schemaPath) {
+            return `${historyId}:${schemaPath}`;
+        }
+
+        return { get, set, clear, createCapabilityResolver };
     })();
 
     // ===== JSON Subset Builder =====
@@ -1173,26 +1217,132 @@
         }
 
         function getSelectedCollectionItems(selections, collectionName) {
-            const items = [];
+            return getSelectedCollectionEntries(selections, collectionName)
+                .map(entry => entry.item);
+        }
+
+        function getSelectedCollectionEntries(selections, collectionName) {
+            const entries = [];
             const itemKeys = new Set();
 
-            selections.forEach(selection => {
-                const historyEntry = HistoryManager.getById(selection.historyId);
+            const selectionsByHistory = groupSelectionsByHistory(selections);
+            selectionsByHistory.forEach(historySelections => {
+                const historyEntry = HistoryManager.getById(historySelections[0].historyId);
                 const source = historyEntry?.parsedResult;
                 const collection = source?.[collectionName];
                 if (!Array.isArray(collection)) return;
 
-                const indexes = getSelectedIndexes(selection.path, collectionName, collection.length);
-                indexes.forEach(index => {
-                    const item = collection[index];
+                const selectionsByIndex = groupSelectionsByCollectionIndex(
+                    historySelections,
+                    collectionName,
+                    collection.length
+                );
+                selectionsByIndex.forEach((itemSelections, index) => {
+                    const sourceItem = collection[index];
+                    const item = buildSelectedCollectionItem(
+                        sourceItem,
+                        itemSelections,
+                        collectionName,
+                        index
+                    );
                     const itemKey = JSON.stringify(item);
                     if (itemKeys.has(itemKey)) return;
                     itemKeys.add(itemKey);
-                    items.push(item);
+                    entries.push({
+                        item,
+                        historyId: historySelections[0].historyId,
+                        collectionIndex: index,
+                        itemPath: `${collectionName}.${index}`
+                    });
                 });
             });
 
-            return items;
+            return entries;
+        }
+
+        function groupSelectionsByCollectionIndex(selections, collectionName, length) {
+            const groups = new Map();
+            selections.forEach(selection => {
+                const indexes = getSelectedIndexes(selection.path, collectionName, length);
+                indexes.forEach(index => {
+                    const group = groups.get(index) || [];
+                    group.push(selection);
+                    groups.set(index, group);
+                });
+            });
+            return groups;
+        }
+
+        function buildSelectedCollectionItem(sourceItem, selections, collectionName, index) {
+            const itemPath = `${collectionName}.${index}`;
+            const selectedPaths = new Set(selections.map(selection =>
+                getMinimalParentPath(selection.path)
+            ));
+            if (collectionName === 'dataCapabilities') {
+                addRequiredInputPropertyPaths(sourceItem, itemPath, selectedPaths);
+            }
+            const wholeItemSelected = selectedPaths.has(collectionName)
+                || selectedPaths.has(itemPath);
+            const selectedItem = wholeItemSelected
+                ? cloneValue(sourceItem)
+                : buildNode(sourceItem, itemPath, selectedPaths, false);
+            return addDataCapabilityContext(selectedItem, sourceItem, collectionName);
+        }
+
+        function addDataCapabilityContext(selectedItem, sourceItem, collectionName) {
+            const isDataCapability = collectionName === 'dataCapabilities';
+            if (!isDataCapability || !isPlainObject(selectedItem) || !isPlainObject(sourceItem)) {
+                return selectedItem;
+            }
+
+            const result = { id: sourceItem.id, ...selectedItem };
+            if (selectedItem.inputSchema) {
+                result.inputSchema = addSelectedSchemaContext(
+                    selectedItem.inputSchema,
+                    sourceItem.inputSchema
+                );
+            }
+            if (selectedItem.outputSchema) {
+                result.outputSchema = addSelectedSchemaContext(
+                    selectedItem.outputSchema,
+                    sourceItem.outputSchema
+                );
+            }
+            if (sourceItem.defaultWriteResultTo !== undefined) {
+                result.defaultWriteResultTo = sourceItem.defaultWriteResultTo;
+            }
+            return result;
+        }
+
+        function addSelectedSchemaContext(selectedSchema, sourceSchema) {
+            if (!isPlainObject(selectedSchema) || !isPlainObject(sourceSchema)) {
+                return selectedSchema;
+            }
+
+            const result = { type: sourceSchema.type, ...selectedSchema };
+            const selectedProperties = selectedSchema.properties;
+            if (isPlainObject(selectedProperties) && isPlainObject(sourceSchema.properties)) {
+                result.properties = {};
+                Object.entries(selectedProperties).forEach(([key, selectedProperty]) => {
+                    const sourceProperty = sourceSchema.properties[key];
+                    result.properties[key] = addSelectedSchemaContext(
+                        selectedProperty,
+                        sourceProperty
+                    );
+                });
+            }
+            if (selectedSchema.items && sourceSchema.items) {
+                result.items = addSelectedSchemaContext(
+                    selectedSchema.items,
+                    sourceSchema.items
+                );
+            }
+            if (selectedProperties && Array.isArray(sourceSchema.required)) {
+                result.required = sourceSchema.required.filter(key =>
+                    Object.prototype.hasOwnProperty.call(selectedProperties, key)
+                );
+            }
+            return result;
         }
 
         function groupSelectionsByHistory(selections) {
@@ -1209,11 +1359,47 @@
             const selectedPaths = new Set(selections.map(selection =>
                 getMinimalParentPath(selection.path)
             ));
+            addRequiredInputProperties(source, selectedPaths);
             return buildNode(source, '', selectedPaths, true);
+        }
+
+        function addRequiredInputProperties(source, selectedPaths) {
+            const capabilities = source?.dataCapabilities;
+            if (!Array.isArray(capabilities)) return;
+
+            capabilities.forEach((capability, index) => {
+                const itemPath = `dataCapabilities.${index}`;
+                const itemSelected = [...selectedPaths].some(path =>
+                    path === 'dataCapabilities'
+                    || path === itemPath
+                    || path.startsWith(`${itemPath}.`)
+                );
+                if (itemSelected) {
+                    addRequiredInputPropertyPaths(capability, itemPath, selectedPaths);
+                }
+            });
+        }
+
+        function addRequiredInputPropertyPaths(capability, itemPath, selectedPaths) {
+            const inputSchema = capability?.inputSchema;
+            const required = inputSchema?.required;
+            const properties = inputSchema?.properties;
+            if (!Array.isArray(required) || !isPlainObject(properties)) return;
+
+            let hasRequiredProperty = false;
+            required.forEach(propertyName => {
+                if (!Object.prototype.hasOwnProperty.call(properties, propertyName)) return;
+                selectedPaths.add(`${itemPath}.inputSchema.properties.${propertyName}`);
+                hasRequiredProperty = true;
+            });
+            if (hasRequiredProperty) selectedPaths.add(`${itemPath}.inputSchema.required`);
         }
 
         function getMinimalParentPath(path) {
             const parts = path.split('.');
+            const schemaPropertyPath = getSchemaPropertyPath(parts);
+            if (schemaPropertyPath) return schemaPropertyPath;
+
             let lastArrayIndex = -1;
             parts.forEach((part, index) => {
                 if (/^\d+$/.test(part)) lastArrayIndex = index;
@@ -1221,6 +1407,25 @@
             if (lastArrayIndex >= 0) return parts.slice(0, lastArrayIndex + 1).join('.');
             if (parts.length === 1) return path;
             return parts.slice(0, -1).join('.');
+        }
+
+        function getSchemaPropertyPath(parts) {
+            const schemaIndex = parts.findIndex(part =>
+                part === 'inputSchema' || part === 'outputSchema'
+            );
+            if (schemaIndex < 0) return '';
+
+            let propertiesIndex = -1;
+            for (let index = schemaIndex + 1; index < parts.length; index++) {
+                if (parts[index] === 'properties') propertiesIndex = index;
+            }
+            if (propertiesIndex < 0) return '';
+
+            const propertyNameIndex = propertiesIndex + 1;
+            const endIndex = propertyNameIndex < parts.length
+                ? propertyNameIndex + 1
+                : propertiesIndex + 1;
+            return parts.slice(0, endIndex).join('.');
         }
 
         function buildNode(value, path, selectedPaths, isRoot) {
@@ -1315,7 +1520,13 @@
         }
         function cloneValue(value) { return JSON.parse(JSON.stringify(value)); }
 
-        return { build, buildFromSource, getSelectedCollectionItems };
+        return {
+            build,
+            buildFromSource,
+            getMinimalParentPath,
+            getSelectedCollectionItems,
+            getSelectedCollectionEntries
+        };
     })();
 
     // ===== Selection Manager =====
@@ -1361,6 +1572,32 @@
             }
             return newSelections.length;
         }
+        function removeAll(items) {
+            const removedKeys = new Set(items.map(item =>
+                getSelectionKey(item.historyId, item.path)
+            ));
+            const retainedSelections = selections.filter(selection =>
+                !removedKeys.has(getSelectionKey(selection.historyId, selection.path))
+            );
+            const removedCount = selections.length - retainedSelections.length;
+            selections = retainedSelections;
+            if (removedCount > 0) notifyChange();
+            return removedCount;
+        }
+        function removeBranch(historyId, path) {
+            const retainedSelections = selections.filter(selection => {
+                if (selection.historyId !== historyId) return true;
+                const effectivePath = JsonSubsetBuilder.getMinimalParentPath(selection.path);
+                const isSelectedAncestor = path.startsWith(`${effectivePath}.`);
+                const isInsideRemovedBranch = effectivePath === path
+                    || effectivePath.startsWith(`${path}.`);
+                return !isSelectedAncestor && !isInsideRemovedBranch;
+            });
+            const removedCount = selections.length - retainedSelections.length;
+            selections = retainedSelections;
+            if (removedCount > 0) notifyChange();
+            return removedCount;
+        }
         function has(historyId, path) {
             return selections.some(selection =>
                 selection.historyId === historyId && selection.path === path
@@ -1369,17 +1606,32 @@
         function getSelectionKey(historyId, path) { return `${historyId}:${path}`; }
         function notifyChange() { if (onChangeCallback) onChangeCallback(); }
 
-        return { add, remove, clear, retain, addAll, getAll, has, setOnChange };
+        return {
+            add,
+            remove,
+            clear,
+            retain,
+            addAll,
+            removeAll,
+            removeBranch,
+            getAll,
+            has,
+            setOnChange
+        };
     })();
 
     // ===== Tree Renderer =====
     const TreeRenderer = (() => {
         let searchTerm = '';
+        let renderedObject = null;
+        let renderedHistoryId = null;
 
         function setSearchTerm(term) { searchTerm = term.toLowerCase(); }
 
         function render(obj, container, historyId, interfaceName) {
             container.innerHTML = '';
+            renderedObject = obj;
+            renderedHistoryId = historyId;
             if (!obj || typeof obj !== 'object') {
                 container.innerHTML = '<div class="tree-empty">No parsed result available.</div>';
                 return;
@@ -1394,7 +1646,7 @@
                     createNode(v, k, k, container, historyId, interfaceName, 0);
                 });
             }
-            syncSelectionStates(container);
+            refreshSelectionStates(container);
         }
 
         function createNode(value, label, path, container, historyId, interfaceName, depth) {
@@ -1439,6 +1691,10 @@
             }
             row.appendChild(keyLabel);
 
+            if (isConfigurableOutputArray(value, path, interfaceName)) {
+                appendArrayExpansionControl(row, historyId, path, label);
+            }
+
             if (!isObject) {
                 const colon = document.createElement('span');
                 colon.textContent = ': ';
@@ -1480,37 +1736,128 @@
                 }
 
                 checkbox.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        SelectionManager.add(historyId, interfaceName, path, label, value);
-                    } else {
-                        SelectionManager.remove(historyId, path);
-                    }
-                    children.querySelectorAll('input.tree-checkbox').forEach(cb => {
-                        cb.checked = e.target.checked;
-                        if (e.target.checked) {
-                            SelectionManager.add(
-                                parseInt(cb.dataset.historyId), interfaceName,
-                                cb.dataset.path, cb.dataset.key,
-                                getValueFromPath(value, cb.dataset.path, path)
-                            );
-                        } else {
-                            SelectionManager.remove(parseInt(cb.dataset.historyId), cb.dataset.path);
-                        }
+                    if (redirectSelectionToMinimalParent(node, checkbox, path)) return;
+
+                    const isChecked = e.target.checked;
+                    const branchSelections = [{
+                        historyId,
+                        interfaceName,
+                        path,
+                        key: label,
+                        value
+                    }];
+                    children.querySelectorAll('input.tree-checkbox').forEach(childCheckbox => {
+                        childCheckbox.checked = isChecked;
+                        branchSelections.push({
+                            historyId: parseInt(childCheckbox.dataset.historyId, 10),
+                            interfaceName,
+                            path: childCheckbox.dataset.path,
+                            key: childCheckbox.dataset.key,
+                            value: getValueFromPath(
+                                value,
+                                childCheckbox.dataset.path,
+                                path
+                            )
+                        });
                     });
+                    if (isChecked) {
+                        SelectionManager.addAll(branchSelections);
+                    } else {
+                        SelectionManager.removeBranch(historyId, path);
+                    }
                     updateParentState(node);
                 });
             } else {
                 checkbox.addEventListener('change', (e) => {
+                    if (redirectSelectionToMinimalParent(node, checkbox, path)) return;
+
                     if (e.target.checked) {
                         SelectionManager.add(historyId, interfaceName, path, label, value);
                     } else {
-                        SelectionManager.remove(historyId, path);
+                        SelectionManager.removeBranch(historyId, path);
                     }
                     updateParentState(node.parentElement);
                 });
             }
 
             container.appendChild(node);
+        }
+
+        function isConfigurableOutputArray(value, path, interfaceName) {
+            const isSchemaResponse = interfaceName === 'getDataCapabilitySchemas';
+            const isOutputSchemaPath = /^dataCapabilities\.\d+\.outputSchema(?:\.|$)/.test(path);
+            const isArraySchema = value !== null
+                && typeof value === 'object'
+                && !Array.isArray(value)
+                && value.type === 'array'
+                && value.items;
+            return Boolean(isSchemaResponse && isOutputSchemaPath && isArraySchema);
+        }
+
+        function appendArrayExpansionControl(row, historyId, path, label) {
+            const control = document.createElement('span');
+            control.className = 'array-expansion-control';
+            control.title = 'Element count: 4 generates indexes 0 through 3. '
+                + 'Runtime data may contain fewer items; total expansion is capped at 5,000 paths.';
+
+            const controlLabel = document.createElement('span');
+            controlLabel.textContent = 'Items';
+            control.appendChild(controlLabel);
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'array-expansion-input';
+            input.min = String(ARRAY_ITEM_COUNT_MIN);
+            input.max = String(ARRAY_ITEM_COUNT_MAX);
+            input.step = '1';
+            input.value = String(ArrayExpansionManager.get(historyId, path));
+            input.setAttribute('aria-label', `${label} output item count`);
+            control.appendChild(input);
+
+            const hint = document.createElement('span');
+            hint.className = 'array-expansion-hint';
+            control.appendChild(hint);
+
+            const updateHint = value => {
+                const itemCount = normalizeArrayItemCount(value);
+                hint.textContent = itemCount === 1
+                    ? 'index 0'
+                    : `indexes 0-${itemCount - 1}`;
+            };
+            updateHint(input.value);
+
+            ['click', 'mousedown', 'keydown'].forEach(eventName => {
+                control.addEventListener(eventName, event => event.stopPropagation());
+            });
+            input.addEventListener('input', () => updateHint(input.value));
+            input.addEventListener('change', () => {
+                const itemCount = ArrayExpansionManager.set(historyId, path, input.value);
+                input.value = String(itemCount);
+                updateHint(itemCount);
+                BuildManager.render();
+            });
+
+            row.appendChild(control);
+        }
+
+        function redirectSelectionToMinimalParent(node, checkbox, path) {
+            const minimalParentPath = JsonSubsetBuilder.getMinimalParentPath(path);
+            if (minimalParentPath === path) return false;
+
+            let currentNode = node.parentElement?.closest('.tree-node');
+            while (currentNode) {
+                const currentCheckbox = currentNode.querySelector(
+                    ':scope > .tree-row > .tree-checkbox'
+                );
+                if (currentCheckbox?.dataset.path === minimalParentPath) {
+                    currentCheckbox.checked = checkbox.checked;
+                    currentCheckbox.dispatchEvent(new Event('change'));
+                    return true;
+                }
+                currentNode = currentNode.parentElement?.closest('.tree-node');
+            }
+
+            return false;
         }
 
         function getValueFromPath(rootObj, fullPath, basePath) {
@@ -1539,12 +1886,15 @@
                 const children = parent.querySelector(':scope > .tree-children');
                 if (!children) break;
                 const childCheckboxes = children.querySelectorAll(':scope > .tree-node > .tree-row > .tree-checkbox');
-                let checkedCount = 0;
-                childCheckboxes.forEach(cb => { if (cb.checked) checkedCount++; });
-                if (checkedCount === 0) {
+                const childStates = [...childCheckboxes];
+                const hasSelectedChild = childStates.some(child =>
+                    child.checked || child.indeterminate
+                );
+                const allChildrenChecked = childStates.every(child => child.checked);
+                if (!hasSelectedChild) {
                     parentCheckbox.checked = false;
                     parentCheckbox.indeterminate = false;
-                } else if (checkedCount === childCheckboxes.length) {
+                } else if (allChildrenChecked) {
                     parentCheckbox.checked = true;
                     parentCheckbox.indeterminate = false;
                 } else {
@@ -1565,9 +1915,13 @@
                 const childCheckboxes = children.querySelectorAll(
                     ':scope > .tree-node > .tree-row > .tree-checkbox'
                 );
-                const checkedCount = [...childCheckboxes].filter(child => child.checked).length;
-                checkbox.indeterminate = checkedCount > 0 && checkedCount < childCheckboxes.length;
-                checkbox.checked = checkedCount > 0 && checkedCount === childCheckboxes.length;
+                const childStates = [...childCheckboxes];
+                const hasSelectedChild = childStates.some(child =>
+                    child.checked || child.indeterminate
+                );
+                const allChildrenChecked = childStates.every(child => child.checked);
+                checkbox.indeterminate = hasSelectedChild && !allChildrenChecked;
+                checkbox.checked = hasSelectedChild && allChildrenChecked;
             });
         }
 
@@ -1576,28 +1930,87 @@
                 const historyId = parseInt(checkbox.dataset.historyId, 10);
                 checkbox.checked = SelectionManager.has(historyId, checkbox.dataset.path);
                 checkbox.indeterminate = false;
+                checkbox.disabled = false;
+                checkbox.removeAttribute('title');
+                checkbox.closest('.tree-row')?.classList.remove('required-selection');
             });
+            applyRequiredPropertyStates(container);
             syncSelectionStates(container);
         }
 
-        function getCheckedSelections(container, entry) {
-            if (!entry || !entry.parsedResult) return [];
+        function applyRequiredPropertyStates(container) {
+            const capabilities = renderedObject?.dataCapabilities;
+            if (!Array.isArray(capabilities) || renderedHistoryId === null) return;
 
-            return [...container.querySelectorAll('.tree-checkbox')]
-                .filter(checkbox => checkbox.checked)
-                .map(checkbox => {
-                    const historyId = parseInt(checkbox.dataset.historyId, 10);
-                    return {
-                        historyId,
-                        interfaceName: entry.interfaceName,
-                        path: checkbox.dataset.path,
-                        key: checkbox.dataset.key,
-                        value: getValueFromPath(entry.parsedResult, checkbox.dataset.path, '')
-                    };
-                });
+            const selectedPaths = SelectionManager.getAll()
+                .filter(selection => selection.historyId === renderedHistoryId)
+                .map(selection => selection.path);
+            capabilities.forEach((capability, index) => {
+                const itemPath = `dataCapabilities.${index}`;
+                const itemSelected = selectedPaths.some(path =>
+                    path === 'dataCapabilities'
+                    || path === itemPath
+                    || path.startsWith(`${itemPath}.`)
+                );
+                if (!itemSelected) return;
+                applyCapabilityRequiredProperties(
+                    container,
+                    capability,
+                    itemPath,
+                    selectedPaths
+                );
+            });
         }
 
-        return { render, setSearchTerm, refreshSelectionStates, getCheckedSelections };
+        function applyCapabilityRequiredProperties(
+            container,
+            capability,
+            itemPath,
+            selectedPaths
+        ) {
+            const inputSchema = capability?.inputSchema;
+            const required = inputSchema?.required;
+            const properties = inputSchema?.properties;
+            if (!Array.isArray(required) || !properties) return;
+
+            required.forEach(propertyName => {
+                if (!Object.prototype.hasOwnProperty.call(properties, propertyName)) return;
+                const propertyPath = `${itemPath}.inputSchema.properties.${propertyName}`;
+                const requiredByOtherSelection = selectedPaths.some(path => {
+                    const insideItem = path === itemPath || path.startsWith(`${itemPath}.`);
+                    const insideRequiredProperty = path === propertyPath
+                        || path.startsWith(`${propertyPath}.`);
+                    return path === 'dataCapabilities'
+                        || (insideItem && !insideRequiredProperty);
+                });
+                if (!requiredByOtherSelection) return;
+
+                const propertyCheckbox = findCheckboxByPath(container, propertyPath);
+                if (!propertyCheckbox) return;
+                setRequiredCheckboxState(propertyCheckbox);
+
+                const propertyNode = propertyCheckbox.closest('.tree-node');
+                propertyNode?.querySelectorAll(
+                    ':scope > .tree-children input.tree-checkbox'
+                ).forEach(setRequiredCheckboxState);
+            });
+        }
+
+        function findCheckboxByPath(container, path) {
+            return [...container.querySelectorAll('.tree-checkbox')].find(checkbox =>
+                checkbox.dataset.path === path
+            );
+        }
+
+        function setRequiredCheckboxState(checkbox) {
+            checkbox.checked = true;
+            checkbox.indeterminate = false;
+            checkbox.disabled = true;
+            checkbox.title = 'Required by inputSchema.required';
+            checkbox.closest('.tree-row')?.classList.add('required-selection');
+        }
+
+        return { render, setSearchTerm, refreshSelectionStates };
     })();
 
     // ===== WebSocket Client =====
@@ -1634,6 +2047,43 @@
     const ResponseRenderer = (() => {
         let currentFrames = [];
 
+        function hideSourceRecovery() {
+            const banner = document.getElementById('sourceRecoveryBanner');
+            banner.classList.add('hidden');
+            banner.classList.remove('failed');
+            document.getElementById('editSourceSelectionBtn').onclick = null;
+        }
+
+        function renderSourceRecovery(entry, state = 'complete') {
+            const sourceHistoryId = entry?.sourceHistoryId;
+            const sourceEntry = sourceHistoryId ? HistoryManager.getById(sourceHistoryId) : null;
+            if (!sourceEntry?.parsedResult) {
+                hideSourceRecovery();
+                return;
+            }
+
+            const hasFinalError = entry?.frames?.some(frame => frame.type === 'final_error');
+            const failed = state === 'failed' || hasFinalError;
+            const pending = state === 'pending';
+            const banner = document.getElementById('sourceRecoveryBanner');
+            const sourceLabel = `${HistoryManager.getShortName(sourceEntry.interfaceName)} #${sourceEntry.id}`;
+
+            banner.classList.toggle('failed', failed);
+            document.getElementById('sourceRecoveryTitle').textContent = failed
+                ? 'Request failed — source selection is preserved'
+                : (pending
+                    ? 'Source selection is preserved while this request runs'
+                    : 'Source selection is available for adjustment');
+            document.getElementById('sourceRecoveryDetail').textContent =
+                `Return to ${sourceLabel}, adjust Parsed Result, rebuild JSON, and apply it again.`;
+            document.getElementById('editSourceSelectionBtn').onclick = () => {
+                HistoryManager.load(sourceEntry.id);
+                BuildManager.switchTab('parsed');
+                showToast('Source selections restored. Adjust them and rebuild the request.');
+            };
+            banner.classList.remove('hidden');
+        }
+
         function appendFrame(frame) {
             const streamType = frame.reply?.streamInfo?.streamType || 'unknown';
             currentFrames.push({ type: streamType, timestamp: formatTimestamp(), data: frame });
@@ -1643,12 +2093,16 @@
         function renderStreamView() {
             const container = document.getElementById('streamView');
             container.innerHTML = currentFrames.map(frame => {
-                const typeClass = frame.type === 'final_error' ? 'error' : frame.type;
+                const frameType = String(frame.type || 'unknown');
+                const allowedClasses = ['start', 'partial', 'final'];
+                const typeClass = frameType === 'final_error'
+                    ? 'error'
+                    : (allowedClasses.includes(frameType) ? frameType : 'unknown');
                 const content = JSON.stringify(frame.data, null, 2);
                 return `
                     <div class="frame-card">
                         <div class="frame-header">
-                            <span class="frame-type ${typeClass}">${frame.type.toUpperCase()}</span>
+                            <span class="frame-type ${typeClass}">${escapeHtml(frameType.toUpperCase())}</span>
                             <span class="frame-timestamp">${frame.timestamp}</span>
                         </div>
                         <div class="frame-content">
@@ -1668,6 +2122,8 @@
                 document.getElementById('treeContainer').innerHTML =
                     '<div class="tree-empty">No parsed result available.</div>';
             }
+            BuildManager.render();
+            renderSourceRecovery(entry);
         }
 
         function clear() {
@@ -1675,6 +2131,8 @@
             document.getElementById('streamView').innerHTML = '';
             document.getElementById('treeContainer').innerHTML =
                 '<div class="tree-empty">No parsed result yet. Send a request first.</div>';
+            BuildManager.render();
+            hideSourceRecovery();
         }
 
         function showError(message) {
@@ -1684,37 +2142,61 @@
             setTimeout(() => banner.classList.add('hidden'), 5000);
         }
 
-        return { appendFrame, renderFromHistory, clear, showError };
+        return { appendFrame, renderFromHistory, renderSourceRecovery, clear, showError };
     })();
 
     // ===== Build Manager =====
     const BuildManager = (() => {
+        const COLLECTION_LABELS = {
+            dataCapabilities: 'Data capabilities',
+            eventCapabilities: 'Event capabilities',
+            assetCandidates: 'Asset candidates',
+            unavailableCapabilities: 'Unavailable capabilities',
+            missingCapabilityIds: 'Missing capability IDs'
+        };
+        const WHOLE_ITEM_LABELS = {
+            dataCapabilities: 'Entire data capability',
+            eventCapabilities: 'Entire event capability',
+            assetCandidates: 'Entire asset candidate'
+        };
+        const PATH_LABELS = {
+            inputSchema: 'Input parameters',
+            outputSchema: 'Output fields',
+            actionTemplate: 'Action template',
+            dynamicArguments: 'Dynamic arguments',
+            dependencies: 'Dependencies',
+            requiredPackages: 'Required packages',
+            required: 'Required fields',
+            defaultWriteResultTo: 'Default write path',
+            dataModelSkeleton: 'Data model skeleton',
+            descriptionForLLM: 'Model description'
+        };
+        const IDENTITY_KEYS = [
+            'id',
+            'key',
+            'name',
+            'title',
+            'path',
+            'packageName',
+            'intentName'
+        ];
+        const COLLECTION_ORDER = [
+            'dataCapabilities',
+            'eventCapabilities',
+            'assetCandidates',
+            'unavailableCapabilities',
+            'missingCapabilityIds'
+        ];
+
         function render() {
-            const selections = SelectionManager.getAll();
+            const currentEntry = HistoryManager.getCurrent();
+            const selections = getSelectionsForEntry(currentEntry);
+            const selectionRoots = buildSelectionRoots(selections);
             const container = document.getElementById('selectedItems');
             const countEl = document.getElementById('selectedCount');
             const clearSelectedBtn = document.getElementById('clearSelectedBtn');
-            const restoreParsedSelectionsBtn = document.getElementById('restoreParsedSelectionsBtn');
-            const currentEntry = HistoryManager.getCurrent();
-            const parsedSelections = getParsedSelections(currentEntry);
-            const hasRestorableSelection = parsedSelections.some(selection =>
-                !SelectionManager.has(selection.historyId, selection.path)
-            );
-            countEl.textContent = selections.length;
+            countEl.textContent = selectionRoots.length;
             clearSelectedBtn.disabled = selections.length === 0;
-            restoreParsedSelectionsBtn.disabled = !hasRestorableSelection;
-
-            // Check if we're in transfer mode
-            const isTransferMode = currentEntry && currentEntry.interfaceName !== AppState.currentInterface;
-            const quickTransferSection = document.getElementById('quickTransferSection');
-
-            if (isTransferMode) {
-                // Show Quick Transfer section with smart transfer buttons
-                quickTransferSection.style.display = 'block';
-                renderQuickTransferButtons(currentEntry);
-            } else {
-                quickTransferSection.style.display = 'none';
-            }
 
             if (selections.length === 0) {
                 container.innerHTML = '<div class="selected-empty">No items selected. Use checkboxes in Parsed Result.</div>';
@@ -1722,68 +2204,456 @@
                 return;
             }
 
-            container.innerHTML = selections.map((s, i) => {
-                const valStr = typeof s.value === 'object' ? JSON.stringify(s.value).substring(0, 100) : JSON.stringify(s.value);
-                return `<div class="selected-item">
-                    <span class="selected-item-source">#${s.historyId} ${s.interfaceName}</span>
-                    <span class="selected-item-path">${s.path} (${s.key}):</span>
-                    <span class="selected-item-value">${escapeHtml(valStr)}</span>
-                    <span class="selected-item-remove" data-index="${i}">&times;</span>
-                </div>`;
-            }).join('');
-
-            container.querySelectorAll('.selected-item-remove').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const idx = parseInt(btn.dataset.index);
-                    const sel = selections[idx];
-                    SelectionManager.remove(sel.historyId, sel.path);
-                    refreshTreeSelectionStates();
-                });
-            });
-
+            renderSelectedTree(container, selectionRoots);
             renderQuickBuildButtons(selections);
         }
 
-        function renderQuickTransferButtons(sourceEntry) {
-            const container = document.getElementById('quickTransferButtons');
-            const targetInterface = AppState.currentInterface;
-            const buttons = [];
-
-            // Generate smart transfer buttons based on source→target interface pair
-            const transferData = DataTransfer.buildFromHistory(sourceEntry, targetInterface);
-
-            if (transferData && Object.keys(transferData).length > 0) {
-                buttons.push({
-                    label: `Transfer to ${getShortName(targetInterface)}`,
-                    action: () => {
-                        document.getElementById('builtJson').value = JSON.stringify(transferData, null, 2);
-                        showToast('Transfer data built! Click "Apply to Form" to push to current interface.');
-                    }
-                });
-            }
-
-            if (buttons.length === 0) {
-                container.innerHTML = '<div style="color: #9ca3af; font-size: 13px;">No automatic transfer available for this interface pair.</div>';
-            } else {
-                container.innerHTML = buttons.map((b, i) =>
-                    `<button class="btn-quick-build" data-index="${i}" style="background: #fef3c7; border-color: #f59e0b;">${b.label}</button>`
-                ).join('');
-
-                container.querySelectorAll('.btn-quick-build').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        buttons[parseInt(btn.dataset.index)].action();
-                    });
-                });
-            }
+        function getSelectionsForEntry(entry) {
+            if (!entry) return [];
+            return SelectionManager.getAll().filter(selection =>
+                selection.historyId === entry.id
+            );
         }
 
-        function getShortName(name) {
-            const map = {
-                'getWidgetCapabilityOverview': 'Overview',
-                'getDataCapabilitySchemas': 'Schemas',
-                'generateWidgetCardCompactDsl': 'CompactDsl'
+        function buildSelectionRoots(selections) {
+            const selectionsByHistory = new Map();
+            selections.forEach(selection => {
+                const historySelections = selectionsByHistory.get(selection.historyId) || [];
+                historySelections.push(selection);
+                selectionsByHistory.set(selection.historyId, historySelections);
+            });
+
+            const roots = [];
+            selectionsByHistory.forEach((historySelections, historyId) => {
+                const entry = HistoryManager.getById(historyId);
+                const source = entry?.parsedResult;
+                if (!source) return;
+
+                const candidatesByPath = new Map();
+                historySelections.forEach(selection => {
+                    const path = JsonSubsetBuilder.getMinimalParentPath(selection.path);
+                    if (!candidatesByPath.has(path)) {
+                        candidatesByPath.set(path, { historyId, path });
+                    }
+                });
+
+                const candidates = [...candidatesByPath.values()].filter(candidate =>
+                    !isRedundantCollectionRoot(candidate, candidatesByPath, source)
+                );
+                candidates.sort((left, right) => {
+                    return getPathDepth(left.path) - getPathDepth(right.path);
+                });
+
+                const historyRoots = [];
+                candidates.forEach(candidate => {
+                    const coveredByAncestor = historyRoots.some(root =>
+                        isPathInside(candidate.path, root.path)
+                    );
+                    if (!coveredByAncestor) historyRoots.push(candidate);
+                });
+                roots.push(...historyRoots);
+            });
+            return roots;
+        }
+
+        function isRedundantCollectionRoot(candidate, candidatesByPath, source) {
+            if (candidate.path.includes('.') || !Array.isArray(source[candidate.path])) {
+                return false;
+            }
+            const prefix = `${candidate.path}.`;
+            return [...candidatesByPath.keys()].some(path => {
+                if (!path.startsWith(prefix)) return false;
+                const nextSegment = path.slice(prefix.length).split('.')[0];
+                return /^\d+$/.test(nextSegment);
+            });
+        }
+
+        function getPathDepth(path) {
+            return path ? path.split('.').length : 0;
+        }
+
+        function isPathInside(path, ancestorPath) {
+            return path === ancestorPath || path.startsWith(`${ancestorPath}.`);
+        }
+
+        function renderSelectedTree(container, selectionRoots) {
+            container.replaceChildren();
+            const groups = new Map();
+            selectionRoots.forEach(root => {
+                const model = createSelectionModel(root);
+                if (!model) return;
+                const group = groups.get(model.collectionName) || [];
+                group.push(model);
+                groups.set(model.collectionName, group);
+            });
+
+            const orderedGroups = [...groups.entries()].sort((left, right) =>
+                getCollectionOrder(left[0]) - getCollectionOrder(right[0])
+            );
+            orderedGroups.forEach(([collectionName, models]) => {
+                const groupElement = createTextElement('section', 'selected-group');
+                const groupHeader = createTextElement('div', 'selected-group-header');
+                groupHeader.appendChild(createTextElement(
+                    'span',
+                    'selected-group-title',
+                    COLLECTION_LABELS[collectionName] || humanizeKey(collectionName)
+                ));
+                groupHeader.appendChild(createTextElement(
+                    'span',
+                    'selected-group-count',
+                    String(models.length)
+                ));
+                groupElement.appendChild(groupHeader);
+
+                const entities = groupSelectionModelsByEntity(models);
+                entities.forEach(entityModels => {
+                    groupElement.appendChild(renderSelectedEntity(entityModels));
+                });
+                container.appendChild(groupElement);
+            });
+        }
+
+        function getCollectionOrder(collectionName) {
+            const index = COLLECTION_ORDER.indexOf(collectionName);
+            return index >= 0 ? index : COLLECTION_ORDER.length;
+        }
+
+        function groupSelectionModelsByEntity(models) {
+            const entities = new Map();
+            models.forEach(model => {
+                const key = `${model.historyId}:${model.itemPath}`;
+                const entity = entities.get(key) || [];
+                entity.push(model);
+                entities.set(key, entity);
+            });
+            return entities;
+        }
+
+        function createSelectionModel(root) {
+            const entry = HistoryManager.getById(root.historyId);
+            const source = entry?.parsedResult;
+            if (!source) return null;
+
+            const parts = root.path.split('.');
+            const collectionName = parts[0] || 'response';
+            const collection = source[collectionName];
+            const hasCollectionIndex = Array.isArray(collection) && /^\d+$/.test(parts[1] || '');
+            const collectionIndex = hasCollectionIndex ? Number(parts[1]) : null;
+            const itemPath = hasCollectionIndex
+                ? `${collectionName}.${collectionIndex}`
+                : collectionName;
+            const sourceItem = hasCollectionIndex ? collection[collectionIndex] : collection;
+            const branchParts = parts.slice(hasCollectionIndex ? 2 : 1);
+
+            return {
+                historyId: root.historyId,
+                rootPath: root.path,
+                collectionName,
+                collectionIndex,
+                itemPath,
+                source,
+                sourceItem,
+                selectedValue: getValueAtPath(source, root.path),
+                branchParts
             };
-            return map[name] || name.substring(0, 12);
+        }
+
+        function renderSelectedEntity(models) {
+            const primaryModel = models[0];
+            const entity = createTextElement('article', 'selected-entity');
+            const header = createTextElement('div', 'selected-entity-header');
+            const identity = getEntityIdentity(primaryModel);
+            header.appendChild(createTextElement('span', 'selected-entity-id', identity));
+            getEntityBadges(primaryModel).forEach(badge => {
+                header.appendChild(createTextElement('span', 'selected-badge', badge));
+            });
+            entity.appendChild(header);
+
+            const description = getEntityDescription(primaryModel.sourceItem);
+            if (description) {
+                const descriptionElement = createTextElement(
+                    'div',
+                    'selected-entity-description',
+                    description
+                );
+                descriptionElement.title = description;
+                entity.appendChild(descriptionElement);
+            }
+
+            const requiredProperties = primaryModel.sourceItem?.inputSchema?.required;
+            if (Array.isArray(requiredProperties) && requiredProperties.length > 0) {
+                entity.appendChild(createTextElement(
+                    'div',
+                    'selected-required-note',
+                    `Required input: ${requiredProperties.join(', ')} (auto-included when needed)`
+                ));
+            }
+
+            const branches = createTextElement('div', 'selected-branches');
+            models.forEach(model => branches.appendChild(renderSelectedBranch(model)));
+            entity.appendChild(branches);
+            return entity;
+        }
+
+        function renderSelectedBranch(model) {
+            const branch = createTextElement('div', 'selected-branch');
+            branch.title = model.rootPath;
+            branch.appendChild(createTextElement('span', 'selected-branch-marker'));
+
+            const main = createTextElement('div', 'selected-branch-main');
+            const branchLabel = formatBranchLabel(model);
+            main.appendChild(createTextElement('div', 'selected-branch-label', branchLabel));
+
+            const metadata = createTextElement('div', 'selected-branch-meta');
+            getBranchBadges(model).forEach(({ text, required }) => {
+                const className = required ? 'selected-badge required' : 'selected-badge';
+                metadata.appendChild(createTextElement('span', className, text));
+            });
+            const summary = getBranchSummary(model);
+            if (summary) {
+                metadata.appendChild(createTextElement('span', 'selected-branch-summary', summary));
+            }
+            if (metadata.childNodes.length > 0) main.appendChild(metadata);
+            branch.appendChild(main);
+
+            const removeButton = createTextElement('button', 'selected-item-remove', '×');
+            removeButton.type = 'button';
+            removeButton.setAttribute('aria-label', `Remove ${branchLabel}`);
+            removeButton.addEventListener('click', () => {
+                SelectionManager.removeBranch(model.historyId, model.rootPath);
+            });
+            branch.appendChild(removeButton);
+            return branch;
+        }
+
+        function getEntityIdentity(model) {
+            const item = model.sourceItem;
+            if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+                for (const key of IDENTITY_KEYS) {
+                    const value = item[key];
+                    if (typeof value === 'string' && value.trim()) return value;
+                    if (typeof value === 'number') return String(value);
+                }
+            }
+            if (item === null || typeof item !== 'object') {
+                return formatDisplayValue(item);
+            }
+            if (model.collectionIndex !== null) {
+                return `Item ${model.collectionIndex + 1}`;
+            }
+            return COLLECTION_LABELS[model.collectionName]
+                || humanizeKey(model.collectionName);
+        }
+
+        function getEntityBadges(model) {
+            const badges = [];
+            const item = model.sourceItem;
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return badges;
+            if (typeof item.type === 'string' && item.type) badges.push(item.type);
+            const actionCall = item.actionTemplate?.call || item.action?.call;
+            if (typeof actionCall === 'string' && actionCall) badges.push(actionCall);
+            return badges;
+        }
+
+        function getEntityDescription(item) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return '';
+            return typeof item.description === 'string' ? item.description : '';
+        }
+
+        function formatBranchLabel(model) {
+            if (model.branchParts.length === 0) {
+                return WHOLE_ITEM_LABELS[model.collectionName] || 'Entire item';
+            }
+
+            const labels = [];
+            let current = model.sourceItem;
+            let previousPart = '';
+            model.branchParts.forEach(part => {
+                const nextValue = current !== null && typeof current === 'object'
+                    ? current[part]
+                    : undefined;
+                if (part !== 'properties' && part !== 'items') {
+                    if (/^\d+$/.test(part)) {
+                        labels.push(`Item ${Number(part) + 1}`);
+                    } else if (previousPart === 'properties') {
+                        const arraySuffix = nextValue?.type === 'array' ? '[]' : '';
+                        labels.push(`${part}${arraySuffix}`);
+                    } else {
+                        labels.push(PATH_LABELS[part] || humanizeKey(part));
+                    }
+                }
+                current = nextValue;
+                previousPart = part;
+            });
+            return labels.join(' › ') || 'Selected branch';
+        }
+
+        function getBranchBadges(model) {
+            const badges = [];
+            const value = model.selectedValue;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                if (typeof value.type === 'string' && value.type) {
+                    badges.push({ text: value.type, required: false });
+                }
+            }
+            if (isRequiredInputProperty(model)) {
+                badges.push({ text: 'required', required: true });
+            }
+            getSelectedArrayCounts(model).forEach(item => {
+                badges.push({ text: `${item.label} × ${item.count}`, required: false });
+            });
+            return badges;
+        }
+
+        function isRequiredInputProperty(model) {
+            const prefix = `${model.itemPath}.inputSchema.properties.`;
+            if (!model.rootPath.startsWith(prefix)) return false;
+            const propertyName = model.rootPath.slice(prefix.length).split('.')[0];
+            return Array.isArray(model.sourceItem?.inputSchema?.required)
+                && model.sourceItem.inputSchema.required.includes(propertyName);
+        }
+
+        function getSelectedArrayCounts(model) {
+            const counts = [];
+            const seenPaths = new Set();
+            const pathParts = model.rootPath.split('.');
+            const visitedParts = [];
+            let current = model.source;
+            pathParts.forEach(part => {
+                current = current !== null && typeof current === 'object'
+                    ? current[part]
+                    : undefined;
+                visitedParts.push(part);
+                const schemaPath = visitedParts.join('.');
+                const isOutputArray = schemaPath.includes('.outputSchema')
+                    && current?.type === 'array'
+                    && current.items;
+                if (!isOutputArray || seenPaths.has(schemaPath)) return;
+                seenPaths.add(schemaPath);
+                counts.push({
+                    label: part === 'outputSchema' ? 'output' : part,
+                    count: ArrayExpansionManager.get(model.historyId, schemaPath)
+                });
+            });
+
+            const selectedValue = model.selectedValue;
+            if (model.branchParts.length === 0 && model.sourceItem?.outputSchema) {
+                collectOutputArrayCounts(
+                    model.sourceItem.outputSchema,
+                    `${model.itemPath}.outputSchema`,
+                    'output',
+                    model.historyId,
+                    seenPaths,
+                    counts
+                );
+            } else if (model.rootPath.includes('.outputSchema') && selectedValue) {
+                const lastBranchPart = model.branchParts[
+                    model.branchParts.length - 1
+                ];
+                collectOutputArrayCounts(
+                    selectedValue,
+                    model.rootPath,
+                    lastBranchPart || 'output',
+                    model.historyId,
+                    seenPaths,
+                    counts
+                );
+            }
+            return counts;
+        }
+
+        function collectOutputArrayCounts(
+            schema,
+            schemaPath,
+            label,
+            historyId,
+            seenPaths,
+            counts
+        ) {
+            if (!schema || typeof schema !== 'object') return;
+            if (schema.type === 'array' && schema.items) {
+                if (!seenPaths.has(schemaPath)) {
+                    seenPaths.add(schemaPath);
+                    counts.push({
+                        label,
+                        count: ArrayExpansionManager.get(historyId, schemaPath)
+                    });
+                }
+                collectOutputArrayCounts(
+                    schema.items,
+                    `${schemaPath}.items`,
+                    `${label}[]`,
+                    historyId,
+                    seenPaths,
+                    counts
+                );
+                return;
+            }
+
+            if (!schema.properties) return;
+            Object.entries(schema.properties).forEach(([propertyName, propertySchema]) => {
+                collectOutputArrayCounts(
+                    propertySchema,
+                    `${schemaPath}.properties.${propertyName}`,
+                    propertyName,
+                    historyId,
+                    seenPaths,
+                    counts
+                );
+            });
+        }
+
+        function getBranchSummary(model) {
+            if (model.branchParts.length === 0) return '';
+            const value = model.selectedValue;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                const details = [];
+                if (typeof value.description === 'string' && value.description) {
+                    details.push(value.description);
+                }
+                if (value.sampleValue !== undefined) {
+                    details.push(`Example: ${formatDisplayValue(value.sampleValue)}`);
+                }
+                if (Array.isArray(value.enum) && value.enum.length > 0) {
+                    details.push(`Allowed: ${value.enum.map(formatDisplayValue).join(', ')}`);
+                }
+                if (details.length > 0) return details.join(' · ');
+                for (const key of IDENTITY_KEYS) {
+                    if (value[key] !== undefined) {
+                        return `${humanizeKey(key)}: ${formatDisplayValue(value[key])}`;
+                    }
+                }
+                return '';
+            }
+            return `Value: ${formatDisplayValue(value)}`;
+        }
+
+        function getValueAtPath(source, path) {
+            return path.split('.').reduce((current, part) => {
+                if (current === null || typeof current !== 'object') return undefined;
+                return current[part];
+            }, source);
+        }
+
+        function formatDisplayValue(value) {
+            if (value === undefined) return 'Unknown';
+            const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+            if (serialized === undefined) return String(value);
+            return serialized.length > 100 ? `${serialized.slice(0, 97)}...` : serialized;
+        }
+
+        function humanizeKey(value) {
+            return String(value)
+                .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+                .replace(/[_-]+/g, ' ')
+                .replace(/^./, firstCharacter => firstCharacter.toUpperCase());
+        }
+
+        function createTextElement(tagName, className, text) {
+            const element = document.createElement(tagName);
+            if (className) element.className = className;
+            if (text !== undefined) element.textContent = text;
+            return element;
         }
 
         function renderQuickBuildButtons(selections) {
@@ -1796,9 +2666,10 @@
                 return;
             }
 
-            const dataCapabilities = JsonSubsetBuilder.getSelectedCollectionItems(
+            const dataCapabilityEntries = JsonSubsetBuilder.getSelectedCollectionEntries(
                 selections, 'dataCapabilities'
             );
+            const dataCapabilities = dataCapabilityEntries.map(entry => entry.item);
             if (dataCapabilities.length > 0) {
                 buttons.push({
                     label: `Build dataCapabilityIds (${dataCapabilities.length})`,
@@ -1826,8 +2697,8 @@
                 });
             }
 
-            const dataCapsWithSchema = dataCapabilities.filter(capability =>
-                capability.inputSchema || capability.outputSchema
+            const dataCapsWithSchema = dataCapabilityEntries.filter(entry =>
+                entry.item.inputSchema || entry.item.outputSchema
             );
             if (dataCapsWithSchema.length > 0) {
                 buttons.push({
@@ -1836,34 +2707,11 @@
                 });
             }
 
-            // Build all as JSON - preserve structure
+            // Build selected content as JSON while preserving its source structure.
             buttons.push({
-                label: 'Build All as JSON',
-                action: () => quickBuildAll(selections)
+                label: 'Build Selected as JSON',
+                action: () => quickBuildSelected(selections)
             });
-
-            // Quick Transfer buttons - smart transfer based on source→target interface
-            const currentEntry = HistoryManager.getCurrent();
-            if (currentEntry && currentEntry.interfaceName !== AppState.currentInterface) {
-                const sourceInterface = currentEntry.interfaceName;
-                const targetInterface = AppState.currentInterface;
-                const transferKey = `${sourceInterface}→${targetInterface}`;
-
-                const transferLabels = {
-                    'getWidgetCapabilityOverview→getDataCapabilitySchemas': 'Quick Transfer: dataCapabilityIds',
-                    'getWidgetCapabilityOverview→generateWidgetCardCompactDsl': 'Quick Transfer: assets + events',
-                    'getDataCapabilitySchemas→generateWidgetCardCompactDsl': 'Quick Transfer: candidateDataBindings',
-                    'getDataCapabilitySchemas→getWidgetCapabilityOverview': 'Quick Transfer: capabilityIds',
-                    'generateWidgetCardCompactDsl→getDataCapabilitySchemas': 'Quick Transfer: effectiveCapabilities.data'
-                };
-
-                if (transferLabels[transferKey]) {
-                    buttons.push({
-                        label: transferLabels[transferKey],
-                        action: () => quickTransferFromHistory(currentEntry, targetInterface)
-                    });
-                }
-            }
 
             container.innerHTML = buttons.map((b, i) =>
                 `<button class="btn-quick-build" data-index="${i}">${b.label}</button>`
@@ -1896,32 +2744,34 @@
             setBuiltJson({ candidateEventCandidates: candidates });
         }
 
-        function quickBuildCandidateDataBindings(capabilities) {
-            const bindings = capabilities.map(cap => {
-                return {
-                    capabilityId: cap.id || '',
-                    arguments: DataTransfer.buildDefaultArguments(cap.inputSchema),
-                    writeResultTo: cap.defaultWriteResultTo || '',
-                    candidateOutputFields: DataTransfer.buildOutputFieldsFromSchema(cap.outputSchema)
-                };
-            }).filter(b => b !== null);
-            setBuiltJson({ candidateDataBindings: bindings });
+        function quickBuildCandidateDataBindings(capabilityEntries) {
+            try {
+                const bindings = capabilityEntries.map(entry => {
+                    const capability = entry.item;
+                    const resolveArrayItemCount = ArrayExpansionManager.createCapabilityResolver(
+                        entry.historyId,
+                        entry.collectionIndex
+                    );
+                    return {
+                        capabilityId: capability.id || '',
+                        arguments: SchemaBuilder.buildDefaultArguments(capability.inputSchema, true),
+                        writeResultTo: capability.defaultWriteResultTo || '',
+                        candidateOutputFields: SchemaBuilder.buildOutputFieldsFromSchema(
+                            capability.outputSchema,
+                            resolveArrayItemCount
+                        )
+                    };
+                }).filter(binding => binding !== null);
+                setBuiltJson({ candidateDataBindings: bindings });
+            } catch (error) {
+                showToast(error.message || 'Failed to expand output fields.');
+            }
         }
 
         /** Build selected content as a hierarchy-preserving source subset. */
-        function quickBuildAll(selections) {
+        function quickBuildSelected(selections) {
             if (selections.length === 0) return;
             setBuiltJson(JsonSubsetBuilder.build(selections));
-        }
-
-        function quickTransferFromHistory(entry, targetInterface) {
-            const transferData = DataTransfer.buildFromHistory(entry, targetInterface);
-            if (!transferData || Object.keys(transferData).length === 0) {
-                showToast('No transferable data from this history entry');
-                return;
-            }
-            setBuiltJson(transferData);
-            showToast('Quick transfer JSON built. Review and click "Apply to Form".');
         }
 
         function setBuiltJson(obj) {
@@ -1940,11 +2790,12 @@
             if (!text.trim()) { showToast('No JSON to apply'); return; }
             try {
                 const jsonObj = JSON.parse(text);
-                // Detect transfer mode: if viewing a different interface's history, stay on current interface
+                // Keep the active form when applying data built from another interface's history.
                 const currentEntry = HistoryManager.getCurrent();
-                const isTransferMode = currentEntry && currentEntry.interfaceName !== AppState.currentInterface;
-                const result = FormManager.applyToForm(jsonObj, isTransferMode);
-                if (isTransferMode) {
+                const isOtherInterfaceHistory = currentEntry
+                    && currentEntry.interfaceName !== AppState.currentInterface;
+                const result = FormManager.applyToForm(jsonObj, isOtherInterfaceHistory);
+                if (isOtherInterfaceHistory) {
                     showToast(`Applied ${result.appliedCount} field(s) to current interface (${AppState.currentInterface})`);
                 } else {
                     showToast(`Applied ${result.appliedCount} field(s) to ${result.targetInterface || 'current interface'}`);
@@ -1955,39 +2806,34 @@
         }
 
         function clearBuild() {
-            SelectionManager.clear();
+            const currentEntry = HistoryManager.getCurrent();
+            SelectionManager.removeAll(getSelectionsForEntry(currentEntry));
+            if (currentEntry) ArrayExpansionManager.clear(currentEntry.id);
             document.getElementById('builtJson').value = '';
-            refreshTreeSelectionStates();
+            if (currentEntry?.parsedResult) {
+                TreeRenderer.render(
+                    currentEntry.parsedResult,
+                    document.getElementById('treeContainer'),
+                    currentEntry.id,
+                    currentEntry.interfaceName
+                );
+            } else {
+                refreshTreeSelectionStates();
+            }
             render();
         }
 
         function clearSelectedItems() {
-            if (SelectionManager.getAll().length === 0) return;
-            const removedCount = SelectionManager.retain(getParsedSelections(HistoryManager.getCurrent()));
-            refreshTreeSelectionStates();
-            if (removedCount === 0) {
-                showToast('No accumulated selected items to clear.');
-                return;
-            }
-            showToast(`${removedCount} accumulated selected item(s) cleared. Built JSON was kept.`);
-        }
-
-        function restoreParsedSelections() {
-            const restoredCount = SelectionManager.addAll(getParsedSelections(HistoryManager.getCurrent()));
-            if (restoredCount === 0) {
-                showToast('No checked Parsed Result items to restore.');
-                return;
-            }
-            refreshTreeSelectionStates();
-            showToast(`${restoredCount} Parsed Result item(s) restored.`);
+            const currentEntry = HistoryManager.getCurrent();
+            const removedCount = SelectionManager.removeAll(
+                getSelectionsForEntry(currentEntry)
+            );
+            if (removedCount === 0) return;
+            showToast(`${removedCount} selected tree node(s) cleared. Built JSON was kept.`);
         }
 
         function refreshTreeSelectionStates() {
             TreeRenderer.refreshSelectionStates(document.getElementById('treeContainer'));
-        }
-
-        function getParsedSelections(entry) {
-            return TreeRenderer.getCheckedSelections(document.getElementById('treeContainer'), entry);
         }
 
         function switchTab(tabName) {
@@ -1999,8 +2845,12 @@
         }
 
         return {
-            render, copyBuiltJson, applyToForm, clearBuild, clearSelectedItems,
-            restoreParsedSelections, switchTab
+            render,
+            copyBuiltJson,
+            applyToForm,
+            clearBuild,
+            clearSelectedItems,
+            switchTab
         };
     })();
 
@@ -2038,6 +2888,7 @@
                         ResponseRenderer.renderFromHistory(latest);
                         HistoryManager.renderBar();
                     } else {
+                        HistoryManager.detachCurrent();
                         ResponseRenderer.clear();
                     }
                 });
@@ -2080,9 +2931,6 @@
             document.getElementById('clearSelectedBtn').addEventListener('click', () => {
                 BuildManager.clearSelectedItems();
             });
-            document.getElementById('restoreParsedSelectionsBtn').addEventListener('click', () => {
-                BuildManager.restoreParsedSelections();
-            });
 
             // Preview modal
             document.getElementById('closePreviewModal').addEventListener('click', () => {
@@ -2102,7 +2950,10 @@
             });
 
             // Callbacks
-            SelectionManager.setOnChange(() => { BuildManager.render(); });
+            SelectionManager.setOnChange(() => {
+                TreeRenderer.refreshSelectionStates(document.getElementById('treeContainer'));
+                BuildManager.render();
+            });
 
             // Initial render
             BuildManager.render();
@@ -2151,11 +3002,24 @@
 
         function sendRequest() {
             try {
-                HistoryManager.detachCurrent();
-                SelectionManager.clear();
-                ResponseRenderer.clear();
-                BuildManager.switchTab('stream');
+                // Validate the form before changing the loaded history. Invalid JSON should
+                // leave the source Parsed Result in place so it can be adjusted immediately.
                 const envelope = buildEnvelope();
+                const currentEntry = HistoryManager.getCurrent();
+                const inheritedSourceId = currentEntry?.sourceHistoryId;
+                const directSourceId = currentEntry?.parsedResult ? currentEntry.id : null;
+                const candidateSourceId = inheritedSourceId || directSourceId;
+                const sourceEntry = candidateSourceId
+                    ? HistoryManager.getById(candidateSourceId)
+                    : null;
+                const sourceHistoryId = sourceEntry?.parsedResult ? sourceEntry.id : null;
+
+                HistoryManager.detachCurrent();
+                ResponseRenderer.clear();
+                if (sourceHistoryId) {
+                    ResponseRenderer.renderSourceRecovery({ sourceHistoryId }, 'pending');
+                }
+                BuildManager.switchTab('stream');
                 const serverUrl = document.getElementById('serverUrl').value;
                 const interfaceName = AppState.currentInterface;
                 const path = Config.ENDPOINTS[interfaceName];
@@ -2174,7 +3038,13 @@
                             const content = frame.reply?.streamInfo?.streamContent || '';
                             parsedResult = PythonReprParser.parse(content);
 
-                            const entry = HistoryManager.add(interfaceName, envelope, frames, parsedResult);
+                            const entry = HistoryManager.add(
+                                interfaceName,
+                                envelope,
+                                frames,
+                                parsedResult,
+                                { sourceHistoryId }
+                            );
 
                             if (parsedResult) {
                                 TreeRenderer.render(parsedResult, document.getElementById('treeContainer'), entry.id, entry.interfaceName);
@@ -2182,10 +3052,18 @@
                                 document.getElementById('treeContainer').innerHTML =
                                     '<div class="tree-empty">Failed to parse streamContent. View raw content in Stream Frames.</div>';
                             }
+                            ResponseRenderer.renderSourceRecovery(entry);
 
                             setTimeout(() => WebSocketClient.close(), 1000);
                         } else if (streamType === 'final_error') {
-                            HistoryManager.add(interfaceName, envelope, frames, null);
+                            const entry = HistoryManager.add(
+                                interfaceName,
+                                envelope,
+                                frames,
+                                null,
+                                { sourceHistoryId }
+                            );
+                            ResponseRenderer.renderSourceRecovery(entry, 'failed');
                             setTimeout(() => WebSocketClient.close(), 1000);
                         }
                     },
