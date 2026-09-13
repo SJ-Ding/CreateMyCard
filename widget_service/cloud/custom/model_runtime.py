@@ -12,6 +12,7 @@ from custom.deepseek_platform_client import DeepSeekPlatformClient
 from custom.llmclient import LLMClientOptions, stream_genui
 from custom.mep_model_transport import MepModelTransport
 from custom.model_transport import ModelProvider, ModelTransport, ModelTransportError
+from custom.official_http_client import request_official_http
 from models.generation import ModelRequestContext
 from utils.trigger_mq import trigger_mq
 
@@ -22,6 +23,21 @@ def _generate_with_llmclient(messages: list[dict[str, str]]) -> str:
     """在线程内聚合原有 llmclient 的异步 Token 流。"""
     async def collect_stream() -> str:
         options = LLMClientOptions()
+        settings = get_settings()
+        if settings.deepseek_http_url.strip().startswith(("http://", "https://")):
+            completion = await request_official_http(
+                url=settings.deepseek_http_url,
+                api_key=options.api_key,
+                model=options.model,
+                messages=messages,
+                user=options.user,
+                temperature=options.temperature,
+                top_p=options.top_p,
+                max_tokens=options.max_tokens,
+                stop=options.stop if options.stop is not None else ["DeepSeek"],
+                timeout=options.recv_timeout,
+            )
+            return completion.content
         chunks = [chunk async for chunk in stream_genui(options, messages)]
         return "".join(chunks)
 
@@ -36,7 +52,9 @@ def _generate_with_llmclient(messages: list[dict[str, str]]) -> str:
             f"{_MODULE} llmclient_generation_failed "
             f"error_type={type(exc).__name__} error={exc!r}"
         )
-        raise ModelTransportError("llmclient model generation failed") from exc
+        raise ModelTransportError(
+            f"llmclient model generation failed: {exc}"
+        ) from exc
 
 
 class ModelExecutionRuntime:
