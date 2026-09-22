@@ -13,8 +13,9 @@ sts_serverDomain: ""
 obs.use.edge: false
 obs.expire.time: 3600
 asset.src.url.mapping: ""
+workspace_root: "D:/WorkSpace/CreateMyCard/widget_service/cloud"
 
-enable_artifact_validation: true
+enable_artifact_validation: false
 enable_a2ui_model_mock: true
 enable_ids_mock: true
 enable_default_capability_registry_fallback: true
@@ -48,7 +49,7 @@ model_queue_timeout_seconds: 120
 model_request_timeout_seconds: 120
 model_prompt_log_preview_chars: 30
 
-openai_master_client: deepseek_platform
+openai_master_client: llmclient
 openai_fallback_client: llmclient
 deepseek_platform_access_key: ""
 deepseek_platform_secret_key_sts_config_key: genui.deepseek.platform.secret.key
@@ -68,6 +69,7 @@ model_failure_retry_backoff_multiplier: 2.0
 model_failure_retry_jitter_ratio: 0.2
 
 deepseek_ws_url: ""
+deepseek_http_url: "https://api.deepseek.com/chat/completions"
 deepseek_model: deepseek-ai/DeepSeek-V4-Flash
 deepseek_api_key: AccessService
 deepseek_user: genui_user
@@ -80,3 +82,5 @@ deepseek_enable_thinking: false
 deepseek_include_usage: true
 deepseek_debug_usage: true
 deepseek_recv_timeout: 120
+
+ai_widget_data_huashan_enable: false
