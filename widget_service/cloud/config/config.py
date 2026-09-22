@@ -7,8 +7,8 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urljoin
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import AliasChoices, AliasGenerator, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from config.config_helper import ConfigHelper
 
@@ -28,7 +28,23 @@ def _parse_json_config(value: str, fallback):
         return fallback
 
 
+def _config_aliases(field_name: str) -> AliasChoices:
+    return AliasChoices(f"WIDGET_SERVICE_{field_name.upper()}", field_name)
+
+
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(
+            Path(__file__).resolve().parents[2] / ".env"
+            if platform.system() == "Windows"
+            else None
+        ),
+        env_file_encoding="utf-8",
+        alias_generator=AliasGenerator(validation_alias=_config_aliases),
+        populate_by_name=True,
+        extra="ignore",
+    )
+
     container_ip: str = get_container_ip()
     if platform.system() == "Windows":
         LOCAL_FLAG: bool = True
@@ -44,6 +60,7 @@ class Settings(BaseSettings):
         CONFIG: ConfigHelper = ConfigHelper("local")
     else:
         CONFIG: ConfigHelper = ConfigHelper("cloud")
+    WORKSPACE_ROOT: Path = Path(CONFIG.get("workspace_root", WORKSPACE_ROOT))
     hag_slb_url: str = CONFIG.get("hag_slb_url")
     osms_prepare_url: str = urljoin(hag_slb_url, CONFIG.get("osms_prepare_url"))
     osms_complete_url: str = urljoin(hag_slb_url, CONFIG.get("osms_complete_url"))
@@ -173,6 +190,7 @@ class Settings(BaseSettings):
 
     # deepseek v4 flash model config
     deepseek_ws_url: str = CONFIG.get("deepseek_ws_url")
+    deepseek_http_url: str = CONFIG.get("deepseek_http_url", "")
     deepseek_model: str = CONFIG.get("deepseek_model")
     deepseek_api_key: str = CONFIG.get("deepseek_api_key")
     deepseek_user: str = CONFIG.get("deepseek_user")
