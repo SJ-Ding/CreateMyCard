@@ -16,6 +16,7 @@ from typing import Any, Literal
 import websockets
 
 from config.config import Settings
+from custom.official_http_client import request_official_http
 from models.generation import ModelRequestContext
 from utils.base_utils import sts_config
 
@@ -512,6 +513,36 @@ class PlatformChatClient:
         settings = self.settings
         if not settings.deepseek_api_key:
             raise PlatformModelError("llmclient API key is not configured")
+        if settings.deepseek_http_url.strip().startswith(("http://", "https://")):
+            try:
+                completion = await request_official_http(
+                    url=settings.deepseek_http_url,
+                    api_key=settings.deepseek_api_key,
+                    model=settings.deepseek_model,
+                    messages=messages,
+                    user=settings.deepseek_user,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    temperature=settings.deepseek_temperature,
+                    top_p=settings.deepseek_top_p,
+                    max_tokens=max_tokens,
+                    stop=_DEFAULT_STOP,
+                    timeout=self.request_timeout,
+                )
+            except Exception as exc:
+                raise PlatformModelError(
+                    f"official HTTP model request failed: {exc}"
+                ) from exc
+            return _ModelCompletion(
+                content=completion.content,
+                reasoning_content=completion.reasoning_content,
+                tool_calls=tuple(
+                    _ModelToolCall(item.id, item.name, item.arguments)
+                    for item in completion.tool_calls
+                ),
+                finish_reason=completion.finish_reason,
+                usage=completion.usage,
+            )
         body = {
             "api_key": settings.deepseek_api_key,
             "user": settings.deepseek_user,
@@ -616,11 +647,13 @@ class PlatformChatClient:
             if not secret:
                 raise ValueError("decoded secret key is empty")
         except (KeyError, ValueError) as exc:
-            raise PlatformModelError(f"DeepSeek Platform secret key is unavailable: {config_key}") from exc
+            raise PlatformModelError(
+                f"DeepSeek Platform secret key is unavailable: {config_key}"
+            ) from exc
         signature = base64.b64encode(
             hmac.new(
                 secret,
-                f"{settings.deepseek_platform_access_key}{timestamp}".encode("utf-8"),
+                f"{settings.deepseek_platform_access_key}{timestamp}".encode(),
                 hashlib.sha256,
             ).digest()
         ).decode("utf-8")
@@ -721,7 +754,11 @@ class PlatformChatClient:
             or response.get("statusCode")
             or response.get("errorCode")
         )
-        message = error_payload.get("message") or response.get("errorMsg") or response.get("errorMessage")
+        message = (
+            error_payload.get("message")
+            or response.get("errorMsg")
+            or response.get("errorMessage")
+        )
         if code in {None, "", 0, "0"} and not isinstance(message, str):
             return
         raise PlatformModelError(
