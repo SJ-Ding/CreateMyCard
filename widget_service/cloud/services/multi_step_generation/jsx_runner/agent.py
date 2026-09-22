@@ -561,6 +561,20 @@ class JsxA2UIAgent:
             waited += 10
             self._log(f"[JSX Agent {turn}/{self.max_turns}] 模型仍在生成，已等待 {waited}s")
 
+    async def render_edit(
+        self,
+        task: dict[str, Any],
+        component_name: str,
+        previous_jsx: str,
+        compile_context: dict[str, Any] | None = None,
+        trace_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
+        """执行基于历史 JSX 的编辑入口，创建入口继续使用 render。"""
+        if not previous_jsx.strip():
+            raise ValueError("previous_jsx must be a non-empty string")
+        # TODO
+        return {}
+
     async def render(
         self,
         task: dict[str, Any],

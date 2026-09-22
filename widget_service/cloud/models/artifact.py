@@ -36,6 +36,7 @@ class ArtifactMeta(BaseModel):
 class WidgetArtifact(BaseModel):
     schemaVersion: Literal["widget-artifact-v2"] = "widget-artifact-v2"
     genui: str
+    jsx: str | None = None
     cardSpec: dict[str, Any]
     taskSpec: dict[str, Any]
     effectiveCapabilities: dict[str, list[Any]] = Field(default_factory=dict)

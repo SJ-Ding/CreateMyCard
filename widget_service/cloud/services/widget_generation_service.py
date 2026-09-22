@@ -606,10 +606,12 @@ class WidgetGenerationService:
         )
         latest_processing_result = DslProcessingResult(source_dsl="")
         source_generated_by_jsx = False
+        generated_jsx: str | None = None
 
         async def generate_source_dsl() -> str:
-            nonlocal source_generated_by_jsx
+            nonlocal generated_jsx, source_generated_by_jsx
             source_generated_by_jsx = False
+            generated_jsx = None
             if before_model_call is not None:
                 await before_model_call(card_spec.suggestSize)
             if template_source_generator is not None:
@@ -647,12 +649,24 @@ class WidgetGenerationService:
                         f"{_MODULE} jsx_generation_started operation={policy.operation}"
                     )
                     bridge = JsxA2UIBridge()
-                    bridge_result = await bridge.generate(task_spec, card_spec.suggestSize)
+                    if source_load_result is not None and not source_load_result.jsx:
+                        raise A2UIModelGenerationError(
+                            "source artifact does not contain JSX edit source"
+                        )
+                    if source_load_result is None:
+                        bridge_result = await bridge.generate(task_spec, card_spec.suggestSize)
+                    else:
+                        bridge_result = await bridge.generate_edit(
+                            task_spec,
+                            card_spec.suggestSize,
+                            source_load_result.jsx or "",
+                        )
                     a2ui_jsonl = "\n".join(
                         json.dumps(msg, ensure_ascii=False, separators=(",", ":"))
                         for msg in bridge_result.a2ui_messages
                     )
                     generated_dsl = require_generated_dsl(a2ui_jsonl)
+                    generated_jsx = bridge_result.jsx
                     source_generated_by_jsx = True
                     logger.info(
                         f"{_MODULE} jsx_generation_completed operation={policy.operation} "
@@ -810,6 +824,7 @@ class WidgetGenerationService:
                 source_artifact_digest=(
                     source_load_result.artifact_digest if source_load_result else None
                 ),
+                jsx_source=generated_jsx if source_generated_by_jsx else None,
             )
             artifact_validator = ArtifactValidator(asset_mapper.mapping)
             validation_errors = artifact_validator.validate(artifact, protocol_profile)
@@ -1008,6 +1023,7 @@ class WidgetGenerationService:
             source_artifact_digest=(
                 source_load_result.artifact_digest if source_load_result else None
             ),
+            jsx_source=generated_jsx if source_generated_by_jsx else None,
         )
         # ArtifactStore 当前是本地 mock/OBS TODO 入口，返回端侧可下载 URL 和摘要。
         logger.info(
@@ -1546,6 +1562,7 @@ class WidgetGenerationService:
         artifact_id: str | None = None,
         generation_mode: str = "create",
         source_artifact_digest: str | None = None,
+        jsx_source: str | None = None,
     ) -> WidgetArtifact:
         """组装完整 artifact。
 
@@ -1578,6 +1595,7 @@ class WidgetGenerationService:
         artifact_id = artifact_id or str(uuid.uuid4())
         return WidgetArtifact(
             genui=genui,
+            jsx=jsx_source,
             cardSpec=card_spec,
             taskSpec=task_spec,
             effectiveCapabilities={

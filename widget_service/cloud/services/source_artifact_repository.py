@@ -57,6 +57,7 @@ class SourceArtifactLoadResult:
     read_latency_ms: float
     parse_latency_ms: float
     download_mode: str
+    jsx: str | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,7 @@ class ParsedSourceArtifact:
 
     artifact: WidgetArtifact
     design_token: str | None
+    jsx: str | None = None
 
 
 def calculate_artifact_digest(artifact: WidgetArtifact) -> str:
@@ -189,6 +191,7 @@ class SourceArtifactRepository:
             read_latency_ms=read_latency_ms,
             parse_latency_ms=parse_latency_ms,
             download_mode=download_mode,
+            jsx=parsed_artifact.jsx,
         )
 
     @staticmethod
@@ -285,6 +288,7 @@ class SourceArtifactRepository:
             artifact = WidgetArtifact(
                 schemaVersion=schema["schemaVersion"],
                 genui=blocks["genui"],
+                jsx=blocks.get("jsx"),
                 cardSpec=json.loads(blocks["cardspec"]),
                 taskSpec=json.loads(blocks["taskspec"]),
                 effectiveCapabilities=json.loads(blocks["effectivecapabilities"]),
@@ -300,4 +304,5 @@ class SourceArtifactRepository:
         return ParsedSourceArtifact(
             artifact=artifact,
             design_token=blocks.get("designcompactdsl"),
+            jsx=blocks.get("jsx"),
         )

@@ -168,6 +168,90 @@ class JsxA2UIBridge:
             warnings=normalized_warnings,
         )
 
+    async def generate_edit(
+        self,
+        task_spec: object,
+        size: object,
+        previous_jsx: str,
+    ) -> BridgeResult:
+        """执行 JSX 编辑入口；创建入口保持原有 generate 流程。"""
+        if not previous_jsx.strip():
+            raise ValueError("previous_jsx must be a non-empty string")
+        # TODO: finish the edit flow , currently use the same generate flow for edit
+        payload = task_spec_payload(task_spec, size)
+        prepared = prepare_task(payload, 1)
+        component_name = self._component_name(payload)
+        logger.info(f"{_MODULE} agent_start on edit mode component={component_name} size={size}")
+
+        # trace 收集：agent 执行过程中通过 callback 回传状态
+        trace_data: dict[str, Any] = {}
+
+        def trace_callback(update: dict[str, Any]) -> None:
+            trace_data.update(update)
+
+        try:
+            result = await self.create_agent().render(
+                prepared.prompt_task,
+                component_name,
+                compile_context=prepared.compile_context,
+                trace_callback=trace_callback,
+            )
+        except Exception as exc:
+            if self.dump_to_workspace:
+                self._merge_exception_trace(trace_data, exc)
+                self._dump_trace_to_workspace(
+                    component_name,
+                    trace_data,
+                    {},
+                    prepared.prompt_task,
+                    prepared.compile_context,
+                    error=exc,
+                )
+            raise exc
+        messages = result.get("a2ui")
+        if not isinstance(messages, list) or not messages:
+            raise RuntimeError("JSX workflow returned no A2UI messages")
+        warnings = result.get("warnings")
+        normalized_warnings = tuple(item for item in warnings or [] if isinstance(item, dict))
+
+        raw_jsx = str(result.get("jsx") or "")
+        raw_source = str(result.get("source") or "")
+        raw_a2ui = list(messages)
+        raw_a2ui_json = json.dumps(raw_a2ui, ensure_ascii=False, indent=2)
+        logger.debug(f"{_MODULE} === RAW JSX === component={component_name}\n{raw_jsx}")
+        logger.debug(
+            f"{_MODULE} === RAW A2UI ({len(raw_a2ui)} messages) === "
+            f"component={component_name}\n{raw_a2ui_json}"
+        )
+
+        # 普通请求仍只保留 artifact；仅显式调试或带本地 E2E 标记的请求落盘诊断产物。
+        if self.dump_to_workspace:
+            self._dump_raw_to_workspace(component_name, raw_source, raw_a2ui)
+            self._dump_trace_to_workspace(
+                component_name,
+                trace_data,
+                result,
+                prepared.prompt_task,
+                result.get("compile_context", prepared.compile_context),
+            )
+
+        logger.info(
+            f"{_MODULE} agent_done component={component_name} "
+            f"turns={result.get('turns')} elapsed={result.get('elapsed_seconds')}s"
+        )
+
+        return BridgeResult(
+            component_name=component_name,
+            jsx=raw_jsx,
+            source=raw_source,
+            a2ui_messages=tuple(dict(item) for item in messages),
+            turns=int(result.get("turns") or 0),
+            elapsed_seconds=float(result.get("elapsed_seconds") or 0.0),
+            failed_submissions=int(result.get("failed_submissions") or 0),
+            repair_calls=int(result.get("repair_calls") or 0),
+            warnings=normalized_warnings,
+        )
+
     def _dump_raw_to_workspace(
         self,
         component_name: str,

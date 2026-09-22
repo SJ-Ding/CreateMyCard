@@ -100,6 +100,8 @@ class ArtifactStore:
         )
         if self.design_token is not None:
             blocks.append(f"```designcompactdsl\n{self.design_token}\n```")
+        if artifact.jsx is not None:
+            blocks.append(f"```jsx\n{artifact.jsx}\n```")
         request_block_body = self._request_block_body()
         request_block_separator = "" if request_block_body.endswith("\n") else "\n"
         blocks.append(
