@@ -39,7 +39,18 @@ from .workflow import (
     execute_tool,
     submission_reference_ids,
     tool_result_message,
+    _serialize_jsx,
 )
+from .edit_harness import (
+    EditDraft,
+    EditHarness,
+    EditHarnessConfig,
+    JsxDraft,
+    apply_jsx_operations,
+    build_jsx_surface,
+)
+from ..jsx_to_a2ui.parser.jsx_parser import extract_card_functions, parse_jsx
+from ..jsx_to_a2ui.exceptions import ParseError
 
 
 SUBMIT_MODES = ("direct", "auto")
@@ -484,6 +495,9 @@ class JsxA2UIAgent:
         enable_dynamic_data_binding: bool = True,
         submit_mode: str = "direct",
         plan_max_tokens: int = DEFAULT_PLAN_MAX_TOKENS,
+        edit_deadline_seconds: float = 15.0,
+        edit_max_model_calls: int = 2,
+        edit_max_operations: int = 4,
         resources: GenerationResources | None = None,
         verbose: bool = True,
         client: Any | None = None,
@@ -542,6 +556,15 @@ class JsxA2UIAgent:
             )
         self.plan_enabled = True
         self.plan_max_tokens = plan_max_tokens
+        if edit_deadline_seconds <= 0:
+            raise ValueError("edit_deadline_seconds must be positive")
+        if edit_max_model_calls < 1:
+            raise ValueError("edit_max_model_calls must be positive")
+        if not 1 <= edit_max_operations <= 4:
+            raise ValueError("edit_max_operations must be between 1 and 4")
+        self.edit_deadline_seconds = edit_deadline_seconds
+        self.edit_max_model_calls = edit_max_model_calls
+        self.edit_max_operations = edit_max_operations
         self.resources = resources or GenerationResources()
         self.verbose = verbose
         # None means unprobed. The result is cached across tasks in one batch.
@@ -572,8 +595,197 @@ class JsxA2UIAgent:
         """执行基于历史 JSX 的编辑入口，创建入口继续使用 render。"""
         if not previous_jsx.strip():
             raise ValueError("previous_jsx must be a non-empty string")
-        # TODO
-        return {}
+        started = time.monotonic()
+        deadline = started + self.edit_deadline_seconds
+        validation_enabled = getattr(self, "validation_enabled", True)
+        state = OrderedWorkflowState(
+            component_name,
+            resources=getattr(self, "resources", None) or GenerationResources(),
+            compile_context=compile_context,
+            prompt_task=task,
+            defer_browser_validation=validation_enabled,
+            validation_enabled=validation_enabled,
+            validate_layout_budget=True,
+            validate_dynamic_values=getattr(self, "validate_dynamic_values", True),
+            enable_dynamic_data_binding=getattr(self, "enable_dynamic_data_binding", True),
+        )
+        source = previous_jsx.strip()
+        try:
+            parsed_root = parse_jsx(source)
+        except (ConversionError, ParseError):
+            cards = extract_card_functions(source)
+            if len(cards) != 1:
+                raise ValueError("previous_jsx must contain exactly one editable Card expression")
+            parsed_root = next(iter(cards.values()))
+            source = _serialize_jsx(parsed_root)
+        jsx_draft = JsxDraft(
+            source=source,
+            root=parsed_root,
+            decision=task.get("decision") if isinstance(task.get("decision"), dict) else {},
+            snapshot=build_jsx_surface(source),
+            data_context=compile_context or {},
+        )
+        system = (
+            "你是 JSX 卡片编辑 Agent。只能调用 inspect_edit_surface 或 execute_edit_sequence。"
+            "一次 execute_edit_sequence 最多提交 4 个有序原子操作；不要输出 JSX、解释或 Markdown。"
+            "只能使用编辑界面提供的 nodeId、属性和槽位；跨父容器移动、任意 CSS、任意颜色和新增数据源均拒绝。"
+            "操作成功后保持已完成修改；修复时不要重复已成功操作。"
+        )
+        user = json.dumps(
+            {
+                "editInstruction": task.get("userQuery", ""),
+                "card": {
+                    "size": task.get("size"),
+                    "decision": jsx_draft.decision,
+                    "surface": jsx_draft.snapshot,
+                },
+                "dataContext": compile_context or {},
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+        async def request_model(
+            messages: list[dict[str, Any]],
+            tools: list[dict[str, Any]],
+            timeout: float,
+        ) -> dict[str, Any]:
+            request = {
+                "model": self.model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": "auto",
+                "max_tokens": min(self.max_tokens, 1000),
+            }
+            response = await asyncio.wait_for(
+                self.client.chat.completions.create(**request),
+                timeout=timeout,
+            )
+            choice = response.choices[0]
+            message = choice.message
+            calls = getattr(message, "tool_calls", ())
+            payload_calls = []
+            for call in calls:
+                function = getattr(call, "function", None)
+                payload_calls.append(
+                    {
+                        "id": getattr(call, "id", "edit_call"),
+                        "type": "function",
+                        "function": {
+                            "name": getattr(function, "name", ""),
+                            "arguments": getattr(function, "arguments", "{}"),
+                        },
+                    }
+                )
+            return {"tool_calls": payload_calls}
+
+        def build_surface(_draft: EditDraft) -> dict[str, Any]:
+            return jsx_draft.snapshot
+
+        async def execute_operations(
+            operations: list[dict[str, Any]],
+            current: EditDraft,
+            remaining: float,
+        ) -> dict[str, Any]:
+            if remaining < 0.2:
+                return {"status": "failed", "code": "EDIT_DEADLINE_EXCEEDED"}
+            result = apply_jsx_operations(jsx_draft, operations)
+            if result.get("status") != "applied":
+                applied = result.get("applied", [])
+                if applied:
+                    current.revision += 1
+                    current.applied_operations.extend(applied)
+                    result["revision"] = current.revision
+                current.failed_operation = result.get("failedOperation")
+                return result
+            current.revision += 1
+            current.applied_operations.extend(result.get("operations", []))
+            decision = jsx_draft.decision
+            validation = state.submit_card_jsx(
+                jsx_draft.source,
+                decision,
+                task.get("coverage", []),
+                task.get("unmetRequirements", []),
+            )
+            if not validation.get("ok"):
+                return {
+                    "status": "repair_required",
+                    "revision": current.revision,
+                    "operations": result.get("operations", []),
+                    "findings": validation.get("findings", []),
+                    "error": validation.get("error", "JSX 编辑校验失败"),
+                    "commitAllowed": False,
+                }
+            if getattr(self, "browser_validation", False) and validation_enabled:
+                remaining_budget = max(0.2, min(2.0, remaining - 0.1))
+                try:
+                    browser_report = await validate_generated_card(
+                        source=jsx_draft.source,
+                        task=task,
+                        component_name=component_name,
+                        decision=decision,
+                        browser=True,
+                        timeout_seconds=remaining_budget,
+                        infrastructure_retries=0,
+                    )
+                except Exception as exc:
+                    return {
+                        "status": "repair_required",
+                        "revision": current.revision,
+                        "operations": result.get("operations", []),
+                        "code": "BROWSER_VALIDATION_FAILED",
+                        "error": str(exc),
+                        "commitAllowed": False,
+                    }
+                if not browser_report.get("ok", True):
+                    return {
+                        "status": "repair_required",
+                        "revision": current.revision,
+                        "operations": result.get("operations", []),
+                        "code": "BROWSER_VALIDATION_FAILED",
+                        "findings": browser_report.get("findings", []),
+                        "commitAllowed": False,
+                    }
+                state.apply_rendered_layout(browser_report.get("renderedLayout"))
+            if state.pending_submission is not None:
+                state.accept_pending_submission()
+            accepted = state.submission
+            if accepted is None:
+                return {"status": "repair_required", "code": "NO_EDIT_SUBMISSION"}
+            return {
+                "status": "committed",
+                "revision": current.revision,
+                "operations": result.get("operations", []),
+                "source": accepted.source,
+                "jsx": accepted.jsx,
+                "a2ui": accepted.messages,
+                "decision": accepted.decision,
+                "compile_context": accepted.compile_context,
+                "browser_validation": "passed" if getattr(self, "browser_validation", False) else "skipped",
+            }
+
+        harness = EditHarness(
+            EditHarnessConfig(
+                deadline_seconds=max(0.1, deadline - started),
+                max_model_calls=self.edit_max_model_calls,
+                max_operations=self.edit_max_operations,
+            )
+        )
+        result = await harness.run(
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            build_surface=build_surface,
+            request_model=request_model,
+            execute_operations=execute_operations,
+        )
+        committed = result.get("result", {})
+        committed["turns"] = result.get("model_calls", 0)
+        committed["elapsed_seconds"] = time.monotonic() - started
+        committed["repair_calls"] = max(0, int(result.get("model_calls", 0)) - 1)
+        committed["failed_submissions"] = 0
+        committed["warnings"] = []
+        if trace_callback is not None:
+            trace_callback({"status": "completed", "turn_trace": result.get("trace", [])})
+        return committed
 
     async def render(
         self,

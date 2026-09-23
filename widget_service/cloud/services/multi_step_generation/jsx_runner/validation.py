@@ -47,9 +47,11 @@ async def _validate_generated_card_once(
         raise ValidatorInfrastructureError(f"无法启动 JSX 校验器：{exc}") from exc
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(payload), timeout=timeout_seconds)
-    except TimeoutError as exc:
+    except (TimeoutError, asyncio.CancelledError) as exc:
         process.kill()
         await process.wait()
+        if isinstance(exc, asyncio.CancelledError):
+            raise
         raise ValidatorInfrastructureError(f"JSX 校验超过 {timeout_seconds:g} 秒") from exc
 
     output = stdout.decode("utf-8", errors="replace").strip()

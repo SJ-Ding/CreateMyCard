@@ -86,6 +86,9 @@ class JsxA2UIBridge:
             validate_dynamic_values=resolved.validate_dynamic_values,
             enable_dynamic_data_binding=resolved.enable_dynamic_data_binding,
             plan_max_tokens=resolved.plan_max_tokens,
+            edit_deadline_seconds=resolved.edit_deadline_seconds,
+            edit_max_model_calls=resolved.edit_max_model_calls,
+            edit_max_operations=resolved.edit_max_operations,
             resources=GenerationResources(include_few_shot=resolved.include_few_shot),
             submit_mode=resolved.submit_mode,
             verbose=resolved.verbose,
@@ -177,7 +180,6 @@ class JsxA2UIBridge:
         """执行 JSX 编辑入口；创建入口保持原有 generate 流程。"""
         if not previous_jsx.strip():
             raise ValueError("previous_jsx must be a non-empty string")
-        # TODO: finish the edit flow , currently use the same generate flow for edit
         payload = task_spec_payload(task_spec, size)
         prepared = prepare_task(payload, 1)
         component_name = self._component_name(payload)
@@ -190,9 +192,10 @@ class JsxA2UIBridge:
             trace_data.update(update)
 
         try:
-            result = await self.create_agent().render(
+            result = await self.create_agent().render_edit(
                 prepared.prompt_task,
                 component_name,
+                previous_jsx,
                 compile_context=prepared.compile_context,
                 trace_callback=trace_callback,
             )

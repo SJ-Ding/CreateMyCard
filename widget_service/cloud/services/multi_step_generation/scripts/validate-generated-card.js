@@ -1572,7 +1572,7 @@ async function browserValidation(previewHtml, screenshotPath, resources) {
   // Resolve the executable before starting the HTTP server. A missing browser
   // must fail immediately instead of leaving the server alive until Python's
   // validator timeout expires.
-  const chromium = loadChromium();
+  const { chromium, executablePath } = loadChromium();
   const serverInfo = await startStaticServer(previewHtml);
   let browser = null;
   let context = null;
@@ -1582,7 +1582,7 @@ async function browserValidation(previewHtml, screenshotPath, resources) {
     const allowedUnavailableResources = new Set((resources || []).map((resource) => (
       new URL(runtimeAssetUrl(resource.value), assetBaseUrl).href
     )));
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, executablePath });
     context = await browser.newContext({ viewport: { width: 520, height: 420 }, deviceScaleFactor: 1 });
     page = await context.newPage();
     const runtimeErrors = [];

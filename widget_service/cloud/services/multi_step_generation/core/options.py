@@ -24,6 +24,9 @@ class BridgeOptions:
     submit_mode: str = "direct"
     thinking_mode: str = "disable"
     verbose: bool = True
+    edit_deadline_seconds: float = 15.0
+    edit_max_model_calls: int = 2
+    edit_max_operations: int = 4
 
     def __post_init__(self) -> None:
         if self.max_turns < 1:
@@ -32,6 +35,12 @@ class BridgeOptions:
             raise ValueError("max_tokens must be positive")
         if self.request_timeout <= 0:
             raise ValueError("request_timeout must be positive")
+        if self.edit_deadline_seconds <= 0:
+            raise ValueError("edit_deadline_seconds must be positive")
+        if self.edit_max_model_calls < 1:
+            raise ValueError("edit_max_model_calls must be positive")
+        if not 1 <= self.edit_max_operations <= 4:
+            raise ValueError("edit_max_operations must be between 1 and 4")
         if self.browser_fallback_after < 0:
             raise ValueError("browser_fallback_after must be non-negative")
         if not 1 <= self.plan_max_tokens <= PLAN_MAX_TOKENS:
