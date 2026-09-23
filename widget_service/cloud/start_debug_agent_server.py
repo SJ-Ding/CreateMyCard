@@ -12,27 +12,20 @@ from debug_agent.config import DebugSettings, load_debug_config
 from debug_agent.logging_utils import configure_debug_logging
 
 
-parser = argparse.ArgumentParser(description="启动主 Agent Debug 服务")
-parser.add_argument("--config", type=Path, default=os.getenv("DEBUG_AGENT_CONFIG"))
-parser.add_argument("--profile", default=os.getenv("DEBUG_AGENT_PROFILE"))
-parser.add_argument("--port", type=int, default=None)
-parser.add_argument("--log-level", default=os.getenv("DEBUG_AGENT_LOG_LEVEL"))
-parser.add_argument("--trace", action="store_true")
-args = parser.parse_args()
 from config.config import get_settings
 
 production = get_settings()
-config_path = args.config or (Path(production.repo_root) / "cloud" / "debug_agent.yaml")
+config_path = (Path(production.repo_root) / "cloud" / "debug_agent.yaml")
 if not config_path.is_file():
     config_path = Path(production.repo_root) / "widget_service" / "cloud" / "debug_agent.yaml"
 config = load_debug_config(config_path, production.repo_root)
 settings = DebugSettings.from_config(
     config,
     production,
-    profile=args.profile,
-    port=args.port,
-    log_level=args.log_level,
-    trace=True if args.trace else None,
+    profile=os.getenv("DEBUG_AGENT_PROFILE"),
+    port=8888,
+    log_level=os.getenv("DEBUG_AGENT_LOG_LEVEL"),
+    trace=True,
 )
 overrides = {}
 if os.getenv("DEBUG_AGENT_UPSTREAM_URL"):

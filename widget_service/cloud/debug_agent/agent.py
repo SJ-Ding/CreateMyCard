@@ -206,6 +206,7 @@ class DebugAgentSession:
                 tools=self.registry.model_tools,
                 tool_choice="auto",
                 max_tokens=self.debug_settings.max_tokens,
+                enable_thinking = client.thinking_mode != "disable",
             )
             content = str(getattr(completion, "content", "") or "")
             tool_calls = tuple(getattr(completion, "tool_calls", ()) or ())
@@ -427,6 +428,8 @@ class DebugAgentSession:
         return (
             f"{content}\n当前 Skill：{self.loader.catalog.name}\n"
             "模型工具仅允许：load_skill、invoke。"
+            "首先使用如下工具调用导入初始化skill"
+            r"""{"skillName":"harmony-card-generation-online","resourceId":"instructions"}"""
         )
 
     @staticmethod
