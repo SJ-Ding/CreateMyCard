@@ -37,6 +37,9 @@ def create_app() -> FastAPI:
     """
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        logger.info(
+            f"{_MODULE} event_loop_started loop={type(asyncio.get_running_loop()).__name__}"
+        )
         configure_anyio_thread_pool()
         model_runtime = ModelExecutionRuntime()
         _app.state.model_runtime = model_runtime
@@ -96,6 +99,7 @@ def run_local_server() -> None:
         host=settings.server_host,
         port=settings.server_port,
         log_config=None,
+        loop="app.event_loop:create_server_loop",
     )
 
 

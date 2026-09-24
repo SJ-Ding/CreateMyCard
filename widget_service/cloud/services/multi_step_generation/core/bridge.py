@@ -14,6 +14,7 @@ from models.generation import ModelRequestContext
 
 from ..jsx_runner.agent import JsxA2UIAgent
 from ..jsx_runner.data_processing import prepare_task
+from ..jsx_runner.edit_agent import JsxEditAgent
 from ..jsx_runner.resources import GenerationResources
 from .input_adapter import task_spec_payload
 from .model_adapter import PlatformChatClient
@@ -86,13 +87,33 @@ class JsxA2UIBridge:
             validate_dynamic_values=resolved.validate_dynamic_values,
             enable_dynamic_data_binding=resolved.enable_dynamic_data_binding,
             plan_max_tokens=resolved.plan_max_tokens,
-            edit_deadline_seconds=resolved.edit_deadline_seconds,
-            edit_max_model_calls=resolved.edit_max_model_calls,
-            edit_max_operations=resolved.edit_max_operations,
             resources=GenerationResources(include_few_shot=resolved.include_few_shot),
             submit_mode=resolved.submit_mode,
             verbose=resolved.verbose,
             client=client,
+        )
+
+    def create_edit_agent(self, options: BridgeOptions | None = None) -> JsxEditAgent:
+        """创建独立的二次编辑 Agent，避免编辑配置进入创建 Agent。"""
+        resolved = options or self.options
+        client = PlatformChatClient(
+            self.settings,
+            self.request_context,
+            thinking_mode=resolved.thinking_mode,
+            request_timeout=resolved.request_timeout,
+        )
+        return JsxEditAgent(
+            model=self.model_name,
+            client=client,
+            max_tokens=resolved.max_tokens,
+            browser_validation=resolved.browser_validation,
+            validation_enabled=resolved.validation_enabled,
+            validate_dynamic_values=resolved.validate_dynamic_values,
+            enable_dynamic_data_binding=resolved.enable_dynamic_data_binding,
+            edit_max_model_calls=resolved.edit_max_model_calls,
+            edit_max_operations=resolved.edit_max_operations,
+            resources=GenerationResources(include_few_shot=resolved.include_few_shot),
+            verbose=resolved.verbose,
         )
 
     async def generate(self, task_spec: object, size: object) -> BridgeResult:
@@ -192,7 +213,7 @@ class JsxA2UIBridge:
             trace_data.update(update)
 
         try:
-            result = await self.create_agent().render_edit(
+            result = await self.create_edit_agent().render(
                 prepared.prompt_task,
                 component_name,
                 previous_jsx,

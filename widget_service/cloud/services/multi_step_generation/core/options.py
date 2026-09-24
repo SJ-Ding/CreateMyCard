@@ -24,7 +24,6 @@ class BridgeOptions:
     submit_mode: str = "direct"
     thinking_mode: str = "disable"
     verbose: bool = True
-    edit_deadline_seconds: float = 15.0
     edit_max_model_calls: int = 2
     edit_max_operations: int = 4
 
@@ -35,8 +34,6 @@ class BridgeOptions:
             raise ValueError("max_tokens must be positive")
         if self.request_timeout <= 0:
             raise ValueError("request_timeout must be positive")
-        if self.edit_deadline_seconds <= 0:
-            raise ValueError("edit_deadline_seconds must be positive")
         if self.edit_max_model_calls < 1:
             raise ValueError("edit_max_model_calls must be positive")
         if not 1 <= self.edit_max_operations <= 4:
