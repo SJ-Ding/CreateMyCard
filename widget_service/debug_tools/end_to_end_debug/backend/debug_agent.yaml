@@ -1,0 +1,42 @@
+skill_root: skills
+auto_discover_profiles: true
+default_profile: harmony-card-generation-online
+system_prompt: debug_tools/end_to_end_debug/backend/system_prompt.md
+ui:
+  quick_prompts:
+    - label: 天气卡片
+      prompt: 帮我做一个今天的天气卡片，显示上海市天气
+    - label: 待办清单
+      prompt: 创建一个待办清单卡片
+    - label: 日程安排
+      prompt: 创建一个日程卡片，显示最近的日程
+    - label: 日程安排跳转
+      prompt: 创建一个日程卡片，显示最近的日程，并且能够跳转查看
+    - label: 拨打电话
+      prompt: 创建一个天气卡片，显示今天的天气，并且可以点击给父亲打电话
+profiles:
+  harmony-card-generation-online:
+    name: harmony-card-generation-online
+    display_name: 在线卡片生成
+    description: 当前在线云侧编排 Skill
+server:
+  host: 127.0.0.1
+  port: 8888
+  upstream_base_url: ws://127.0.0.1:8855
+  bundle_name: com.omega_w_0823.hmservice
+  max_steps: 20
+  max_tokens: 8192
+  request_timeout_seconds: 180
+  skill_resource_max_bytes: 262144
+defaults:
+  uid: debug-user
+  device_id: debug-device
+  phone_type: ALN-AL00
+  app_version: 11.7.7.332
+  rom_version: ALN-AL00 7.0.0.100
+  locale: zh-CN
+  country_code: CN
+logging:
+  level: INFO
+  trace: false
+  value_limit: 160
