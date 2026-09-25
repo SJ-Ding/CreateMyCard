@@ -25,7 +25,7 @@ _DEFAULT_HEADERS = {"sender": "GenUI"}
 _DEFAULT_STOP = ["DeepSeek"]
 
 ToolChoice = str | dict[str, Any]
-Provider = Literal["deepseek_platform", "llmclient"]
+Provider = Literal["deepseek_platform", "llmclient", "deepseek_official_http"]
 
 _LOOP_SEMAPHORES: weakref.WeakKeyDictionary[
     asyncio.AbstractEventLoop,
@@ -437,6 +437,14 @@ class PlatformChatClient:
                 max_tokens=max_tokens,
                 enable_thinking=enable_thinking,
             )
+        if provider == "deepseek_official_http":
+            return await self._complete_deepseek_official_http(
+                messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                max_tokens=max_tokens,
+                enable_thinking=enable_thinking,
+            )
         if provider == "llmclient":
             return await self._complete_llmclient(
                 messages,
@@ -448,6 +456,45 @@ class PlatformChatClient:
         raise PlatformModelError(
             f"unsupported platform model provider: {provider}",
             code="MODEL_PROVIDER_UNSUPPORTED",
+        )
+
+    async def _complete_deepseek_official_http(
+        self,
+        messages: list[dict[str, object]],
+        *,
+        tools: list[dict[str, object]],
+        tool_choice: ToolChoice,
+        max_tokens: int,
+        enable_thinking: bool,
+    ) -> _ModelCompletion:
+        settings = self.settings
+        try:
+            completion = await request_official_http(
+                url=settings.deepseek_official_http_url,
+                api_key=settings.deepseek_official_http_api_key,
+                model=settings.deepseek_official_http_model,
+                messages=messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=settings.deepseek_official_http_temperature,
+                top_p=settings.deepseek_official_http_top_p,
+                max_tokens=max_tokens,
+                thinking_enabled=enable_thinking,
+                timeout=self.request_timeout,
+            )
+        except Exception as exc:
+            raise PlatformModelError(
+                f"DeepSeek official HTTP tool request failed: {type(exc).__name__}"
+            ) from exc
+        return _ModelCompletion(
+            content=completion.content,
+            reasoning_content=completion.reasoning_content,
+            tool_calls=tuple(
+                _ModelToolCall(item.id, item.name, item.arguments)
+                for item in completion.tool_calls
+            ),
+            finish_reason=completion.finish_reason,
+            usage=completion.usage,
         )
 
     async def _complete_deepseek_platform(

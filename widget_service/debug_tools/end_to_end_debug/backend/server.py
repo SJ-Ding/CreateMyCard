@@ -88,8 +88,20 @@ def create_app(
     @app.get("/debug/health")
     async def health() -> dict[str, Any]:
         provider = str(getattr(production, "openai_master_client", "") or "")
+        debug_provider = _resolve_debug_model_provider(production)
         model_key = (
-            "deepseek_platform_model_name" if provider == "deepseek_platform" else "deepseek_model"
+            "deepseek_platform_model_name"
+            if provider == "deepseek_platform"
+            else (
+                "deepseek_official_http_model"
+                if provider == "deepseek_official_http"
+                else "deepseek_model"
+            )
+        )
+        debug_model_key = (
+            "deepseek_official_http_model"
+            if debug_provider == "deepseek_official_http"
+            else "deepseek_model"
         )
         upstream_reachable = await _probe_upstream(local.upstream_base_url)
         return {
@@ -101,6 +113,8 @@ def create_app(
             "upstreamReachable": upstream_reachable,
             "upstreamStatus": "available" if upstream_reachable else "unavailable",
             "provider": provider or "未配置",
+            "debugModelProvider": debug_provider,
+            "debugModel": str(getattr(production, debug_model_key, "") or "未配置"),
             "model": str(getattr(production, model_key, "") or "未配置"),
             "enableArtifactDownloadMock": bool(
                 getattr(production, "enable_artifact_download_mock", False)
@@ -434,6 +448,23 @@ def _ensure_cloud_import_path() -> None:
 
 def _timestamp() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _resolve_debug_model_provider(settings: Any) -> str:
+    """返回调试 Agent 实际使用的模型传输。"""
+
+    provider = str(getattr(settings, "openai_master_client", "") or "")
+    official_key = str(
+        getattr(settings, "deepseek_official_http_api_key", "") or ""
+    ).strip()
+    if official_key:
+        return "deepseek_official_http"
+    if provider == "deepseek_platform":
+        legacy_key = str(getattr(settings, "deepseek_api_key", "") or "").strip()
+        legacy_url = str(getattr(settings, "deepseek_http_url", "") or "").strip()
+        if legacy_key and legacy_url.startswith(("http://", "https://")):
+            return "llmclient"
+    return provider or "未配置"
 
 
 def _static_response(static_dir: Path, asset_path: str) -> Any:

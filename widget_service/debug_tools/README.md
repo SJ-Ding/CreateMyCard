@@ -46,6 +46,15 @@ npm run dev
 `getWidgetCapabilityOverview`、`getDataCapabilitySchemas` 和
 `generateWidgetCardCompactDsl` 三个操作，并保持原始 WebSocket 帧不变。
 
+## 调试模型配置
+
+端到端调试会优先复用 DeepSeek 官方 HTTP 配置。配置
+`WIDGET_SERVICE_DEEPSEEK_OFFICIAL_HTTP_API_KEY` 后，调试 Agent 使用
+`WIDGET_SERVICE_DEEPSEEK_OFFICIAL_HTTP_URL`、`WIDGET_SERVICE_DEEPSEEK_OFFICIAL_HTTP_MODEL`
+和同一个 API key 调用官方 Chat Completions 接口，并保留工具调用和思考模式。
+未配置官方 key 时，兼容已有的 `WIDGET_SERVICE_DEEPSEEK_HTTP_URL` 与
+`WIDGET_SERVICE_DEEPSEEK_API_KEY` 配置。API key 只从服务端读取，不会下发到浏览器或写入事件日志。
+
 ## 范围说明
 
 来源 `websocket_debugger` 分支中的旧 `/api/v1/ws/agent/chat` 智能体调试协议没有并入本平台，避免与当前

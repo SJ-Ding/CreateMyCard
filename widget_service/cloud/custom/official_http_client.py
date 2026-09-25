@@ -106,6 +106,7 @@ async def request_official_http(
     top_p: float = 0.9,
     max_tokens: int = 8192,
     stop: list[str] | None = None,
+    thinking_enabled: bool | None = None,
     timeout: float = 120.0,
 ) -> OfficialHttpCompletion:
     """Call the official OpenAI-compatible chat completions HTTP endpoint.
@@ -134,6 +135,10 @@ async def request_official_http(
         payload["user"] = user
     if stop:
         payload["stop"] = stop
+    if thinking_enabled is not None:
+        payload["thinking"] = {
+            "type": "enabled" if thinking_enabled else "disabled",
+        }
     if tools:
         payload["tools"] = tools
         payload["tool_choice"] = tool_choice
