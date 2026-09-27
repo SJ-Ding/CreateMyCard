@@ -47,7 +47,7 @@ export interface CommonEnvelopeState {
   utterance: string;
   countryCode: string;
   deviceFormation: string;
-  deviceType: string;
+  deviceType: number;
   locale: string;
   phoneType: string;
   prdVer: string;
@@ -98,9 +98,56 @@ export interface InterfaceDebuggerProps {
   transportBase?: string;
   /** Backwards-compatible alias used by the first platform shell. */
   socketBasePath?: string;
+  config?: InterfaceDebugConfig;
+  selectedCall?: SharedToolCallRecord | null;
+  onCallStart?: (input: { operation: ToolOperation; request: JsonObject; runId?: string; callId?: string }) => string | undefined;
+  onCallFinish?: (id: string | undefined, result: SharedToolCallResult) => void;
+  onCallFail?: (id: string | undefined, error: string) => void;
   onEvent?: (event: InterfaceEvent) => void;
   onArtifact?: (artifact: InterfaceArtifact) => void;
   className?: string;
+}
+
+/** 平台配置的结构化子集，允许接口子包单独运行。 */
+export interface InterfaceDebugConfig {
+  bundleName?: string;
+  protocolVersion?: string;
+  userId?: string;
+  deviceId?: string;
+  phoneType?: string;
+  appVersion?: string;
+  romVersion?: string;
+  locale?: string;
+  countryCode?: string;
+  deviceFormation?: string;
+  deviceType?: number;
+  sysVer?: string;
+  paginationLimit?: number;
+  paginationStart?: string;
+}
+
+export interface SharedToolCallRecord {
+  id: string;
+  operation: string;
+  status?: 'pending' | 'success' | 'error' | string;
+  finishedAt?: string;
+  request?: unknown;
+  finalFrame?: unknown;
+  finalStreamContent?: string;
+  response?: SharedToolCallResult;
+  error?: string;
+}
+
+export interface SharedToolCallResult {
+  requestId?: string;
+  operation?: string;
+  status?: string;
+  errorCode?: string;
+  error?: unknown;
+  data?: unknown;
+  finalFrame?: ToolFrame;
+  finalStreamContent?: string;
+  [key: string]: unknown;
 }
 
 export interface ToolStatus {

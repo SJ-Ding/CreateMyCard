@@ -12,8 +12,13 @@ export interface ToolSocket {
 
 export interface ToolSocketHandlers {
   onFrame: (frame: ToolFrame) => void;
+  /** 只在 final/final_error 到达时触发；中间帧不会进入调用记录。 */
+  onFinal?: (frame: ToolFrame, type: 'final' | 'final_error') => void;
+  onIntermediate?: (frame: ToolFrame) => void;
   onStatus: (status: ToolStatus) => void;
   onEvent?: (event: InterfaceEvent) => void;
+  /** 一次浏览器直连调用的总超时，默认 180 秒。 */
+  timeoutMs?: number;
 }
 
 function websocketScheme(): string {
@@ -23,39 +28,121 @@ function websocketScheme(): string {
   return 'ws:';
 }
 
+const ALLOWED_OPERATIONS: readonly ToolOperation[] = [
+  'getWidgetCapabilityOverview',
+  'getDataCapabilitySchemas',
+  'generateWidgetCardCompactDsl',
+];
+
 /** 将配置中的相对路径、http(s) URL 或 ws(s) URL 统一成 WebSocket 地址。 */
 export function buildToolSocketUrl(base: string | undefined, operation: ToolOperation): string {
-  const configured = (base || '/debug/tools').trim();
+  if (!ALLOWED_OPERATIONS.includes(operation)) throw new Error('不支持的工具操作');
+  const configured = (base === undefined
+    ? 'ws://127.0.0.1:8855/api/v1/ws/tools'
+    : base).trim();
+  if (!configured) throw new Error('工具地址不能为空');
+  return validateWebSocketUrl(appendOperation(normalizeBaseWebSocketUrl(configured), operation));
+}
+
+/** 将相对路径、HTTP(S) 或 WS(S) 地址规范化为不含 operation 的 WS 地址。 */
+export function normalizeBaseWebSocketUrl(value: string): string {
+  const configured = value.trim();
+  if (!configured) throw new Error('工具地址不能为空');
+  if (configured.startsWith('//')) throw new Error('工具地址协议无效');
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(configured)
+    && !/^(?:https?|wss?):\/\//i.test(configured)) {
+    throw new Error('工具地址协议无效');
+  }
   if (/^https?:\/\//i.test(configured)) {
     const parsed = new URL(configured);
     parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-    return appendOperation(parsed.toString(), operation);
+    return validateWebSocketUrl(parsed.toString());
   }
-  if (/^wss?:\/\//i.test(configured)) {
-    return appendOperation(configured, operation);
-  }
+  if (/^wss?:\/\//i.test(configured)) return validateWebSocketUrl(configured);
   const origin = typeof window === 'undefined'
     ? 'ws://127.0.0.1:8888'
     : `${websocketScheme()}//${window.location.host}`;
-  return appendOperation(`${origin}${configured.startsWith('/') ? configured : `/${configured}`}`, operation);
+  return validateWebSocketUrl(`${origin}${configured.startsWith('/') ? configured : `/${configured}`}`);
+}
+
+export function normalizeWebSocketUrl(value: string, operation?: ToolOperation): string {
+  const base = normalizeBaseWebSocketUrl(value);
+  return operation ? appendOperation(base, operation) : base;
+}
+
+function validateWebSocketUrl(value: string): string {
+  const parsed = new URL(value);
+  if (!['ws:', 'wss:'].includes(parsed.protocol) || !parsed.hostname) {
+    throw new Error('工具地址必须使用 ws/wss 协议');
+  }
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && parsed.protocol === 'ws:') {
+    throw new Error('HTTPS 页面不能连接不安全的 ws 地址');
+  }
+  if (parsed.username || parsed.password || hasCredentialQuery(parsed)) throw new Error('工具地址不能包含认证信息');
+  return value;
+}
+
+function hasCredentialQuery(parsed: URL): boolean {
+  for (const key of parsed.searchParams.keys()) {
+    if (/(?:^|_|-)(?:token|api[_-]?key|secret|password|authorization|auth)(?:$|_|-)/i.test(key)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function appendOperation(base: string, operation: ToolOperation): string {
-  const normalized = base.replace(/\/+$/, '');
   const encodedOperation = encodeURIComponent(operation);
-  if (normalized.endsWith(`/${encodedOperation}`) || normalized.endsWith(`/${operation}`)) {
-    return normalized;
+  if (/^wss?:\/\//i.test(base)) {
+    const parsed = new URL(base);
+    const decodedPath = decodeURIComponent(parsed.pathname).replace(/\/+$/, '');
+    const templatedPath = decodedPath.includes('{operation}')
+      ? decodedPath.split('{operation}').join(encodedOperation)
+      : decodedPath;
+    if (templatedPath !== decodedPath) {
+      parsed.pathname = templatedPath;
+      return parsed.toString();
+    }
+    if (decodedPath.endsWith(`/${operation}`)) return parsed.toString();
+    parsed.pathname = `${decodedPath}/${encodedOperation}`;
+    return parsed.toString();
   }
-  // Allow a BFF template path (`.../{operation}`) without double-appending.
-  if (normalized.endsWith('/{operation}')) {
-    return `${normalized.slice(0, -('/{operation}'.length))}/${encodedOperation}`;
-  }
-  return `${normalized}/${encodedOperation}`;
+  const hashIndex = base.indexOf('#');
+  const hash = hashIndex >= 0 ? base.slice(hashIndex) : '';
+  const withoutHash = hashIndex >= 0 ? base.slice(0, hashIndex) : base;
+  const queryIndex = withoutHash.indexOf('?');
+  const query = queryIndex >= 0 ? withoutHash.slice(queryIndex) : '';
+  const path = queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash;
+  const normalized = decodeURIComponent(path).replace(/%7Boperation%7D/gi, '{operation}').replace(/\/+$/, '');
+  const nextPath = normalized.includes('{operation}')
+    ? normalized.split('{operation}').join(encodedOperation)
+    : normalized.endsWith(`/${operation}`)
+      ? normalized
+      : `${normalized}/${encodedOperation}`;
+  return `${nextPath}${query}${hash}`;
 }
 
 function frameType(frame: ToolFrame): string {
+  const candidates: string[] = [];
   const info = frame.reply?.streamInfo;
-  return typeof info?.streamType === 'string' ? info.streamType : 'unknown';
+  if (typeof info?.streamType === 'string') candidates.push(info.streamType.toLowerCase());
+  if (typeof frame.streamType === 'string') candidates.push(frame.streamType.toLowerCase());
+  if (typeof frame.type === 'string') candidates.push(frame.type.toLowerCase());
+  const errorCode = frame.errorCode;
+  const hasOuterError = errorCode !== undefined
+    && errorCode !== null
+    && String(errorCode).trim() !== ''
+    && String(errorCode) !== '0';
+  const status = typeof frame.status === 'string' ? frame.status.toLowerCase() : '';
+  const hasErrorText = [frame.error, frame.errorMessage].some(
+    (value) => typeof value === 'string' && value.trim().length > 0,
+  );
+  if (hasOuterError || frame.ok === false || ['error', 'failed', 'final_error'].includes(status) || hasErrorText) {
+    candidates.push('final_error');
+  }
+  if (candidates.includes('final_error') || candidates.includes('error') || candidates.includes('tool.error')) return 'final_error';
+  if (candidates.includes('final')) return 'final';
+  return candidates[0] ?? 'unknown';
 }
 
 function createEvent(
@@ -74,9 +161,14 @@ export function connectToolSocket(
   payload: unknown,
   handlers: ToolSocketHandlers,
 ): ToolSocket {
-  const url = buildToolSocketUrl(base, operation);
+  let url = '';
   let socket: WebSocket | null = null;
   let closedByCaller = false;
+  let settled = false;
+  const timeoutMs = Number.isFinite(handlers.timeoutMs) && (handlers.timeoutMs ?? 0) > 0
+    ? handlers.timeoutMs as number
+    : 180_000;
+  let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
   const emitStatus = (state: ToolStatus['state'], text: string) => {
     handlers.onStatus({ state, text });
     handlers.onEvent?.(createEvent('local', `status:${state}`, operation, text));
@@ -84,6 +176,14 @@ export function connectToolSocket(
   const emit = (direction: InterfaceEvent['direction'], kind: string, value: unknown) => {
     handlers.onEvent?.(createEvent(direction, kind, operation, value));
   };
+
+  try {
+    url = buildToolSocketUrl(base, operation);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    emitStatus('error', `地址无效：${message}`);
+    return { send: () => undefined, close: () => undefined };
+  }
 
   emitStatus('connecting', '正在连接…');
   try {
@@ -93,8 +193,16 @@ export function connectToolSocket(
     emitStatus('error', `连接失败：${message}`);
     return { send: () => undefined, close: () => undefined };
   }
+  timeout = globalThis.setTimeout(() => {
+    if (settled || closedByCaller) return;
+    settled = true;
+    emitStatus('error', `调用超时（${Math.round(timeoutMs / 1000)} 秒）`);
+    closedByCaller = true;
+    if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'timeout');
+  }, timeoutMs);
 
   socket.onopen = () => {
+    if (settled || closedByCaller) return;
     emitStatus('connected', '已连接');
     try {
       const serialized = JSON.stringify(payload);
@@ -102,7 +210,11 @@ export function connectToolSocket(
       emit('send', 'request', payload);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      settled = true;
+      closedByCaller = true;
+      if (timeout !== undefined) globalThis.clearTimeout(timeout);
       emitStatus('error', `请求序列化失败：${message}`);
+      if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'serialization failed');
     }
   };
   socket.onmessage = (message) => {
@@ -112,19 +224,43 @@ export function connectToolSocket(
         throw new Error('响应不是 JSON 对象');
       }
       const frame = value as ToolFrame;
-      handlers.onFrame(frame);
-      emit('receive', frameType(frame), frame);
+      const type = frameType(frame);
+      if (type === 'final' || type === 'final_error') {
+        if (settled) return;
+        settled = true;
+        if (timeout !== undefined) globalThis.clearTimeout(timeout);
+        handlers.onFrame(frame);
+        handlers.onFinal?.(frame, type);
+        emit('receive', type, frame);
+        if (socket && socket.readyState < WebSocket.CLOSING) {
+          socket.close(1000, 'final received');
+        }
+        return;
+      }
+      handlers.onIntermediate?.(frame);
     } catch (error) {
+      if (settled || closedByCaller) return;
       const detail = error instanceof Error ? error.message : String(error);
+      settled = true;
+      closedByCaller = true;
+      if (timeout !== undefined) globalThis.clearTimeout(timeout);
       emitStatus('error', `响应解析失败：${detail}`);
+      if (socket && socket.readyState < WebSocket.CLOSING) {
+        socket.close(1000, 'invalid response');
+      }
     }
   };
   socket.onerror = () => {
-    if (!closedByCaller) emitStatus('error', 'WebSocket 连接错误');
+    if (closedByCaller || settled) return;
+    settled = true;
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
+    emitStatus('error', 'WebSocket 连接错误');
   };
   socket.onclose = (event) => {
-    if (!closedByCaller || event.code !== 1000) {
-      emitStatus('closed', `连接已关闭（${event.code}）`);
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
+    if (!settled && !closedByCaller) {
+      settled = true;
+      emitStatus('error', `连接已关闭（${event.code}）`);
     }
   };
 
@@ -136,6 +272,8 @@ export function connectToolSocket(
     },
     close() {
       closedByCaller = true;
+      settled = true;
+      if (timeout !== undefined) globalThis.clearTimeout(timeout);
       if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'client complete');
       socket = null;
     },

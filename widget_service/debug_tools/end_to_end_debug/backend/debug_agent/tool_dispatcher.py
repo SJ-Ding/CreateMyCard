@@ -1,29 +1,50 @@
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
+from .browser_tool_bridge import BrowserToolBridgeError
 from .config import DebugSettings
 from .logging_utils import DebugLogger
 from .schemas import DeviceDebugContext
 from .skill_loader import SkillLoader
 from .tool_registry import ToolRegistry, ToolValidationError
-from .upstream_ws_client import UpstreamToolError, UpstreamWebSocketClient
+
+if TYPE_CHECKING:
+    from .upstream_ws_client import UpstreamWebSocketClient
+
+
+class BrowserToolError(RuntimeError):
+    """浏览器侧工具执行失败。"""
+
+
+BrowserToolInvoker = Callable[..., Awaitable[tuple[dict[str, Any], tuple[dict[str, Any], ...]]]]
+_BROWSER_TOOL_NAMES = frozenset(
+    {
+        "getWidgetCapabilityOverview",
+        "getDataCapabilitySchemas",
+        "generateWidgetCardCompactDsl",
+    }
+)
 
 
 class ToolDispatcher:
-    """执行模型允许调用的两个原生函数及其四个内部业务工具。"""
+    """校验模型工具调用，并把三个 Cloud 工具交给浏览器执行。"""
 
     def __init__(
         self,
         settings: DebugSettings,
         loader: SkillLoader,
         registry: ToolRegistry,
-        upstream: UpstreamWebSocketClient,
+        upstream: UpstreamWebSocketClient | None = None,
+        *,
+        browser_invoke: BrowserToolInvoker | None = None,
     ) -> None:
         self.settings = settings
         self.loader = loader
         self.registry = registry
         self.upstream = upstream
+        self.browser_invoke = browser_invoke
         self.log = DebugLogger(
             skill=settings.skill_name,
             trace=settings.log_trace,
@@ -132,6 +153,10 @@ class ToolDispatcher:
         context: DeviceDebugContext,
         session_id: str,
         user_query: str,
+        *,
+        call_id: str = "",
+        run_id: str = "",
+        step: int = 0,
     ) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
         self.log.event(
             "invoke_started",
@@ -173,43 +198,98 @@ class ToolDispatcher:
             if function_name == "RequestDataPermission":
                 return self._permission_stub(validated), ()
             return {"code": 0, "result": {}, "pluginType": "Device"}, ()
-        try:
-            result = await self.upstream.invoke(
-                function_name,
-                validated,
-                context,
-                session_id,
-                user_query,
-            )
-        except UpstreamToolError as exc:
-            self.log.event(
-                "invoke_failed",
-                component="tool",
-                status="failed",
-                error_type=type(exc).__name__,
-                error_message=str(exc),
-            )
-            return self._error("UPSTREAM_FAILED", str(exc)), ()
+        if function_name not in _BROWSER_TOOL_NAMES:
+            return self._error("UNSUPPORTED_TOOL", "当前调试器只允许三个浏览器微服务工具"), ()
+        if self.browser_invoke is not None:
+            try:
+                result, frames = await self.browser_invoke(
+                    function_name,
+                    validated,
+                    context,
+                    session_id,
+                    user_query,
+                    call_id=call_id,
+                    turn_id=run_id,
+                    step=step,
+                    skill_name=self.settings.skill_name,
+                    bundle_name=self.settings.bundle_name,
+                )
+            except (BrowserToolError, BrowserToolBridgeError) as exc:
+                self.log.event(
+                    "invoke_failed",
+                    component="tool",
+                    status="failed",
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                return self._error("BROWSER_TOOL_FAILED", str(exc)), ()
+            if not isinstance(result, dict):
+                return self._error("BROWSER_TOOL_FAILED", "浏览器工具结果必须是对象"), ()
+        elif self.upstream is not None:
+            # 仅供离线批处理/旧测试注入；浏览器调试主链路不导入或创建该客户端。
+            from .upstream_ws_client import UpstreamToolError
+
+            try:
+                result = await self.upstream.invoke(
+                    function_name,
+                    validated,
+                    context,
+                    session_id,
+                    user_query,
+                )
+            except UpstreamToolError as exc:
+                self.log.event(
+                    "invoke_failed",
+                    component="tool",
+                    status="failed",
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                return self._error("UPSTREAM_FAILED", str(exc)), ()
+            frames = result.frames
+            result = {
+                "data": result.data,
+                "status": result.status,
+                "errorCode": result.error_code,
+                "error": result.error_message,
+            }
+        else:
+            return self._error("BROWSER_BRIDGE_UNAVAILABLE", "浏览器工具桥未连接"), ()
         self.log.event(
             "invoke_completed",
             component="tool",
             function=function_name,
-            status=result.status,
-            error_code=result.error_code,
-            frame_count=len(result.frames),
+            status=result.get("status", "success"),
+            error_code=result.get("errorCode", ""),
+            frame_count=len(frames),
         )
-        if result.status != "success" or result.error_code:
+        result_status = str(result.get("status") or "success").lower()
+        result_error_code = str(result.get("errorCode") or "")
+        result_error = str(result.get("error") or "")
+        if result_status == "final" and result_error_code in {"", "0"}:
+            result_status = "success"
+        elif result_status == "final_error":
+            result_status = "failed"
+        result_data = result.get("data")
+        if not isinstance(result_data, dict):
+            result_data = result
+        successful_status = result_status in {"success", "degraded"}
+        has_error_code = result_error_code not in {"", "0"}
+        if result.get("ok") is False or not successful_status or has_error_code:
+            failure_code = result_error_code or (
+                "BROWSER_TOOL_FAILED" if result.get("ok") is False else result_status
+            )
             return {
                 "ok": False,
-                "status": result.status,
+                "status": result_status,
                 "error": {
-                    "code": result.error_code or result.status,
-                    "message": result.error_message or "正式工具返回业务失败状态",
+                    "code": failure_code,
+                    "message": result_error or "正式工具返回业务失败状态",
                 },
-                "errorCode": result.error_code,
-                "data": result.data,
-            }, result.frames
-        return result.data, result.frames
+                "errorCode": result_error_code,
+                "data": result_data,
+            }, frames
+        return result_data, frames
 
     def _permission_stub(self, arguments: dict[str, Any]) -> dict[str, Any]:
         capability_ids = arguments.get("dataCapabilityIds")

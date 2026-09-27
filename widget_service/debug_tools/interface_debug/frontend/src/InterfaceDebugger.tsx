@@ -1,16 +1,18 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { buildDefaultArguments, buildOutputFieldPaths, buildSelectedSubset, extractArtifact, findFinalFrame, getAtPath, parsePythonRepr, streamContent, streamType } from './parser';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { buildDefaultArguments, buildOutputFieldPaths, buildSelectedSubset, extractArtifact, findFinalFrame, finalResponseMetadataError, frameRequestIds, getAtPath, hasErrorCode, isToolResponseRecord, optionalStringField, parseLegacyToolResponse, parsePythonRepr, streamContent, streamType, unwrapToolResponseRecord } from './parser';
 import { connectToolSocket, type ToolSocket } from './transport';
+import { buildToolEnvelope } from './envelope';
 import type {
-  CommonEnvelopeState,
   FieldConfig,
-  HistoryEntry,
   InterfaceArtifact,
   InterfaceDebuggerProps,
   Selection,
   ToolFrame,
   ToolFrameRecord,
   ToolOperation,
+  InterfaceDebugConfig,
+  SharedToolCallRecord,
+  SharedToolCallResult,
 } from './types';
 import { TOOL_OPERATIONS } from './types';
 import './styles.css';
@@ -28,50 +30,10 @@ function createClientId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-const COMMON_DEFAULTS: CommonEnvelopeState = {
-  sessionId: createClientId('session'),
-  interactionId: '1',
-  userId: 'debug-user',
-  bundleName: 'com.omega_w_0823.hmservice',
-  version: '1.0',
-  utterance: '',
-  countryCode: 'CN',
-  deviceFormation: 'HDSpeaker',
-  deviceType: '0',
-  locale: 'zh-CN',
-  phoneType: 'CLS-AL00',
-  prdVer: '11.7.7.332',
-  sysVer: 'HarmonyOS',
-  romVersion: 'CLS-AL00 7.0.0.100',
-  time: new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 17),
-};
-
-const COMMON_FIELDS: FieldConfig[] = [
-  { id: 'sessionId', label: 'Session ID', type: 'text' },
-  { id: 'interactionId', label: 'Interaction ID', type: 'text' },
-  { id: 'userId', label: 'User ID', type: 'text' },
-  { id: 'bundleName', label: 'Bundle Name', type: 'text' },
-  { id: 'version', label: 'Version', type: 'text' },
-  { id: 'utterance', label: 'Utterance', type: 'text' },
-  { id: 'countryCode', label: 'Country Code', type: 'text' },
-  { id: 'deviceFormation', label: 'Device Formation', type: 'text' },
-  { id: 'deviceType', label: 'Device Type', type: 'text' },
-  { id: 'locale', label: 'Locale', type: 'text' },
-  { id: 'phoneType', label: 'Phone Type', type: 'text' },
-  { id: 'prdVer', label: 'App Version', type: 'text' },
-  { id: 'sysVer', label: 'System Version', type: 'text' },
-  { id: 'romVersion', label: 'ROM Version', type: 'text' },
-  { id: 'time', label: 'Device Time', type: 'text' },
-];
-
 const BUSINESS_FIELDS: Record<ToolOperation, FieldConfig[]> = {
   getWidgetCapabilityOverview: [
-    { id: 'odid', label: 'ODID', type: 'text', placeholder: '设备 ODID' },
-    { id: 'contentBundleName', label: 'Content Bundle Name', type: 'text', placeholder: '可选' },
   ],
   getDataCapabilitySchemas: [
-    { id: 'odid', label: 'ODID', type: 'text', placeholder: '设备 ODID' },
-    { id: 'contentBundleName', label: 'Content Bundle Name', type: 'text', placeholder: '可选' },
     { id: 'dataCapabilityIds', label: 'Data Capability IDs', type: 'text', required: true, placeholder: 'ViewWeather,GetCalendarEvents' },
   ],
   generateWidgetCardCompactDsl: [
@@ -79,8 +41,6 @@ const BUSINESS_FIELDS: Record<ToolOperation, FieldConfig[]> = {
     { id: 'title', label: 'Title', type: 'text', required: true, placeholder: '通勤日常' },
     { id: 'description', label: 'Description', type: 'text', required: true, placeholder: '天气速览' },
     { id: 'size', label: 'Size', type: 'select', default: '2x2', options: ['2x2', '2x4'] },
-    { id: 'odid', label: 'ODID', type: 'text', placeholder: '设备 ODID' },
-    { id: 'contentBundleName', label: 'Content Bundle Name', type: 'text', placeholder: '可选' },
     { id: 'sourceArtifactUrl', label: 'Source Artifact URL', type: 'text', placeholder: '编辑模式可填写' },
     { id: 'candidateAssetIds', label: 'Candidate Asset IDs', type: 'text', placeholder: 'asset.drop_1,asset.clock_fill' },
     { id: 'candidateDataBindings', label: 'Candidate Data Bindings', type: 'textarea', placeholder: '{"capabilityId":"ViewWeather"}' },
@@ -105,29 +65,14 @@ function jsonText(value: unknown): string {
   }
 }
 
-function buildEnvelope(common: CommonEnvelopeState, operation: ToolOperation, business: unknown): Record<string, unknown> {
+function buildEnvelope(operation: ToolOperation, business: unknown, config?: InterfaceDebugConfig): Record<string, unknown> {
+  void operation;
   const content = business && typeof business === 'object' && !Array.isArray(business)
-    ? business
+    ? { ...(business as Record<string, unknown>) }
     : {};
-  return {
-    content,
-    deviceInfo: {
-      countryCode: common.countryCode,
-      deviceFormation: common.deviceFormation,
-      deviceType: Number(common.deviceType) || 0,
-      locale: common.locale,
-      phoneType: common.phoneType,
-      prdVer: common.prdVer,
-      sysVer: common.sysVer,
-      romVersion: common.romVersion,
-      time: common.time,
-    },
-    session: { sessionId: common.sessionId, interactionId: common.interactionId, isNew: false },
-    userAuth: { user: { userId: common.userId } },
-    utterance: { original: common.utterance, type: 'text' },
-    version: common.version,
-    bundleName: common.bundleName,
-  };
+  return buildToolEnvelope(config, content, {
+    utterance: typeof content.userQuery === 'string' ? content.userQuery : '',
+  });
 }
 
 function defaultBusiness(operation: ToolOperation, raw: string, formValues: BusinessValues): unknown {
@@ -150,8 +95,6 @@ function defaultBusiness(operation: ToolOperation, raw: string, formValues: Busi
       result.options = { allowDegradation: value === 'true' };
     } else if (field.id === 'dataCapabilityIds' || field.id === 'candidateAssetIds') {
       result[field.id] = value.split(',').map((item) => item.trim()).filter(Boolean);
-    } else if (field.id === 'contentBundleName') {
-      result.bundleName = value;
     } else {
       result[field.id] = value;
     }
@@ -191,15 +134,25 @@ function Tree({ value, path, selected, onToggle, arrayLimits, onArrayLimit }: {
   })}</div>;
 }
 
-export function InterfaceDebugger({ transportBase, socketBasePath, onEvent, onArtifact, className = '' }: InterfaceDebuggerProps) {
+export function InterfaceDebugger({
+  transportBase,
+  socketBasePath,
+  config,
+  selectedCall,
+  onCallStart,
+  onCallFinish,
+  onCallFail,
+  onEvent,
+  onArtifact,
+  className = '',
+}: InterfaceDebuggerProps) {
   const [operation, setOperation] = useState<ToolOperation>(TOOL_OPERATIONS[0]);
-  const [common, setCommon] = useState<CommonEnvelopeState>(COMMON_DEFAULTS);
   const [businessText, setBusinessText] = useState('');
   const [businessValues, setBusinessValues] = useState<BusinessValues>(() => businessDefaults(TOOL_OPERATIONS[0]));
   const [frames, setFrames] = useState<ToolFrameRecord[]>([]);
-  const [histories, setHistories] = useState<HistoryEntry[]>([]);
   const [activeHistory, setActiveHistory] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'stream' | 'parsed' | 'build'>('stream');
+  const [activeTab, setActiveTab] = useState<'parsed' | 'build' | 'raw'>('parsed');
+  const [requestPreview, setRequestPreview] = useState<Record<string, unknown> | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [builtJson, setBuiltJson] = useState('');
   const [status, setStatus] = useState('就绪');
@@ -208,11 +161,104 @@ export function InterfaceDebugger({ transportBase, socketBasePath, onEvent, onAr
   const socketRef = useRef<ToolSocket | null>(null);
   const startedAtRef = useRef(0);
   const nextHistoryIdRef = useRef(1);
+  const sharedCallIdRef = useRef<string | undefined>();
+  const onCallFailRef = useRef(onCallFail);
+
+  useEffect(() => {
+    onCallFailRef.current = onCallFail;
+  }, [onCallFail]);
+
+  useEffect(() => () => {
+    socketRef.current?.close();
+    if (sharedCallIdRef.current) {
+      onCallFailRef.current?.(sharedCallIdRef.current, '接口调试模块已关闭');
+      sharedCallIdRef.current = undefined;
+    }
+  }, []);
 
   const parsedResult = useMemo(() => {
     const final = findFinalFrame(frames.map((frame) => frame.data));
-    return final ? parsePythonRepr(streamContent(final)) : null;
+    if (!final) return null;
+    const content = streamContent(final);
+    if (content.trim()) {
+      const parsed = parsePythonRepr(content);
+      return parsed ?? (streamType(final) === 'final_error' ? { error: content } : null);
+    }
+    if (final.data !== undefined) return final.data;
+    if (streamType(final) === 'final_error') {
+      const error = final.error ?? final.errorMessage ?? final.errorCode ?? 'final_error';
+      return { error };
+    }
+    return null;
   }, [frames]);
+
+  useEffect(() => {
+    if (!selectedCall) {
+      setFrames([]);
+      setBusinessText('');
+      setRequestPreview(null);
+      setActiveHistory(null);
+      setSelectedPaths(new Set());
+      setArrayLimits({});
+      setBuiltJson('');
+      return;
+    }
+    if (TOOL_OPERATIONS.includes(selectedCall.operation as ToolOperation)) {
+      setOperation(selectedCall.operation as ToolOperation);
+    }
+    const request = selectedCall.request && typeof selectedCall.request === 'object'
+      ? selectedCall.request as Record<string, unknown>
+      : {};
+    setRequestPreview(request);
+    const finalFrame = selectedCall.finalFrame && typeof selectedCall.finalFrame === 'object'
+      ? selectedCall.finalFrame as ToolFrame
+      : undefined;
+    setFrames([]);
+    if (finalFrame) {
+      setFrames([{
+        id: selectedCall.id,
+        type: streamType(finalFrame) as ToolFrameRecord['type'],
+        timestamp: new Date().toISOString(),
+        data: finalFrame,
+      }]);
+    } else if (selectedCall.finalStreamContent !== undefined) {
+      setFrames([{
+        id: selectedCall.id,
+        type: selectedCall.status === 'error' ? 'final_error' : 'final',
+        timestamp: selectedCall.finishedAt ?? new Date().toISOString(),
+        data: {
+          reply: {
+            streamInfo: {
+              streamType: selectedCall.status === 'error' ? 'final_error' : 'final',
+              streamContent: selectedCall.finalStreamContent,
+            },
+          },
+        },
+      }]);
+    } else if (selectedCall.response || selectedCall.error) {
+      const syntheticType = selectedCall.status === 'error' ? 'final_error' : 'final';
+      const syntheticContent = selectedCall.response ?? { error: selectedCall.error };
+      setFrames([{
+        id: selectedCall.id,
+        type: syntheticType,
+        timestamp: selectedCall.finishedAt ?? new Date().toISOString(),
+        data: {
+          reply: {
+            streamInfo: {
+              streamType: syntheticType,
+              streamContent: jsonText(syntheticContent),
+            },
+          },
+        },
+      }]);
+    }
+    setBusinessText(jsonText(request.content ?? request));
+    setActiveHistory(null);
+    setSelectedPaths(new Set());
+    setArrayLimits({});
+    setBuiltJson('');
+    setActiveTab('parsed');
+  }, [selectedCall]);
 
   const filteredResult = useMemo(() => {
     if (!search.trim() || parsedResult == null) return parsedResult;
@@ -230,10 +276,6 @@ export function InterfaceDebugger({ transportBase, socketBasePath, onEvent, onAr
     return filter(parsedResult);
   }, [parsedResult, search]);
 
-  const updateCommon = (key: keyof CommonEnvelopeState, value: string) => {
-    setCommon((current) => ({ ...current, [key]: value }));
-  };
-
   const send = () => {
     let business: unknown;
     try {
@@ -242,50 +284,130 @@ export function InterfaceDebugger({ transportBase, socketBasePath, onEvent, onAr
       setStatus(error instanceof Error ? error.message : String(error));
       return;
     }
-    const envelope = buildEnvelope(common, operation, business);
+    const envelope = buildEnvelope(operation, business, config);
     const nextFrames: ToolFrameRecord[] = [];
     setFrames(nextFrames);
+    setRequestPreview(envelope);
     setSelectedPaths(new Set());
     setBuiltJson('');
     setArrayLimits({});
-    setActiveTab('stream');
+    setActiveTab('parsed');
     setStatus('连接中…');
     startedAtRef.current = performance.now();
+    if (sharedCallIdRef.current) {
+      onCallFail?.(sharedCallIdRef.current, '调用被新的请求取消');
+      sharedCallIdRef.current = undefined;
+    }
     socketRef.current?.close();
+    const sharedCallId = onCallStart?.({ operation, request: envelope });
+    sharedCallIdRef.current = sharedCallId;
+    let finalHandled = false;
     const socket = connectToolSocket(transportBase ?? socketBasePath, operation, envelope, {
       onFrame: (frame) => {
+        if (finalHandled) return;
+        finalHandled = true;
         const record: ToolFrameRecord = { id: createClientId('frame'), type: streamType(frame) as ToolFrameRecord['type'], timestamp: new Date().toISOString(), data: frame };
         nextFrames.push(record);
         setFrames([...nextFrames]);
         const kind = streamType(frame);
-        setStatus(kind === 'final' || kind === 'final_error'
-          ? `已完成 · ${Math.max(0, Math.round(performance.now() - startedAtRef.current))} ms`
-          : `接收 ${kind}`);
-        if (kind === 'final' || kind === 'final_error') {
-          const parsed = kind === 'final' ? parsePythonRepr(streamContent(frame)) : null;
-          const artifact = extractArtifact(parsed, operation, record.id) as InterfaceArtifact;
-          if (kind === 'final') onArtifact?.(artifact);
-          const id = nextHistoryIdRef.current++;
-          setActiveHistory(id);
-          setHistories((items) => [...items, { id, timestamp: record.timestamp, operation, request: envelope, frames: [...nextFrames], parsedResult: parsed, rawStreamContent: streamContent(frame), sourceHistoryId: activeHistory ?? undefined }]);
-          window.setTimeout(() => socket.close(), 250);
+        const stream = streamContent(frame);
+        const parsedValue = parsePythonRepr(stream);
+        const parsed = parsedValue
+          ?? (!stream && frame.data !== undefined ? frame.data : undefined)
+          ?? (kind === 'final_error' && stream ? { error: stream } : null);
+        const legacyResponse = parseLegacyToolResponse(stream);
+        const parsedRecord = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? parsed as Record<string, unknown>
+          : null;
+        const response = legacyResponse ?? (parsedRecord && isToolResponseRecord(parsedRecord)
+          ? unwrapToolResponseRecord(parsedRecord) as SharedToolCallResult
+          : { status: kind, data: parsed, error: kind === 'final_error' ? stream : undefined });
+        const expectedRequestId = `${String((envelope.session as Record<string, unknown>).sessionId ?? '')}&${String((envelope.session as Record<string, unknown>).interactionId ?? '')}`;
+        const responseRequestMeta = optionalStringField(response, 'requestId');
+        const responseOperationMeta = optionalStringField(response, 'operation');
+        const frameOperationMeta = optionalStringField(frame, 'operation');
+        const frameRequestMeta = frameRequestIds(frame);
+        const responseRequestId = responseRequestMeta.value ?? '';
+        const responseOperation = responseOperationMeta.value ?? frameOperationMeta.value ?? '';
+        const outerErrorCode = frame.errorCode;
+        const outerError = outerErrorCode !== undefined
+          && outerErrorCode !== ''
+          && outerErrorCode !== '0'
+          && outerErrorCode !== 0
+          ? String(outerErrorCode)
+          : '';
+        const validationError = responseRequestMeta.error
+          ?? responseOperationMeta.error
+          ?? frameOperationMeta.error
+          ?? frameRequestMeta.error
+          ?? (responseRequestId && responseRequestId !== expectedRequestId
+            ? `requestId 不匹配（期望 ${expectedRequestId}，收到 ${responseRequestId}）`
+            : frameRequestMeta.values.some((value) => value !== expectedRequestId)
+              ? `streamingTextId/requestId 不匹配（期望 ${expectedRequestId}，收到 ${frameRequestMeta.values.join(', ')}）`
+              : responseOperation && responseOperation !== operation
+                ? `operation 不匹配（期望 ${operation}，收到 ${responseOperation}）`
+                : outerError
+                  ? `服务外层错误：${outerError}`
+                  : '');
+        const metadataError = finalResponseMetadataError(
+          response as Record<string, unknown>,
+          frame,
+          operation,
+          expectedRequestId,
+        );
+        const responseStatus = typeof response.status === 'string' ? response.status.toLowerCase() : '';
+        const responseStreamType = typeof response.streamType === 'string'
+          ? response.streamType.toLowerCase()
+          : '';
+        const responseType = typeof response.type === 'string' ? response.type.toLowerCase() : '';
+        const responseErrorCode = response.errorCode === undefined || response.errorCode === null
+          ? outerError
+          : String(response.errorCode);
+        const failed = kind === 'final_error' || Boolean(validationError || metadataError)
+          || ['failed', 'error', 'final_error'].includes(responseStatus)
+          || responseStreamType === 'final_error'
+          || responseType === 'final_error'
+          || hasErrorCode(responseErrorCode)
+          || response.ok === false;
+        const normalizedResponse: SharedToolCallResult = {
+          ...response,
+          operation,
+          status: failed ? 'error' : 'success',
+          errorCode: responseErrorCode || undefined,
+          error: validationError || metadataError || response.error || (kind === 'final_error'
+            ? (typeof frame.error === 'string' && frame.error.trim()
+              ? frame.error
+              : typeof frame.errorMessage === 'string' && frame.errorMessage.trim()
+                ? frame.errorMessage
+                : stream.trim())
+              || (hasErrorCode(responseErrorCode) ? `服务返回错误码：${responseErrorCode}` : '服务返回 final_error')
+            : hasErrorCode(responseErrorCode)
+              ? `服务返回错误码：${responseErrorCode}`
+              : undefined),
+        };
+        setStatus(failed ? '调用失败' : `已完成 · ${Math.max(0, Math.round(performance.now() - startedAtRef.current))} ms`);
+        const artifact = extractArtifact(parsed, operation, record.id) as InterfaceArtifact;
+        if (!failed) onArtifact?.(artifact);
+        const id = nextHistoryIdRef.current++;
+        setActiveHistory(id);
+        onCallFinish?.(sharedCallId, {
+          ...normalizedResponse,
+          finalFrame: frame,
+          finalStreamContent: stream,
+        });
+        if (sharedCallIdRef.current === sharedCallId) sharedCallIdRef.current = undefined;
+        window.setTimeout(() => socket.close(), 50);
+      },
+      onStatus: (next) => {
+        setStatus(next.text);
+        if (next.state === 'error') {
+          onCallFail?.(sharedCallId, next.text);
+          if (sharedCallIdRef.current === sharedCallId) sharedCallIdRef.current = undefined;
         }
       },
-      onStatus: (next) => setStatus(next.text),
       onEvent,
     });
     socketRef.current = socket;
-  };
-
-  const selectHistory = (history: HistoryEntry) => {
-    setOperation(history.operation);
-    setFrames(history.frames);
-    setActiveHistory(history.id);
-    setBusinessText(jsonText(history.request.content ?? history.request));
-    setBusinessValues(businessDefaults(history.operation));
-    setSelectedPaths(new Set());
-    setArrayLimits({});
-    setActiveTab('parsed');
   };
 
   const toggleSelection = (path: string, value: unknown) => {
@@ -301,9 +423,9 @@ export function InterfaceDebugger({ transportBase, socketBasePath, onEvent, onAr
   };
 
   const buildQuick = (kind: 'selected' | 'data' | 'assets' | 'events' | 'bindings') => {
-    if (!parsedResult || !activeHistory) return;
+    if (!parsedResult) return;
     const selections: Selection[] = [...selectedPaths].map((path) => ({
-      historyId: activeHistory,
+      historyId: activeHistory ?? 0,
       operation,
       path,
       key: path.split('.').pop() ?? path,
@@ -346,25 +468,25 @@ export function InterfaceDebugger({ transportBase, socketBasePath, onEvent, onAr
   };
 
   return <section className={`interface-debugger ${className}`.trim()} aria-label="接口调试">
-    <div className="interface-header">
-      <div><span className="section-kicker">WEBSOCKET API</span><h2>接口调试</h2><p>按 Overview → Schemas → Compact DSL 串行检查工具链路。</p></div>
-      <div className="interface-status"><span className={`status-dot ${status.includes('错误') ? 'error' : 'online'}`} />{status}</div>
-    </div>
-    <div className="operation-tabs" role="tablist">{TOOL_OPERATIONS.map((item) => <button type="button" role="tab" aria-selected={operation === item} className={operation === item ? 'active' : ''} onClick={() => { setOperation(item); setBusinessValues(businessDefaults(item)); setBusinessText(''); const latest = [...histories].reverse().find((history) => history.operation === item); if (latest) selectHistory(latest); else { setActiveHistory(null); setFrames([]); setSelectedPaths(new Set()); setBuiltJson(''); } }} key={item}>{OPERATION_LABELS[item]}</button>)}</div>
-    <div className="interface-history"><span>历史</span>{histories.length === 0 ? <em>暂无请求</em> : histories.map((item) => <button type="button" className={activeHistory === item.id ? 'active' : ''} onClick={() => selectHistory(item)} key={item.id}>#{item.id} · {OPERATION_LABELS[item.operation]}</button>)}{histories.length > 0 && <button type="button" onClick={() => { setHistories([]); setActiveHistory(null); setFrames([]); setSelectedPaths(new Set()); setBuiltJson(''); setArrayLimits({}); nextHistoryIdRef.current = 1; }}>清空历史</button>}</div>
+    <div className="interface-toolbar"><strong>微服务接口</strong><span className={`status-dot ${status.includes('错误') || status.includes('失败') ? 'error' : 'online'}`} />{status}</div>
+    <div className="operation-tabs" role="tablist">{TOOL_OPERATIONS.map((item) => <button type="button" role="tab" aria-selected={operation === item} className={operation === item ? 'active' : ''} onClick={() => { setOperation(item); setBusinessValues(businessDefaults(item)); setBusinessText(''); setRequestPreview(null); setActiveHistory(null); setFrames([]); setSelectedPaths(new Set()); setBuiltJson(''); }} key={item}>{OPERATION_LABELS[item]}</button>)}</div>
     <div className="interface-grid">
       <div className="interface-panel request-panel" onKeyDown={handleSubmitShortcut}>
-        <div className="panel-heading"><h3>请求</h3><button type="button" onClick={() => setBusinessText('')}>清空业务参数</button></div>
-        <details open><summary>公共包络</summary><div className="common-fields">{COMMON_FIELDS.map((field) => <label key={field.id}>{field.label}<input value={common[field.id as keyof CommonEnvelopeState]} onChange={(event) => updateCommon(field.id as keyof CommonEnvelopeState, event.target.value)} /></label>)}</div></details>
-        <div className="business-form"><div className="business-form-heading"><strong>接口参数</strong><button type="button" onClick={() => { setBusinessValues(businessDefaults(operation)); setBusinessText(''); }}>恢复示例</button></div>{BUSINESS_FIELDS[operation].map((field) => <label className={`business-field${field.type === 'checkbox' ? ' checkbox-field' : ''}`} key={field.id}>{field.label}{field.required && <span className="required-mark">*</span>}{field.type === 'textarea' ? <textarea value={businessValues[field.id] ?? ''} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: event.target.value }))} placeholder={field.placeholder} spellCheck={false} rows={3} /> : field.type === 'select' ? <select value={businessValues[field.id] ?? String(field.default ?? '')} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: event.target.value }))}>{(field.options ?? []).map((option) => <option value={option} key={option}>{option}</option>)}</select> : field.type === 'checkbox' ? <input type="checkbox" checked={businessValues[field.id] === 'true'} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: String(event.target.checked) }))} /> : <input value={businessValues[field.id] ?? ''} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: event.target.value }))} placeholder={field.placeholder} />}</label>)}</div><label className="business-field advanced-field">高级 JSON（可选）<textarea value={businessText} onChange={(event) => setBusinessText(event.target.value)} placeholder="填写后将覆盖上面的接口参数" spellCheck={false} rows={4} /></label>
+        <div className="panel-heading"><h3>请求</h3><button type="button" onClick={() => { setBusinessText(''); setRequestPreview(null); }}>清空业务参数</button></div>
+        <p className="shared-config-note">会话、交互 ID 和设备时间会在发送时自动生成。</p>
+        {requestPreview && <details className="request-envelope-preview">
+          <summary>完整请求包络（只读）</summary>
+          <pre>{jsonText(requestPreview)}</pre>
+        </details>}
+        <div className="business-form"><div className="business-form-heading"><strong>接口参数</strong><button type="button" onClick={() => { setBusinessValues(businessDefaults(operation)); setBusinessText(''); setRequestPreview(null); }}>恢复示例</button></div>{BUSINESS_FIELDS[operation].map((field) => <label className={`business-field${field.type === 'checkbox' ? ' checkbox-field' : ''}`} key={field.id}>{field.label}{field.required && <span className="required-mark">*</span>}{field.type === 'textarea' ? <textarea value={businessValues[field.id] ?? ''} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: event.target.value }))} placeholder={field.placeholder} spellCheck={false} rows={3} /> : field.type === 'select' ? <select value={businessValues[field.id] ?? String(field.default ?? '')} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: event.target.value }))}>{(field.options ?? []).map((option) => <option value={option} key={option}>{option}</option>)}</select> : field.type === 'checkbox' ? <input type="checkbox" checked={businessValues[field.id] === 'true'} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: String(event.target.checked) }))} /> : <input value={businessValues[field.id] ?? ''} onChange={(event) => setBusinessValues((current) => ({ ...current, [field.id]: event.target.value }))} placeholder={field.placeholder} />}</label>)}</div><label className="business-field advanced-field">高级 JSON（可选）<textarea value={businessText} onChange={(event) => setBusinessText(event.target.value)} placeholder="填写后将覆盖上面的接口参数" spellCheck={false} rows={4} /></label>
         <button type="button" className="primary-action" onClick={send}>发送请求 <span>Ctrl + Enter</span></button>
       </div>
       <div className="interface-panel response-panel">
         <div className="panel-heading"><h3>响应</h3><button type="button" onClick={() => setFrames([])}>清空</button></div>
-        <div className="response-tabs">{(['stream', 'parsed', 'build'] as const).map((tab) => <button type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} key={tab}>{tab === 'stream' ? '流式帧' : tab === 'parsed' ? '解析结果' : '构建 JSON'}</button>)}</div>
-        {activeTab === 'stream' && <div className="frame-list">{frames.length === 0 ? <div className="empty-response">发送请求后显示原始 WebSocket 帧。</div> : frames.map((frame) => <pre className={`frame ${frame.type}`} key={frame.id}>{displayFrame(frame)}</pre>)}</div>}
-        {activeTab === 'parsed' && <div className="parsed-panel"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索字段或值…" />{filteredResult == null ? <div className="empty-response">暂无可解析的 final 帧。</div> : <Tree value={filteredResult} path="" selected={selectedPaths} onToggle={toggleSelection} arrayLimits={arrayLimits} onArrayLimit={(path, value) => setArrayLimits((current) => ({ ...current, [path]: value }))} />}</div>}
-        {activeTab === 'build' && <div className="build-panel"><p>已选择 {selectedPaths.size} 个字段。</p><div className="quick-build-actions">{(['selected', 'data', 'bindings', 'assets', 'events'] as const).map((kind) => <button type="button" key={kind} disabled={selectedPaths.size === 0} onClick={() => buildQuick(kind)}>{kind === 'selected' ? '选中内容' : kind === 'data' ? 'dataCapabilityIds' : kind === 'bindings' ? 'candidateDataBindings' : kind === 'assets' ? 'candidateAssetIds' : 'candidateEventCandidates'}</button>)}</div><textarea value={builtJson} onChange={(event) => setBuiltJson(event.target.value)} spellCheck={false} placeholder="从解析树选择字段，或手动编辑 JSON。" /><div className="build-actions"><button type="button" onClick={() => navigator.clipboard?.writeText(builtJson)}>复制 JSON</button><button type="button" className="primary-action" onClick={() => { setBusinessText(builtJson); setBusinessValues(businessDefaults(operation)); setActiveTab('stream'); }}>应用到请求</button></div></div>}
+        <div className="response-tabs">{(['parsed', 'raw', 'build'] as const).map((tab) => <button type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} key={tab}>{tab === 'parsed' ? '最终结果' : tab === 'raw' ? '原始 final' : '构建 JSON'}</button>)}</div>
+        {activeTab === 'parsed' && <div className="parsed-panel"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索字段或值…" />{filteredResult == null ? <div className="empty-response">暂无可解析的 final / final_error 帧。</div> : <Tree value={filteredResult} path="" selected={selectedPaths} onToggle={toggleSelection} arrayLimits={arrayLimits} onArrayLimit={(path, value) => setArrayLimits((current) => ({ ...current, [path]: value }))} />}</div>}
+        {activeTab === 'raw' && <div className="frame-list">{frames.length === 0 ? <div className="empty-response">暂无 final / final_error 帧。</div> : frames.map((frame) => <pre className={`frame ${frame.type}`} key={frame.id}>{displayFrame(frame)}</pre>)}</div>}
+        {activeTab === 'build' && <div className="build-panel"><p>已选择 {selectedPaths.size} 个字段。</p><div className="quick-build-actions">{(['selected', 'data', 'bindings', 'assets', 'events'] as const).map((kind) => <button type="button" key={kind} disabled={selectedPaths.size === 0} onClick={() => buildQuick(kind)}>{kind === 'selected' ? '选中内容' : kind === 'data' ? 'dataCapabilityIds' : kind === 'bindings' ? 'candidateDataBindings' : kind === 'assets' ? 'candidateAssetIds' : 'candidateEventCandidates'}</button>)}</div><textarea value={builtJson} onChange={(event) => setBuiltJson(event.target.value)} spellCheck={false} placeholder="从解析树选择字段，或手动编辑 JSON。" /><div className="build-actions"><button type="button" onClick={() => navigator.clipboard?.writeText(builtJson)}>复制 JSON</button><button type="button" className="primary-action" onClick={() => { setBusinessText(builtJson); setBusinessValues(businessDefaults(operation)); setActiveTab('parsed'); }}>应用到请求</button></div></div>}
       </div>
     </div>
   </section>;

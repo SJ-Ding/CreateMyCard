@@ -5,13 +5,182 @@ const ARRAY_ITEM_COUNT_MAX = 100;
 const OUTPUT_FIELD_PATH_LIMIT = 5000;
 
 export function streamType(frame: ToolFrame): string {
-  const value = frame.reply?.streamInfo?.streamType;
-  return typeof value === 'string' ? value : 'unknown';
+  const values: string[] = [];
+  const nested = frame.reply?.streamInfo?.streamType;
+  if (typeof nested === 'string') values.push(nested.toLowerCase());
+  if (typeof frame.streamType === 'string') values.push(frame.streamType.toLowerCase());
+  if (typeof frame.type === 'string') values.push(frame.type.toLowerCase());
+  const errorCode = frame.errorCode;
+  const hasOuterError = errorCode !== undefined
+    && errorCode !== null
+    && String(errorCode).trim() !== ''
+    && String(errorCode) !== '0';
+  const status = typeof frame.status === 'string' ? frame.status.toLowerCase() : '';
+  const hasErrorText = [frame.error, frame.errorMessage].some(
+    (value) => typeof value === 'string' && value.trim().length > 0,
+  );
+  if (hasOuterError || frame.ok === false || ['error', 'failed', 'final_error'].includes(status) || hasErrorText) {
+    values.push('final_error');
+  }
+  if (values.includes('final_error') || values.includes('error') || values.includes('tool.error')) return 'final_error';
+  if (values.includes('final')) return 'final';
+  return values[0] ?? 'unknown';
 }
 
 export function streamContent(frame: ToolFrame): string {
   const value = frame.reply?.streamInfo?.streamContent;
-  return typeof value === 'string' ? value : '';
+  if (typeof value === 'string') return value;
+  return typeof frame.streamContent === 'string' ? frame.streamContent : '';
+}
+
+/**
+ * 读取协议元数据中的可选字符串。
+ *
+ * 字段缺失表示服务没有返回该元数据，可以继续使用其它关联信息；但字段
+ * 一旦出现就必须是字符串，避免把数字/null 静默当成“没有 requestId”。
+ */
+export function optionalStringField(
+  value: unknown,
+  field: string,
+): { present: boolean; value?: string; error?: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { present: false };
+  }
+  const record = value as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(record, field)) {
+    return { present: false };
+  }
+  if (typeof record[field] !== 'string') {
+    return { present: true, error: `${field} 必须是字符串` };
+  }
+  return { present: true, value: record[field] as string };
+}
+
+/** 非空且非 0 的业务错误码应统一视为失败。 */
+export function hasErrorCode(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'number') return Number.isFinite(value) && value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    return normalized !== '' && normalized !== '0';
+  }
+  return true;
+}
+
+/** 收集最终帧可能携带的所有流关联 ID，并拒绝非字符串值。 */
+export function frameRequestIds(
+  frame: ToolFrame,
+): { values: string[]; error?: string } {
+  const values: string[] = [];
+  const containers: unknown[] = [frame];
+  const reply = frame.reply;
+  if (reply && typeof reply === 'object' && !Array.isArray(reply)) {
+    containers.push(reply);
+    const streamInfo = reply.streamInfo;
+    if (streamInfo && typeof streamInfo === 'object' && !Array.isArray(streamInfo)) {
+      containers.push(streamInfo);
+    }
+  }
+  for (const container of containers) {
+    for (const field of ['requestId', 'streamingTextId']) {
+      const result = optionalStringField(container, field);
+      if (result.error) return { values, error: result.error };
+      if (result.value) values.push(result.value);
+    }
+  }
+  return { values };
+}
+
+/**
+ * 校验浏览器回传的 final 结果关联信息。
+ *
+ * Agent 后端对成功结果要求 operation 和 requestId/streamingTextId；失败结果
+ * 可以只携带 ok=false、错误码或 final_error。把这条规则放在共享解析模块，
+ * 接口调试和端到端直连不会出现“浏览器显示成功、Agent 随后拒绝”的分叉。
+ */
+export function finalResponseMetadataError(
+  response: Record<string, unknown>,
+  frame: ToolFrame,
+  expectedOperation: string,
+  expectedRequestId: string,
+): string | undefined {
+  const containers: Record<string, unknown>[] = [response, frame];
+  const addNested = (value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+    const record = value as Record<string, unknown>;
+    containers.push(record);
+    for (const key of ['response', 'finalFrame', 'reply']) {
+      const nested = record[key];
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        containers.push(nested as Record<string, unknown>);
+        if (key === 'reply') {
+          const streamInfo = (nested as Record<string, unknown>).streamInfo;
+          if (streamInfo && typeof streamInfo === 'object' && !Array.isArray(streamInfo)) {
+            containers.push(streamInfo as Record<string, unknown>);
+          }
+        }
+      }
+    }
+  };
+  // Only inspect one level of known protocol containers; business data may
+  // legitimately contain fields named operation or requestId.
+  addNested(response.response);
+  addNested(response.finalFrame);
+  addNested(frame.reply);
+
+  const operationValues: string[] = [];
+  const requestIds: string[] = [];
+  for (const container of containers) {
+    for (const key of ['operation', 'functionName']) {
+      const field = optionalStringField(container, key);
+      if (field.error) return field.error;
+      if (field.value?.trim() && !(key === 'functionName' && field.value.trim() === 'invoke')) {
+        operationValues.push(field.value.trim());
+      }
+    }
+    for (const key of ['requestId', 'streamingTextId']) {
+      const field = optionalStringField(container, key);
+      if (field.error) return field.error;
+      if (field.value?.trim()) requestIds.push(field.value.trim());
+    }
+  }
+  const frameIds = frameRequestIds(frame);
+  if (frameIds.error) return frameIds.error;
+  requestIds.push(...frameIds.values);
+
+  for (const value of operationValues) {
+    if (value !== expectedOperation) {
+      return `operation 不匹配（期望 ${expectedOperation}，收到 ${value}）`;
+    }
+  }
+  if (expectedRequestId && requestIds.some((value) => value !== expectedRequestId)) {
+    return `streamingTextId/requestId 不匹配（期望 ${expectedRequestId}，收到 ${requestIds.join(', ')})`;
+  }
+
+  const statuses = containers.flatMap((container) => (
+    ['status', 'invokeStatus', 'streamType', 'type']
+      .map((key) => container[key])
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim().toLowerCase())
+  ));
+  const errorCode = response.errorCode ?? frame.errorCode;
+  const hasErrorText = [response.error, frame.error, frame.errorMessage].some((value) => {
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (value && typeof value === 'object') return Object.keys(value).length > 0;
+    return Boolean(value);
+  });
+  const isFailure = streamType(frame) === 'final_error'
+    || response.ok === false
+    || statuses.some((value) => ['failed', 'error', 'final_error'].includes(value))
+    || hasErrorCode(errorCode)
+    || hasErrorCode(response.errorCode) || hasErrorCode(frame.errorCode)
+    || hasErrorText;
+  if (!isFailure && operationValues.length === 0) return 'tool.result 缺少 operation';
+  if (!isFailure && expectedRequestId && requestIds.length === 0) {
+    return 'tool.result 缺少 requestId 或 streamingTextId';
+  }
+  return undefined;
 }
 
 /**
@@ -40,6 +209,90 @@ export function parsePythonRepr(value: unknown): unknown | null {
     if (parsedData !== null) return parsedData;
   }
   return convertPythonRepr(source);
+}
+
+/**
+ * 解析微服务 final 帧中历史 Pydantic 消息的包络字段。
+ *
+ * `parsePythonRepr` 保持“只取 data 业务对象”的兼容语义，接口桥接还需要
+ * requestId、operation、status 和 errorCode 做关联校验，因此单独暴露这个
+ * 不执行代码的元数据解析器。
+ */
+export function parseLegacyToolResponse(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'string') return null;
+  const marker = value.indexOf('type=');
+  if (marker < 0) return null;
+  const source = value.slice(marker);
+  const dataMarker = source.indexOf(' data=');
+  if (dataMarker < 0) return null;
+  const header = source.slice(0, dataMarker);
+  const dataAndTail = source.slice(dataMarker + ' data='.length);
+  const statusMarker = dataAndTail.lastIndexOf(' status=');
+  if (statusMarker < 0) return null;
+  const dataText = dataAndTail.slice(0, statusMarker);
+  const statusAndTail = dataAndTail.slice(statusMarker + ' status='.length);
+  const errorCodeMarker = statusAndTail.indexOf(' errorCode=');
+  if (errorCodeMarker < 0) return null;
+  const statusText = statusAndTail.slice(0, errorCodeMarker);
+  const errorAndTail = statusAndTail.slice(errorCodeMarker + ' errorCode='.length);
+  const errorMarker = errorAndTail.indexOf(' error=');
+  if (errorMarker < 0) return null;
+  const errorCodeText = errorAndTail.slice(0, errorMarker);
+  const errorText = errorAndTail.slice(errorMarker + ' error='.length);
+  const headerFields = header.match(/^type=(.+) tool=(.+) operation=(.+) requestId=(.+)$/);
+  if (!headerFields) return null;
+  const type = parsePythonRepr(headerFields[1]);
+  const tool = parsePythonRepr(headerFields[2]);
+  const operation = parsePythonRepr(headerFields[3]);
+  const requestId = parsePythonRepr(headerFields[4]);
+  const data = parsePythonRepr(dataText);
+  const status = parsePythonRepr(statusText);
+  const errorCode = parsePythonRepr(errorCodeText);
+  const error = parsePythonRepr(errorText);
+  if (type === null || tool === null || operation === null || status === null || errorCode === null) {
+    return null;
+  }
+  return { type, tool, operation, requestId, data, status, errorCode, error };
+}
+
+/** 判断一个对象是否明显是微服务响应包络，而不是业务 data 本身。 */
+export function isToolResponseRecord(value: Record<string, unknown>): boolean {
+  const strongKeys = [
+    'requestId',
+    'operation',
+    'errorCode',
+    'response',
+    'invokeStatus',
+    'streamType',
+    'finalFrame',
+    'ok',
+  ];
+  if (strongKeys.some((key) => key in value)) return true;
+  if (
+    typeof value.type === 'string'
+    && ['final', 'final_error', 'tool.result', 'tool_result', 'response', 'error'].includes(
+      value.type.toLowerCase(),
+    )
+    && ['status', 'requestId', 'operation', 'errorCode', 'data', 'reply', 'streamType', 'finalFrame']
+      .some((key) => key in value)
+  ) return true;
+  return 'data' in value && 'status' in value;
+}
+
+/** 展开浏览器/Agent 可能使用的 response 包装，同时保留原始字段。 */
+export function unwrapToolResponseRecord(value: Record<string, unknown>): Record<string, unknown> {
+  const nested = value.response;
+  if (!nested || typeof nested !== 'object' || Array.isArray(nested)) return value;
+  const response = nested as Record<string, unknown>;
+  return {
+    ...value,
+    data: value.data ?? response.data,
+    status: value.status ?? response.status,
+    errorCode: value.errorCode ?? response.errorCode,
+    error: value.error ?? response.error,
+    operation: value.operation ?? response.operation,
+    requestId: value.requestId ?? response.requestId,
+  };
 }
 
 function parseJson(source: string): unknown | null {
@@ -292,7 +545,10 @@ export function clone<T>(value: T): T {
 }
 
 export function findFinalFrame(frames: ToolFrame[]): ToolFrame | undefined {
-  return [...frames].reverse().find((frame) => streamType(frame) === 'final');
+  return [...frames].reverse().find((frame) => {
+    const type = streamType(frame);
+    return type === 'final' || type === 'final_error';
+  });
 }
 
 export function extractArtifact(parsed: unknown, operation: Selection['operation'], runId: string) {

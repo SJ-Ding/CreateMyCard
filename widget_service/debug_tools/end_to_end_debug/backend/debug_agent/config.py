@@ -97,12 +97,8 @@ class DebugSettings:
         if not 1 <= self.port <= 65535:
             raise ValueError("Debug 端口必须在 1 到 65535 之间")
         parsed = urlsplit(self.upstream_base_url)
-        if (
-            parsed.scheme not in {"ws", "wss"}
-            or not parsed.hostname
-            or not _loopback(parsed.hostname)
-        ):
-            raise ValueError("正式工具服务必须是有效的回环 WebSocket 地址")
+        if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
+            raise ValueError("工具服务必须是有效的 WebSocket 地址")
         if self.max_steps < 1 or self.max_tokens < 1:
             raise ValueError("Debug 步骤数和模型输出上限必须为正数")
 

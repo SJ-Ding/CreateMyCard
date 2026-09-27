@@ -24,9 +24,22 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/debug': {
+      // Keep the SPA itself local so interface/renderer still work without
+      // starting the optional Agent backend.  Only Agent/session endpoints
+      // are proxied; microservice WebSockets use the browser-configured URL.
+      '/debug/e2e/ws': {
         target: 'http://127.0.0.1:8888',
         ws: true,
+      },
+      '/debug/agent/ws': {
+        target: 'http://127.0.0.1:8888',
+        ws: true,
+      },
+      '/debug/health': {
+        target: 'http://127.0.0.1:8888',
+      },
+      '/debug/skills': {
+        target: 'http://127.0.0.1:8888',
       },
     },
   },

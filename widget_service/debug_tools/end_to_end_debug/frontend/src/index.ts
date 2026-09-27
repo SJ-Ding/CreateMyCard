@@ -10,4 +10,6 @@ export type {
   QuickPrompt,
   SkillProfile,
   TimelineEntry,
+  BrowserToolResult,
+  SharedDebugConfig,
 } from './types';
