@@ -37,6 +37,16 @@ from models.preflight import GenerationPreflightError
 from services.artifact_store import ArtifactStore, RepairArtifactRecord
 from services.asset_url_mapper import AssetUrlMapper
 from services.capability_registry import CapabilityRegistry
+from services.compact_edit_agent import (
+    CompactEditIntentClient,
+    EditLoopContext,
+    EditIntentDecision,
+    EditIntentError,
+    EditPlan,
+    build_edit_surface,
+    project_edit_plan,
+    validate_edit_conformance,
+)
 from services.device_capability_resolver import DeviceCapabilityResolver
 from services.edit_request_normalizer import EditRequestNormalizer
 from services.generation_pipeline import (
@@ -68,6 +78,25 @@ from utils.ops_metrics import report_ops_metrics
 _MODULE = "[Generation Service]"
 
 
+def _compact_values_equal(left: object, right: object) -> bool:
+    """Compare normalized request values without depending on object identity."""
+    if isinstance(left, list):
+        left = [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in left
+        ]
+    if isinstance(right, list):
+        right = [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in right
+        ]
+    if hasattr(left, "model_dump"):
+        left = left.model_dump(mode="json")
+    if hasattr(right, "model_dump"):
+        right = right.model_dump(mode="json")
+    return left == right
+
+
 class WidgetGenerationService:
     """编排微服务暴露的卡片工具能力。
 
@@ -78,6 +107,7 @@ class WidgetGenerationService:
     def __init__(self, model_runtime: ModelExecutionRuntime | None = None) -> None:
         """注入应用生命周期共享的模型运行时。"""
         self.model_runtime = model_runtime
+        self._compact_edit_plan_cache: dict[str, EditLoopContext] = {}
 
     async def widget_card_service(
         self,
@@ -287,8 +317,11 @@ class WidgetGenerationService:
         source_load_result = None
         source_url_hash = ""
         previous_design_token = None
+        original_request = request
         inherited_categories: tuple[str, ...] = ()
         replaced_categories: tuple[str, ...] = ()
+        compact_edit_plan: EditPlan | None = None
+        compact_edit_plan_payload: dict[str, object] | None = None
 
         if generation_mode == "edit":
             report_ops_metrics(body={"secondaryEdit": 1})
@@ -468,6 +501,80 @@ class WidgetGenerationService:
                     message="上一版卡片的设计数据无效，本次修改未完成，原卡片不受影响。",
                     errorCode=ErrorCode.SOURCE_ARTIFACT_INVALID.value,
                 )
+        edit_agent_enabled = (
+            generation_mode == "edit"
+            and previous_design_token is not None
+            and (
+                settings.enable_compact_edit_agent_loop
+                or settings.enable_compact_edit_agent_shadow
+            )
+        )
+        if edit_agent_enabled:
+            edit_intent_started_at = time.perf_counter()
+            try:
+                compact_edit_plan = await self._plan_compact_edit(
+                    original_request,
+                    request,
+                    previous_design_token,
+                    source_load_result,
+                )
+                latency_by_stage["editIntent"] = self._elapsed_ms(edit_intent_started_at)
+                is_shadow = (
+                    settings.enable_compact_edit_agent_shadow
+                    and not settings.enable_compact_edit_agent_loop
+                )
+                logger.info(
+                    f"{_MODULE} compact_edit_intent_completed "
+                    f"decision={compact_edit_plan.decision.value} "
+                    f"intent_kind={compact_edit_plan.intent_kind} "
+                    f"operation_count={len(compact_edit_plan.operations)} "
+                    f"shadow={json_for_log(is_shadow)}"
+                )
+                if is_shadow:
+                    compact_edit_plan = None
+                elif compact_edit_plan.decision is not EditIntentDecision.SUPPORTED:
+                    error_code = (
+                        ErrorCode.EDIT_INTENT_AMBIGUOUS.value
+                        if compact_edit_plan.decision is EditIntentDecision.AMBIGUOUS
+                        else ErrorCode.EDIT_INTENT_UNSUPPORTED.value
+                    )
+                    return GenerateWidgetCardResponse(
+                        status=GenerationStatus.UNSUPPORTED,
+                        suggestSize=request.size or DEFAULT_WIDGET_SIZE,
+                        message="当前编辑需求超出可安全修改范围，原卡片未改变。",
+                        errorCode=error_code,
+                    )
+                else:
+                    request = project_edit_plan(request, compact_edit_plan)
+                    compact_edit_plan_payload = compact_edit_plan.to_prompt_dict()
+            except (
+                EditIntentError,
+                A2UIModelGenerationError,
+                TimeoutError,
+                ConnectionError,
+            ) as exc:
+                latency_by_stage["editIntent"] = self._elapsed_ms(edit_intent_started_at)
+                is_shadow = (
+                    settings.enable_compact_edit_agent_shadow
+                    and not settings.enable_compact_edit_agent_loop
+                )
+                logger.warning(
+                    f"{_MODULE} compact_edit_intent_failed "
+                    f"exception_type={type(exc).__name__} "
+                    f"shadow={json_for_log(is_shadow)}"
+                )
+                if not is_shadow:
+                    error_code = (
+                        ErrorCode.TIMEOUT.value
+                        if isinstance(exc, TimeoutError)
+                        else ErrorCode.A2UI_GENERATION_FAILED.value
+                    )
+                    return GenerateWidgetCardResponse(
+                        status=GenerationStatus.FAILED,
+                        suggestSize=request.size or DEFAULT_WIDGET_SIZE,
+                        message="卡片编辑过程遇到问题了，请稍后再试。",
+                        errorCode=error_code,
+                    )
         logger.info(
             f"{_MODULE} generate_flow_step_protocol_loaded "
             f"protocol_profile_id={protocol_profile['id']} "
@@ -546,6 +653,7 @@ class WidgetGenerationService:
                     policy.source_format,
                     previous_design_token=previous_design_token,
                     extrainfo=request.extrainfo,
+                    edit_plan=compact_edit_plan_payload,
                 )
             else:
                 prompt = PromptBuilder().build(
@@ -940,6 +1048,30 @@ class WidgetGenerationService:
         model_failure_retry_count = model_client.model_failure_retry_count
         total_retry_count = model_failure_retry_count + retry_result.retryCount
         latency_by_stage["modelAndValidation"] = self._elapsed_ms(stage_started_at)
+
+        if compact_edit_plan is not None and previous_design_token is not None:
+            conformance_started_at = time.perf_counter()
+            conformance = validate_edit_conformance(
+                previous_design_token,
+                source_dsl,
+                compact_edit_plan,
+            )
+            latency_by_stage["editPlanValidation"] = self._elapsed_ms(
+                conformance_started_at
+            )
+            if not conformance.valid:
+                logger.error(
+                    f"{_MODULE} compact_edit_plan_conformance_failed "
+                    f"errors={json_for_log(list(conformance.errors))}"
+                )
+                response = GenerateWidgetCardResponse(
+                    status=GenerationStatus.FAILED,
+                    suggestSize=request.size,
+                    message="卡片编辑结果未通过安全校验，原卡片未改变。",
+                    errorCode=ErrorCode.VALIDATION_FAILED.value,
+                )
+                latency_by_stage["total"] = self._elapsed_ms(generation_started_at)
+                return response
 
         logger.info(
             f"{_MODULE} a2ui_generation_completed retry_count={total_retry_count} "
@@ -1355,6 +1487,118 @@ class WidgetGenerationService:
             template_source_generator=template_source_generator,
             need_fallback=need_fallback,
         )
+
+    async def _plan_compact_edit(
+        self,
+        original_request: GenerateWidgetCardRequest,
+        normalized_request: GenerateWidgetCardRequest,
+        previous_design_token: str,
+        source: SourceArtifactLoadResult | None,
+    ) -> EditPlan:
+        """Run one bounded intent call and apply deterministic request gates."""
+        if source is None:
+            raise EditIntentError("edit source is unavailable")
+        settings = get_settings()
+        cache_key = self._compact_edit_cache_key(original_request)
+        if cache_key:
+            cached_context = self._compact_edit_plan_cache.get(cache_key)
+            if cached_context is not None and cached_context.plan is not None:
+                return cached_context.plan
+        surface = build_edit_surface(previous_design_token, normalized_request.size)
+        request_diff = self._compact_edit_request_diff(original_request, source)
+        client = CompactEditIntentClient(
+            backend=settings.compact_edit_intent_model_backend,
+            runtime=self.model_runtime,
+            request_context=self._resolve_model_request_context(normalized_request),
+        )
+        try:
+            plan = await client.plan(
+                original_request.userQuery or "",
+                surface,
+                request_diff,
+                max_operations=settings.compact_edit_max_operations,
+            )
+        finally:
+            await client.aclose()
+        unsupported_categories = request_diff.get("unsupportedCategories", [])
+        if plan.supported and unsupported_categories:
+            plan = EditPlan(
+                schema_version=1,
+                decision=EditIntentDecision.UNSUPPORTED,
+                intent_kind=plan.intent_kind,
+                operations=(),
+                reason_code="UNSUPPORTED_REQUEST_FIELDS",
+            )
+        if cache_key and len(self._compact_edit_plan_cache) >= 128:
+            oldest_key = next(iter(self._compact_edit_plan_cache))
+            self._compact_edit_plan_cache.pop(oldest_key, None)
+        if cache_key:
+            self._compact_edit_plan_cache[cache_key] = EditLoopContext(
+                plan=plan,
+                intent_calls=1,
+            )
+        return plan
+
+    @staticmethod
+    def _compact_edit_cache_key(request: GenerateWidgetCardRequest) -> str:
+        context = request._model_request_context
+        if context is None:
+            return ""
+        content = "|".join(
+            (
+                context.interaction_id,
+                request.sourceArtifactUrl or "",
+                request.userQuery or "",
+                str(request.size or ""),
+                request.title or "",
+                request.description or "",
+                repr(request.candidateDataBindings),
+                repr(request.candidateEventCandidates),
+                repr(request.candidateAssetIds),
+            )
+        )
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _compact_edit_request_diff(
+        request: GenerateWidgetCardRequest,
+        source: SourceArtifactLoadResult,
+    ) -> dict[str, object]:
+        """Summarize explicit request changes without exposing capability details."""
+        visible_fields = {
+            field
+            for field in request.model_fields_set
+            if field
+            in {
+                "userQuery",
+                "size",
+                "title",
+                "description",
+                "candidateDataBindings",
+                "candidateEventCandidates",
+                "candidateAssetIds",
+            }
+        }
+        diff: dict[str, object] = {
+            "explicitFields": sorted(visible_fields),
+            "unsupportedCategories": [],
+        }
+        source_plan = source.artifact.generationPlan
+        category_pairs = (
+            ("candidateDataBindings", source_plan.candidateDataBindings, "data"),
+            ("candidateEventCandidates", source_plan.candidateEventCandidates, "event"),
+            ("candidateAssetIds", source_plan.candidateAssetIds, "asset"),
+        )
+        unsupported_categories: list[str] = []
+        for field_name, source_value, category in category_pairs:
+            if field_name not in request.model_fields_set:
+                continue
+            request_value = getattr(request, field_name)
+            if _compact_values_equal(request_value, source_value):
+                continue
+            unsupported_categories.append(category)
+        diff["unsupportedCategories"] = unsupported_categories
+        return diff
 
     @staticmethod
     def _request_body_for_artifact(

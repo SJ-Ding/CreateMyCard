@@ -144,6 +144,12 @@ ERROR_EXPLANATIONS = {
     ErrorCode.SOURCE_ARTIFACT_INVALID.value: (
         "待编辑的来源卡片产物内容无效或不完整，请检查来源产物，或重新创建卡片。报错信息如下"
     ),
+    ErrorCode.EDIT_INTENT_UNSUPPORTED.value: (
+        "本次编辑超出当前支持的视觉、文案、布局和尺寸范围，原卡片未改变。报错信息如下"
+    ),
+    ErrorCode.EDIT_INTENT_AMBIGUOUS.value: (
+        "本次编辑无法唯一确定要修改的内容，原卡片未改变。报错信息如下"
+    ),
     ErrorCode.TIMEOUT.value: (
         "工具执行超时，本次调用未在限定时间内完成，建议稍后重试；不要把本次结果当作成功结果。报错信息如下"
     ),

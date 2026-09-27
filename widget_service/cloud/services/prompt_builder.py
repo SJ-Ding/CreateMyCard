@@ -1289,6 +1289,7 @@ class PromptBuilder:
         system_prompt: str,
         previous_design_token: str | None = None,
         extrainfo: list[str] | None = None,
+        edit_plan: dict[str, Any] | None = None,
     ) -> list[dict[str, str]]:
         """构造 Design Compact DSL 的新建或编辑模型输入。"""
         return self.build_design_token(
@@ -1297,6 +1298,7 @@ class PromptBuilder:
             DESIGN_COMPACT_PROFILE_ID,
             previous_design_token=previous_design_token,
             extrainfo=extrainfo,
+            edit_plan=edit_plan,
         )
 
     def build_design_token(
@@ -1307,6 +1309,7 @@ class PromptBuilder:
         *,
         previous_design_token: str | None = None,
         extrainfo: list[str] | None = None,
+        edit_plan: dict[str, Any] | None = None,
     ) -> list[dict[str, str]]:
         """首次生成使用 PROMPT，编辑时叠加文件化多轮规则。"""
         effective_system_prompt = self._design_token_system_prompt(
@@ -1344,6 +1347,17 @@ class PromptBuilder:
                         "基于它只应用本轮修改，保留未提及且仍合法的内容，"
                         "把不再符合当前协议的内容迁移为最新格式，"
                         "并只输出修改后的完整极简协议 Token。"
+                    ),
+                    **(
+                        {
+                            "approvedEditPlan": edit_plan,
+                            "editConstraint": (
+                                "只应用 approvedEditPlan 中列出的字段；保留所有未授权的组件、"
+                                "数据绑定、事件和素材；不得输出 patch 或新增/删除节点。"
+                            ),
+                        }
+                        if edit_plan is not None
+                        else {}
                     ),
                 },
                 ensure_ascii=False,

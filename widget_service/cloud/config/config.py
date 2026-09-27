@@ -159,6 +159,36 @@ class Settings(BaseSettings):
         default=CONFIG.get("compact_dsl_interface_retry_count", 1),
         ge=0,
     )
+    enable_compact_edit_agent_loop: bool = (
+        CONFIG.get("enable_compact_edit_agent_loop", "false") == "true"
+    )
+    enable_compact_edit_agent_shadow: bool = (
+        CONFIG.get("enable_compact_edit_agent_shadow", "false") == "true"
+    )
+    compact_edit_intent_model_backend: str = CONFIG.get(
+        "compact_edit_intent_model_backend",
+        "openai",
+    )
+    compact_edit_intent_model_name: str = CONFIG.get(
+        "compact_edit_intent_model_name",
+        "",
+    )
+    compact_edit_intent_queue_timeout_seconds: float = Field(
+        default=CONFIG.get("compact_edit_intent_queue_timeout_seconds", 1),
+        ge=0,
+    )
+    compact_edit_intent_request_timeout_seconds: float = Field(
+        default=CONFIG.get("compact_edit_intent_request_timeout_seconds", 3),
+        gt=0,
+    )
+    compact_edit_intent_max_tokens: int = Field(
+        default=CONFIG.get("compact_edit_intent_max_tokens", 512),
+        ge=1,
+    )
+    compact_edit_max_operations: int = Field(
+        default=CONFIG.get("compact_edit_max_operations", 8),
+        ge=1,
+    )
 
     enable_default_protocol_profile_fallback: bool = (
         CONFIG.get("enable_default_protocol_profile_fallback") == "true"

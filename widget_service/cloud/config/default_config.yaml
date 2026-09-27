@@ -32,6 +32,15 @@ compact_dsl_argument_repair_max_attempts: 2
 enable_compact_dsl_interface_retry: false
 # 首次生成之外的额外重试次数；0 不重试，1 表示最多执行两次生成。必须为非负整数。
 compact_dsl_interface_retry_count: 1
+# Compact DSL 编辑意图规划开关；关闭时保持现有编辑链路。
+enable_compact_edit_agent_loop: false
+enable_compact_edit_agent_shadow: false
+compact_edit_intent_model_backend: openai
+compact_edit_intent_model_name: ""
+compact_edit_intent_queue_timeout_seconds: 1
+compact_edit_intent_request_timeout_seconds: 3
+compact_edit_intent_max_tokens: 512
+compact_edit_max_operations: 8
 enable_openai_fallback: true
 enable_sensitive_log_fields: true
 enable_card_template: false
