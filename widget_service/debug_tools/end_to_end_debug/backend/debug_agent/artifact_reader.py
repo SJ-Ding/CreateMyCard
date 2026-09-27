@@ -67,7 +67,11 @@ class ArtifactReader:
             # 本地调试时远端 OBS 地址通常不可达，此时继续尝试 workspace 中的同名文件。
             remote_error = exc
 
-        name = Path(urlsplit(artifact_url).path).name
+        parsed_url = urlsplit(artifact_url)
+        # ``mock://artifact.md`` stores the filename in netloc while
+        # ``/mock_obs/artifact.md`` stores it in path.  Both forms are used by
+        # local debug fixtures, but neither may escape the configured roots.
+        name = Path(parsed_url.path).name or Path(parsed_url.netloc).name
         workspace_root = get_settings().WORKSPACE_ROOT
         candidates = _artifact_candidates(workspace_root, name)
         local_path = next((candidate for candidate in candidates if candidate.is_file()), None)

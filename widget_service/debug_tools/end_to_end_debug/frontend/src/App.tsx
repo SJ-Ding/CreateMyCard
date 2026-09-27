@@ -1,5 +1,4 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ArtifactPreview from './components/ArtifactPreview';
 // Keep the envelope implementation dependency-free so this standalone package
 // also builds before npm has created workspace symlinks.
 import { buildToolEnvelope } from '../../../interface_debug/frontend/src/envelope';
@@ -45,17 +44,6 @@ export interface EndToEndDebugProps {
   onArtifact?: (artifact: ArtifactRecord) => void;
 }
 
-const ARTIFACT_KINDS: Array<[string, string]> = [
-  ['genui', 'GenUI DSL'],
-  ['cardSpec', 'CardSpec'],
-  ['taskSpec', 'TaskSpec'],
-  ['effectiveCapabilities', '有效能力'],
-  ['removedCapabilities', '移除能力'],
-  ['generationPlan', '生成计划'],
-  ['meta', 'Meta'],
-  ['designToken', 'Design Token'],
-];
-
 type Message = { role: 'user' | 'assistant'; content: string; runId?: string; timestamp?: string };
 type Health = Record<string, unknown> & {
   status?: string;
@@ -72,7 +60,6 @@ const DEFAULT_QUICK_PROMPTS: QuickPrompt[] = [
 
 const MAX_AGENT_TIMELINE = 500;
 const MAX_AGENT_MESSAGES = 200;
-const MAX_AGENT_ARTIFACTS = 100;
 const AGENT_PROTOCOL_VERSION = '1.0';
 const ALLOWED_TOOL_OPERATIONS = new Set([
   'getWidgetCapabilityOverview',
@@ -107,6 +94,30 @@ function prettyArguments(value: unknown): string {
     try { return jsonText(JSON.parse(trimmed)); } catch { return value; }
   }
   return jsonText(value);
+}
+
+function browserResultTimelineEntry(
+  result: BrowserToolResult,
+  operation: string,
+  callId?: string,
+): Omit<TimelineEntry, 'id'> {
+  const status = textValue(result.status).toLocaleLowerCase();
+  const failed = result.ok === false || ['failed', 'error', 'final_error'].includes(status);
+  const executionError = result.ok === false && !status;
+  return {
+    type: 'tool.result',
+    title: `工具返回 · ${operation || '未知工具'}`,
+    detail: jsonText(result),
+    timestamp: new Date().toISOString(),
+    tone: failed ? 'error' : 'success',
+    status: executionError ? 'error' : failed ? 'result-error' : 'success',
+    meta: {
+      callId,
+      functionName: operation || undefined,
+      statusLabel: executionError ? '执行错误' : failed ? '结果错误' : '执行成功',
+      flow: executionError ? 'execution-error' : failed ? 'business-error' : 'result',
+    },
+  };
 }
 
 function formatTime(value?: string): string {
@@ -149,6 +160,8 @@ function resolveSocketUrl(path: string): string {
   if (configured.startsWith('//')) throw new Error('Agent 地址协议无效');
   if (/^wss?:\/\//i.test(configured)) {
     const parsed = new URL(configured);
+    if (!parsed.hostname) throw new Error('Agent 地址缺少主机名');
+    if (parsed.hash) throw new Error('Agent 地址不能包含 hash 片段');
     if (hasCredentialQuery(parsed) || parsed.username || parsed.password) throw new Error('Agent 地址不能包含认证信息');
     if (typeof window !== 'undefined' && window.location.protocol === 'https:' && /^ws:/i.test(configured)) {
       throw new Error('HTTPS 页面不能连接不安全的 ws 地址');
@@ -158,6 +171,8 @@ function resolveSocketUrl(path: string): string {
   if (/^https?:\/\//i.test(configured)) {
     const converted = configured.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:');
     const parsed = new URL(converted);
+    if (!parsed.hostname) throw new Error('Agent 地址缺少主机名');
+    if (parsed.hash) throw new Error('Agent 地址不能包含 hash 片段');
     if (hasCredentialQuery(parsed) || parsed.username || parsed.password) throw new Error('Agent 地址不能包含认证信息');
     if (typeof window !== 'undefined' && window.location.protocol === 'https:' && /^ws:/i.test(converted)) {
       throw new Error('HTTPS 页面不能连接不安全的 ws 地址');
@@ -166,16 +181,21 @@ function resolveSocketUrl(path: string): string {
   }
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(configured)) throw new Error('Agent 地址协议无效');
   const scheme = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = typeof window === 'undefined' ? '127.0.0.1:8888' : window.location.host;
+  const host = typeof window === 'undefined'
+    ? '127.0.0.1:8888'
+    : window.location.host || '127.0.0.1:8888';
   const normalized = configured.startsWith('/') ? configured : `/${configured}`;
   const parsed = new URL(`${scheme}://${host}${normalized}`);
+  if (!parsed.hostname) throw new Error('Agent 地址缺少主机名');
+  if (parsed.hash) throw new Error('Agent 地址不能包含 hash 片段');
   if (hasCredentialQuery(parsed)) throw new Error('Agent 地址不能包含认证信息');
   return parsed.toString();
 }
 
 function hasCredentialQuery(url: URL): boolean {
   for (const key of url.searchParams.keys()) {
-    if (/(?:^|_|-)(?:token|api[_-]?key|secret|password|authorization|auth)(?:$|_|-)/i.test(key)) {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (/(?:token|apikey|secret|password|authorization|auth)/.test(normalizedKey)) {
       return true;
     }
   }
@@ -189,7 +209,7 @@ function createTurnId(): string {
   return `turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function agentContext(config?: SharedDebugConfig): Record<string, string> {
+function agentContext(config?: SharedDebugConfig): Record<string, unknown> {
   return {
     uid: config?.userId ?? 'debug-user',
     odid: config?.deviceId ?? 'debug-device',
@@ -199,6 +219,11 @@ function agentContext(config?: SharedDebugConfig): Record<string, string> {
     romVersion: config?.romVersion ?? 'ALN-AL00 7.0.0.100',
     locale: config?.locale ?? 'zh-CN',
     countryCode: config?.countryCode ?? 'CN',
+    deviceFormation: config?.deviceFormation ?? 'phone',
+    deviceType: config?.deviceType ?? 0,
+    sysVer: config?.sysVer ?? 'HarmonyOS',
+    paginationLimit: config?.paginationLimit ?? 5,
+    paginationStart: config?.paginationStart ?? '',
   };
 }
 
@@ -220,14 +245,24 @@ function toolFrameType(frame: Record<string, unknown>): string {
     && String(errorCode).trim() !== ''
     && String(errorCode) !== '0';
   const status = typeof frame.status === 'string' ? frame.status.toLowerCase() : '';
-  const hasErrorText = [frame.error, frame.errorMessage].some(
-    (value) => typeof value === 'string' && value.trim().length > 0,
-  );
-  if (hasOuterError || frame.ok === false || ['error', 'failed', 'final_error'].includes(status) || hasErrorText) {
-    candidates.push('final_error');
-  }
-  if (candidates.includes('final_error') || candidates.includes('error') || candidates.includes('tool.error')) return 'final_error';
-  if (candidates.includes('final')) return 'final';
+  const hasErrorText = [frame.error, frame.errorMessage].some((value) => {
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return Boolean(value && typeof value === 'object' && Object.keys(value).length > 0);
+  });
+  const explicitTerminal = candidates.some((value) => (
+    ['error', 'failed', 'final_error', 'tool.error'].includes(value)
+  ));
+  const explicitFinal = candidates.includes('final');
+  const explicitIntermediate = candidates.find((value) => (
+    ['start', 'partial', 'command', 'streaming', 'pending'].includes(value)
+  ));
+  const statusTerminal = ['error', 'failed', 'final_error'].includes(status);
+  const inferredError = hasOuterError || frame.ok === false || statusTerminal || hasErrorText;
+  if (explicitTerminal || statusTerminal) return 'final_error';
+  if (explicitFinal) return inferredError ? 'final_error' : 'final';
+  if (explicitIntermediate && !hasOuterError && frame.ok !== false) return explicitIntermediate;
+  if (inferredError) return 'final_error';
   return candidates[0] ?? 'unknown';
 }
 
@@ -428,19 +463,15 @@ export default function App({
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
-  const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([]);
-  const [artifactIndex, setArtifactIndex] = useState(0);
-  const [artifactKind, setArtifactKind] = useState('genui');
   const [running, setRunning] = useState(false);
   const [runStatus, setRunStatus] = useState('准备就绪');
   const [health, setHealth] = useState<Health | null>(null);
-  const [mobileTab, setMobileTab] = useState<'chat' | 'timeline' | 'artifact'>('chat');
+  const [mobileTab, setMobileTab] = useState<'chat' | 'timeline'>('chat');
   const [contextOpen, setContextOpen] = useState(false);
   const [timelineSearch, setTimelineSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const socketRef = useRef<WebSocket | null>(null);
   const runStartedAt = useRef(0);
-  const artifactCounter = useRef(0);
   const timelineCounter = useRef(0);
   const handledToolCallsRef = useRef<Set<string>>(new Set());
   const activeToolControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -504,11 +535,8 @@ export default function App({
         cancelActiveToolCalls();
         setMessages([]);
         setTimeline([]);
-        setArtifacts([]);
-        setArtifactIndex(0);
         setExpanded(new Set());
         handledToolCallsRef.current.clear();
-        artifactCounter.current = 0;
       }
       setConnecting(false);
       setConnectionError('');
@@ -523,6 +551,7 @@ export default function App({
       if (turnId) activeTurnIdRef.current = turnId;
       setRunning(!['completed', 'failed', 'cancelled'].includes(statusValue));
       setRunStatus(statusValue);
+      if (statusValue === 'waiting_tool') return;
       const query = textValue(envelope.query);
       if (query) {
         setMessages((items) => [...items, {
@@ -550,8 +579,6 @@ export default function App({
       return;
     }
     if (event.type === 'tool.trace') {
-      const trace = textValue(envelope.message || envelope.detail || envelope.status, jsonText(envelope));
-      addTimeline({ type: event.type, title: '工具轨迹', detail: trace, timestamp, tone: 'neutral' });
       return;
     }
     if (event.type === 'tool.call') {
@@ -617,6 +644,7 @@ export default function App({
             tone: 'error',
             meta: { ...item.meta, statusLabel: '执行失败' },
           } : item));
+          addTimeline(browserResultTimelineEntry(result, operation, callId), `${timelineCallId}-result`);
           return;
         }
         const request = functionName === 'invoke' && parsedArguments.arguments
@@ -667,6 +695,7 @@ export default function App({
           tone: result.ok ? 'success' : 'error',
           meta: { ...item.meta, statusLabel: result.ok ? '执行成功' : '执行失败' },
         } : item));
+        addTimeline(browserResultTimelineEntry(result, operation, callId), `${timelineCallId}-result`);
         if (toolCallKey) activeToolControllersRef.current.delete(toolCallKey);
       })().catch((error) => {
         if (toolCallKey) activeToolControllersRef.current.delete(toolCallKey);
@@ -686,6 +715,7 @@ export default function App({
           result,
         });
         setTimeline((items) => items.map((item) => item.id === timelineCallId ? { ...item, status: 'error', tone: 'error', meta: { ...item.meta, statusLabel: '执行失败' } } : item));
+        addTimeline(browserResultTimelineEntry(result, operation, callId), `${timelineCallId}-result`);
       });
       return;
     }
@@ -709,6 +739,12 @@ export default function App({
         tone: 'error',
         detail: `${item.detail}\n结果拒绝：${message}`,
         meta: { ...item.meta, statusLabel: '结果被拒绝' },
+      } : item.id === `${key}-result` ? {
+        ...item,
+        status: 'error',
+        tone: 'error',
+        detail: `${item.detail || ''}\n结果拒绝：${message}`,
+        meta: { ...item.meta, statusLabel: '结果被拒绝', flow: 'execution-error' },
       } : item));
       addTimeline({
         type: event.type,
@@ -781,11 +817,10 @@ export default function App({
         ));
         setQuickPrompts(configured.length ? configured : DEFAULT_QUICK_PROMPTS);
       }
-      setMessages([]); setTimeline([]); setArtifacts([]); setArtifactIndex(0); setExpanded(new Set());
+      setMessages([]); setTimeline([]); setExpanded(new Set());
       cancelActiveToolCalls();
       activeTurnIdRef.current = '';
       handledToolCallsRef.current.clear();
-      artifactCounter.current = 0;
       setRunStatus('会话已重置'); setRunning(false); return;
     }
     if (event.type === 'run_started') {
@@ -835,10 +870,26 @@ export default function App({
       return;
     }
     if (event.type === 'tool_result') {
-      const result = objectValue(data.result); const status = textValue(result.status).toLocaleLowerCase(); const failed = result.ok === false || ['failed', 'error', 'final_error'].includes(status); const executionError = result.ok === false && !status;
+      const result = objectValue(data.result);
       const callId = textValue(data.callId); const name = textValue(data.functionName || data.name, '未知工具');
-      if (callId) setTimeline((items) => items.map((item) => item.id === callId ? { ...item, status: undefined, meta: { ...item.meta, statusLabel: undefined } } : item));
-       addTimeline({ type: event.type, title: `工具结果 · ${name}`, detail: jsonText(data.result), timestamp, tone: failed ? 'error' : 'success', status: executionError ? 'error' : failed ? 'result-error' : 'success', meta: { callId: callId || undefined, toolName: textValue(data.name), functionName: name, step: textValue(data.step), statusLabel: executionError ? '执行错误' : failed ? '结果错误' : '执行成功', flow: executionError ? 'execution-error' : failed ? 'business-error' : 'result' } }, callId ? `${callId}-result` : undefined); return;
+      if (callId) {
+        setTimeline((items) => items.map((item) => item.id === callId ? {
+          ...item,
+          status: result.ok === false ? 'error' : 'success',
+          tone: result.ok === false ? 'error' : 'success',
+          meta: { ...item.meta, statusLabel: result.ok === false ? '执行失败' : '执行成功' },
+        } : item));
+      }
+      const resultEntry = browserResultTimelineEntry(result as BrowserToolResult, name, callId || undefined);
+      addTimeline(
+        {
+          ...resultEntry,
+          type: event.type,
+          meta: { ...resultEntry.meta, toolName: textValue(data.name), step: textValue(data.step) },
+        },
+        callId ? `${callId}-result` : undefined,
+      );
+      return;
     }
     if (event.type === 'upstream_frame') return;
     if (event.type === 'diagnostic') {
@@ -848,16 +899,13 @@ export default function App({
       return;
     }
     if (event.type === 'artifact_preview') {
-      const index = artifactCounter.current++;
       const artifact: ArtifactRecord = {
         ...data,
-        runId: event.runId ?? textValue(data.runId, `run-${index + 1}`),
+        runId: event.runId ?? textValue(data.runId, 'renderer'),
         timestamp,
       };
-      setArtifacts((items) => [...items, artifact].slice(-MAX_AGENT_ARTIFACTS));
-      setArtifactIndex(Math.min(index, MAX_AGENT_ARTIFACTS - 1));
       onArtifactRef.current?.(artifact);
-      addTimeline({ type: event.type, title: 'Artifact 已生成', detail: event.runId ?? '', timestamp, tone: 'success' }); return;
+      addTimeline({ type: event.type, title: 'Artifact 已转入卡片渲染', detail: event.runId ?? '', timestamp, tone: 'success' }); return;
     }
     if (event.type === 'run_completed' || event.type === 'run_failed' || event.type === 'run_cancelled') {
       setRunning(false); const failed = event.type === 'run_failed'; const cancelled = event.type === 'run_cancelled'; const status = failed ? '运行失败' : cancelled ? '已取消' : `完成 · ${Math.max(0, Date.now() - runStartedAt.current)} ms`; setRunStatus(status); addTimeline({ type: event.type, title: status, detail: jsonText(data), timestamp, tone: failed ? 'error' : 'success' });
@@ -957,14 +1005,11 @@ export default function App({
     setMobileTab('chat');
   };
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submit(event); } };
-  const currentArtifact = artifacts[artifactIndex] ?? null;
-  const availableKinds = useMemo(() => ARTIFACT_KINDS.filter(([kind]) => currentArtifact?.[kind] !== undefined), [currentArtifact]);
   const filteredTimeline = useMemo(() => { const query = timelineSearch.trim().toLocaleLowerCase(); if (!query) return timeline; return timeline.filter((entry) => [entry.title, entry.detail, entry.type, entry.status, entry.meta?.statusLabel, entry.meta?.toolName, entry.meta?.resourceId, entry.meta?.functionName, entry.meta?.callId].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)); }, [timeline, timelineSearch]);
-  useEffect(() => { if (availableKinds.length && !availableKinds.some(([kind]) => kind === artifactKind)) setArtifactKind(availableKinds[0][0]); }, [availableKinds, artifactKind]);
 
   return <div className="e2e-debug app-shell">
     {connectionError && <p className="connection-error" role="alert">{connectionError}</p>}
-    <div className="mobile-tabs"><button className={mobileTab === 'chat' ? 'active' : ''} onClick={() => setMobileTab('chat')}>对话</button><button className={mobileTab === 'timeline' ? 'active' : ''} onClick={() => setMobileTab('timeline')}>轨迹 <em>{timeline.length}</em></button><button className={mobileTab === 'artifact' ? 'active' : ''} onClick={() => setMobileTab('artifact')}>产物 <em>{artifacts.length}</em></button></div>
+    <div className="mobile-tabs"><button className={mobileTab === 'chat' ? 'active' : ''} onClick={() => setMobileTab('chat')}>对话</button><button className={mobileTab === 'timeline' ? 'active' : ''} onClick={() => setMobileTab('timeline')}>轨迹 <em>{timeline.length}</em></button></div>
     <main className="workspace">
       <aside className={`context-panel ${contextOpen ? 'open' : ''}`}>
         <div className="panel-heading"><div><span className="eyebrow">AGENT SESSION</span><h2>运行状态</h2></div><button className="collapse-button" onClick={() => setContextOpen(false)} aria-label="关闭状态">×</button></div>
@@ -974,7 +1019,7 @@ export default function App({
         <button className="secondary-button context-reset" onClick={() => send({ type: 'conversation.reset', protocolVersion: AGENT_PROTOCOL_VERSION, conversationId: sessionId || undefined })}>新建会话</button>
       </aside>
       <section className={`chat-panel ${mobileTab === 'chat' ? 'mobile-visible' : ''}`}><div className="chat-heading"><div><span className="eyebrow">CONVERSATION</span><h1>创建一张卡片</h1></div><button className="context-toggle" onClick={() => setContextOpen(true)}>{icon('settings')} 状态</button></div><div className="message-list">{messages.length === 0 ? <div className="empty-chat"><div className="empty-icon">{icon('spark')}</div><h3>从一个想法开始</h3><p>描述你想创建的桌面卡片，Agent 会处理能力裁决、生成与校验。</p><div className="suggestions">{quickPrompts.map((item) => <button key={`${item.label}-${item.prompt}`} onClick={() => setInput(item.prompt)}>{item.label}</button>)}</div></div> : messages.map((message, index) => <div className={`message-row ${message.role}`} key={`${message.runId || 'm'}-${index}`}><div className="message-avatar">{message.role === 'assistant' ? icon('spark') : '用户'}</div><div className="message-bubble"><div className="message-meta">{message.role === 'assistant' ? 'Main Agent' : '用户'}<span>{message.runId ? message.runId.slice(0, 8) : ''}</span><time>{formatTime(message.timestamp)}</time></div><div className="message-content">{message.content}</div></div></div>)}</div><div className="composer-wrap"><div className="run-state"><span className={`state-dot ${running ? 'running' : runStatus === '运行失败' ? 'failed' : 'ready'}`} />{runStatus}{running && <button onClick={() => send({ type: 'turn.cancel', protocolVersion: AGENT_PROTOCOL_VERSION, conversationId: sessionId || undefined, turnId: activeTurnIdRef.current || undefined })}>取消运行</button>}</div><form className="composer" onSubmit={submit}><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={keyDown} placeholder="描述你想创建的卡片" rows={1} /><button className="send-button" disabled={!connected || running || !input.trim()} aria-label="发送">{icon('send')}</button></form><small className="composer-hint">Enter 发送 · Shift + Enter 换行</small></div></section>
-      <aside className={`inspector-panel ${mobileTab !== 'chat' ? 'mobile-visible' : ''}`}><section className={`timeline-section ${mobileTab === 'timeline' ? 'mobile-visible' : ''}`}><div className="section-heading"><div><span className="eyebrow">ACTIVITY</span><h2>运行轨迹</h2></div><span className="counter">{filteredTimeline.length}/{timeline.length}</span></div><label className="timeline-search"><span className="sr-only">搜索运行轨迹</span><input value={timelineSearch} onChange={(event) => setTimelineSearch(event.target.value)} placeholder="搜索工具、resourceId、状态…" /></label><div className="timeline-list">{filteredTimeline.length === 0 ? <div className="small-empty">{timeline.length ? '没有匹配的运行轨迹' : '等待运行事件'}</div> : filteredTimeline.map((entry) => { const isExpanded = expanded.has(entry.id); const statusLabel = entry.meta?.statusLabel; const functionName = entry.meta?.functionName || ''; return <article className={`timeline-item ${isExpanded ? 'is-expanded' : ''}`} key={entry.id}><button className="timeline-item__header" type="button" aria-expanded={isExpanded} onClick={() => setExpanded((current) => { const next = new Set(current); next.has(entry.id) ? next.delete(entry.id) : next.add(entry.id); return next; })}><span className={`timeline-icon ${entry.tone}`}>{timelineGlyph(entry)}</span><span className="timeline-item__title"><strong>{entry.title}</strong>{functionName && <span className="timeline-inline-value" title={functionName}>{functionName}</span>}{statusLabel && <span className={`timeline-status ${entry.status || ''}`}>{statusLabel}</span>}</span><span className="timeline-item__chevron">{isExpanded ? '⌃' : '⌄'}</span></button><div className="timeline-item__body">{entry.meta && <div className="timeline-meta">{entry.meta.resourceId && <span>resourceId <b>{entry.meta.resourceId}</b></span>}{entry.meta.functionName && <span>functionName <b>{entry.meta.functionName}</b></span>}{entry.meta.callId && <span>callId <b>{entry.meta.callId.slice(0, 8)}</b></span>}{entry.meta.step && <span>step <b>{entry.meta.step}</b></span>}</div>}{entry.detail && <pre>{entry.detail}</pre>}<time>{formatTime(entry.timestamp)}</time></div></article>; })}</div></section><section className={`artifact-section ${mobileTab === 'artifact' ? 'mobile-visible' : ''}`}><div className="section-heading"><div><span className="eyebrow">OUTPUT</span><h2>Artifact 检查器</h2></div><span className="counter">{artifacts.length}</span></div>{currentArtifact ? <><div className="artifact-runs">{artifacts.map((artifact, index) => { const runId = textValue(artifact.runId, `run-${index + 1}`); return <button className={index === artifactIndex ? 'active' : ''} onClick={() => setArtifactIndex(index)} key={`${runId}-${index}`}>Run {index + 1}<small>{runId.slice(0, 8)}</small></button>; })}</div><div className="artifact-toolbar"><span>{ARTIFACT_KINDS.find(([kind]) => kind === artifactKind)?.[1] || artifactKind}</span><button onClick={() => navigator.clipboard?.writeText(jsonText(currentArtifact[artifactKind]))} title="复制">{icon('copy')}</button><button onClick={() => { const url = URL.createObjectURL(new Blob([jsonText(currentArtifact[artifactKind])], { type: 'application/json' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${artifactKind}.json`; anchor.click(); URL.revokeObjectURL(url); }} title="下载">{icon('download')}</button></div><ArtifactPreview artifact={currentArtifact} activeKind={artifactKind} onKindChange={setArtifactKind} /></> : <div className="artifact-empty"><div className="artifact-placeholder">{icon('spark')}</div><strong>暂无成功产物</strong><span>完成一次运行后，生成的 CardSpec 和 GenUI 会显示在这里。</span></div>}</section></aside>
+      <aside className={`inspector-panel ${mobileTab !== 'chat' ? 'mobile-visible' : ''}`}><section className={`timeline-section ${mobileTab === 'timeline' ? 'mobile-visible' : ''}`}><div className="section-heading"><div><span className="eyebrow">ACTIVITY</span><h2>运行轨迹</h2></div><span className="counter">{filteredTimeline.length}/{timeline.length}</span></div><label className="timeline-search"><span className="sr-only">搜索运行轨迹</span><input value={timelineSearch} onChange={(event) => setTimelineSearch(event.target.value)} placeholder="搜索工具、resourceId、状态…" /></label><div className="timeline-list">{filteredTimeline.length === 0 ? <div className="small-empty">{timeline.length ? '没有匹配的运行轨迹' : '等待运行事件'}</div> : filteredTimeline.map((entry) => { const isExpanded = expanded.has(entry.id); const statusLabel = entry.meta?.statusLabel; const functionName = entry.meta?.functionName || ''; return <article className={`timeline-item ${isExpanded ? 'is-expanded' : ''}`} key={entry.id}><button className="timeline-item__header" type="button" aria-expanded={isExpanded} onClick={() => setExpanded((current) => { const next = new Set(current); next.has(entry.id) ? next.delete(entry.id) : next.add(entry.id); return next; })}><span className={`timeline-icon ${entry.tone}`}>{timelineGlyph(entry)}</span><span className="timeline-item__title"><strong>{entry.title}</strong>{functionName && <span className="timeline-inline-value" title={functionName}>{functionName}</span>}{statusLabel && <span className={`timeline-status ${entry.status || ''}`}>{statusLabel}</span>}</span><span className="timeline-item__chevron">{isExpanded ? '⌃' : '⌄'}</span></button><div className="timeline-item__body">{entry.meta && <div className="timeline-meta">{entry.meta.resourceId && <span>resourceId <b>{entry.meta.resourceId}</b></span>}{entry.meta.functionName && <span>functionName <b>{entry.meta.functionName}</b></span>}{entry.meta.callId && <span>callId <b>{entry.meta.callId.slice(0, 8)}</b></span>}{entry.meta.step && <span>step <b>{entry.meta.step}</b></span>}</div>}{entry.detail && <pre>{entry.detail}</pre>}<time>{formatTime(entry.timestamp)}</time></div></article>; })}</div></section></aside>
     </main>
   </div>;
 }

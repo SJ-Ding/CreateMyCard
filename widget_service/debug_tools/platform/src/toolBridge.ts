@@ -50,14 +50,24 @@ function frameType(frame: Record<string, unknown>): string {
     && String(errorCode).trim() !== ''
     && String(errorCode) !== '0';
   const status = typeof frame.status === 'string' ? frame.status.toLowerCase() : '';
-  const hasErrorText = [frame.error, frame.errorMessage].some(
-    (value) => typeof value === 'string' && value.trim().length > 0,
-  );
-  if (hasOuterError || frame.ok === false || ['error', 'failed', 'final_error'].includes(status) || hasErrorText) {
-    candidates.push('final_error');
-  }
-  if (candidates.includes('final_error') || candidates.includes('error') || candidates.includes('tool.error')) return 'final_error';
-  if (candidates.includes('final')) return 'final';
+  const hasErrorText = [frame.error, frame.errorMessage].some((value) => {
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return Boolean(value && typeof value === 'object' && Object.keys(value).length > 0);
+  });
+  const explicitTerminal = candidates.some((value) => (
+    ['error', 'failed', 'final_error', 'tool.error'].includes(value)
+  ));
+  const explicitFinal = candidates.includes('final');
+  const explicitIntermediate = candidates.find((value) => (
+    ['start', 'partial', 'command', 'streaming', 'pending'].includes(value)
+  ));
+  const statusTerminal = ['error', 'failed', 'final_error'].includes(status);
+  const inferredError = hasOuterError || frame.ok === false || statusTerminal || hasErrorText;
+  if (explicitTerminal || statusTerminal) return 'final_error';
+  if (explicitFinal) return inferredError ? 'final_error' : 'final';
+  if (explicitIntermediate && !hasOuterError && frame.ok !== false) return explicitIntermediate;
+  if (inferredError) return 'final_error';
   return candidates[0] ?? 'unknown';
 }
 
@@ -140,7 +150,10 @@ export async function executeBrowserTool(
       return;
     }
     try {
-      socket = new WebSocket(normalizeToolWebSocketUrl(config.toolWsBaseUrl || DEFAULT_TOOL_WS_BASE_URL, typedOperation));
+      // An omitted base uses the transport module's documented localhost
+      // default; an explicitly empty configured value must stay an error so
+      // the settings page cannot silently route traffic somewhere else.
+      socket = new WebSocket(normalizeToolWebSocketUrl(config.toolWsBaseUrl, typedOperation));
     } catch (error) {
       finish({ ok: false, operation, error: error instanceof Error ? error.message : String(error) });
       return;

@@ -38,6 +38,7 @@ type Action =
 
 const MAX_EVENT_COUNT = 500;
 const MAX_CALL_COUNT = 100;
+const CALL_HISTORY_STORAGE_KEY = 'ai-widget-debug-call-history:v1';
 
 function createId(prefix: string): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -51,10 +52,30 @@ function initialState(): State {
   // 在子路由挂载前应用持久化地址；否则它们的 WebSocket effect 首次渲染
   // 可能会先读到旧默认值。
   applyDebugConfig(config);
+  let calls: ToolCallRecord[] = [];
+  let selectedCallId: string | null = null;
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.sessionStorage.getItem(CALL_HISTORY_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) as { calls?: unknown; selectedCallId?: unknown } : null;
+      if (parsed && Array.isArray(parsed.calls)) {
+        calls = parsed.calls.filter((item): item is ToolCallRecord => Boolean(
+          item && typeof item === 'object' && typeof (item as ToolCallRecord).id === 'string',
+        )).slice(-MAX_CALL_COUNT);
+        selectedCallId = typeof parsed.selectedCallId === 'string'
+          && calls.some((item) => item.id === parsed.selectedCallId)
+          ? parsed.selectedCallId
+          : calls.at(-1)?.id ?? null;
+      }
+    } catch {
+      calls = [];
+      selectedCallId = null;
+    }
+  }
   return {
     events: [],
-    calls: [],
-    selectedCallId: null,
+    calls,
+    selectedCallId,
     artifact: null,
     config,
   };
@@ -126,6 +147,19 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     applyDebugConfig(state.config);
     saveDebugConfig(state.config);
   }, [state.config]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.sessionStorage.setItem(
+        CALL_HISTORY_STORAGE_KEY,
+        JSON.stringify({ calls: state.calls, selectedCallId: state.selectedCallId }),
+      );
+    } catch {
+      // History is an enhancement; private browsing/storage quotas must not
+      // interrupt live calls.
+    }
+  }, [state.calls, state.selectedCallId]);
 
   const pushEvent = useCallback(
     (event: Omit<DebugEvent, 'id' | 'timestamp'> & { timestamp?: string }) => {

@@ -1,11 +1,11 @@
 import { useWorkbench } from '../context';
-import { DEFAULT_AGENT_WS_URL } from '../config';
 import { EndToEndDebug } from '@widget-debug/end-to-end';
 import { buildToolRequest, executeBrowserTool } from '../toolBridge';
 import type { BrowserToolResult } from '@widget-debug/end-to-end';
 
 function healthUrl(agentWsUrl: string): string {
-  const configured = agentWsUrl.trim() || DEFAULT_AGENT_WS_URL;
+  const configured = agentWsUrl.trim();
+  if (!configured) return '';
   if (!/^(?:wss?|https?):\/\//i.test(configured)) {
     const path = configured.startsWith('/') ? configured : `/${configured}`;
     return /^\/debug\/(?:e2e|agent)\/ws\/?(?:[?#].*)?$/i.test(path)
@@ -30,7 +30,7 @@ function healthUrl(agentWsUrl: string): string {
 
 export function EndToEndRoute() {
   const { config, recordCall, updateCall, pushEvent, setArtifact } = useWorkbench();
-  const agentSocket = config.agentWsUrl || DEFAULT_AGENT_WS_URL;
+  const agentSocket = config.agentWsUrl;
   return (
     <EndToEndDebug
       socketPath={agentSocket}

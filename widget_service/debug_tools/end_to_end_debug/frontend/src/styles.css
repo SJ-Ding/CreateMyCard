@@ -100,9 +100,8 @@
 .e2e-debug .composer-hint { display: block; margin: 7px 2px 0; color: #b2b9c6; font-size: 9px; }
 
 .e2e-debug .inspector-panel { display: flex; flex-direction: column; gap: 14px; height: 100%; min-height: 0; overflow: hidden; }
-.e2e-debug .timeline-section, .e2e-debug .artifact-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; border: 1px solid var(--e2e-line); border-radius: 13px; background: #fff; }
+.e2e-debug .timeline-section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; border: 1px solid var(--e2e-line); border-radius: 13px; background: #fff; }
 .e2e-debug .timeline-section { flex: 1.1 1 0; }
-.e2e-debug .artifact-section { flex: 1 1 0; }
 .e2e-debug .section-heading { flex: 0 0 auto; padding: 14px 15px 11px; border-bottom: 1px solid #edf0f5; }
 .e2e-debug .section-heading h2 { margin-bottom: 0; font-size: 14px; }
 .e2e-debug .counter { display: grid; min-width: 21px; height: 21px; place-items: center; border-radius: 7px; color: #7d87a0; background: #f1f3f8; font-size: 10px; }
@@ -129,17 +128,6 @@
 .e2e-debug .timeline-item__body pre { max-height: none; margin: 0 0 5px; overflow: auto; color: #8b94a4; background: #f7f8fb; border-radius: 5px; padding: 5px 7px; font: 9px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .e2e-debug .timeline-item__body time { color: #b7becb; font-size: 9px; }
 .e2e-debug .small-empty { padding-top: 35px; color: #b0b7c5; font-size: 11px; text-align: center; }
-.e2e-debug .artifact-runs { display: flex; flex: 0 0 auto; gap: 6px; overflow-x: auto; padding: 10px 13px 6px; }
-.e2e-debug .artifact-runs button { flex: 0 0 auto; padding: 6px 9px; border-radius: 7px; color: #8590a3; background: #f5f6fa; font-size: 10px; text-align: left; }
-.e2e-debug .artifact-runs button.active { color: var(--e2e-accent); background: #e8efff; }.e2e-debug .artifact-runs small { display: block; margin-top: 2px; color: #b1b8c5; font-size: 8px; }
-.e2e-debug .artifact-toolbar { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 7px 13px; border-top: 1px solid #eff1f5; border-bottom: 1px solid #eff1f5; color: #8c96a8; font: 9px ui-monospace, monospace; }
-.e2e-debug .artifact-toolbar span { flex: 1; }.e2e-debug .artifact-toolbar button { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 5px; color: #8993a7; background: #f3f5f9; }.e2e-debug .artifact-toolbar svg { width: 12px; }
-.e2e-debug .artifact-empty { padding: 30px 24px; color: #abb3c1; font-size: 11px; text-align: center; }.e2e-debug .artifact-empty strong { display: block; color: #7d8799; font-size: 11px; }.e2e-debug .artifact-empty span { display: block; margin-top: 5px; line-height: 1.6; }
-
-.e2e-debug .artifact-preview { min-height: 0; overflow: auto; border-top: 1px solid #edf0f5; background: #fff; }
-.e2e-debug .artifact-preview__tabs { display: flex; gap: 4px; overflow-x: auto; padding: 8px 13px 4px; border-bottom: 1px solid #f0f2f6; }
-.e2e-debug .artifact-preview__tabs button { flex: 0 0 auto; padding: 5px 7px; border-radius: 6px; color: #8c96a8; background: transparent; font-size: 9px; white-space: nowrap; }.e2e-debug .artifact-preview__tabs button.is-active { color: var(--e2e-accent); background: #e8efff; }
-.e2e-debug .artifact-preview__body { padding: 10px 13px; }.e2e-debug .artifact-preview__canvas { max-height: 170px; overflow: auto; padding: 12px; border: 1px solid #e5e9f2; border-radius: 9px; background: #f8f9fc; }.e2e-debug .artifact-preview__code { max-height: 130px; overflow: auto; margin: 8px 0 0; padding: 8px; color: #6d778a; background: #f7f8fb; border-radius: 6px; font: 9px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }.e2e-debug .artifact-preview__source { margin-top: 8px; color: #8e98a9; font-size: 10px; }.e2e-debug .artifact-preview__unknown { display: flex; flex-direction: column; gap: 3px; padding: 8px; color: #8690a2; border: 1px dashed #d6dce8; border-radius: 7px; font-size: 10px; }.e2e-debug .artifact-preview__unknown strong { color: #667189; }.e2e-debug .artifact-preview__placeholder { display: grid; min-height: 60px; place-items: center; color: #a5adba; font-size: 10px; }
 .e2e-debug .connection-error { flex: 0 0 auto; margin: 8px 0 0; padding: 9px 12px; border-radius: 8px; color: #b44f61; background: #ffeaed; font-size: 12px; }
 .e2e-debug .mobile-tabs { display: none; }
 
@@ -156,8 +144,8 @@
   .e2e-debug .mobile-tabs em { display: inline-grid; min-width: 16px; height: 16px; place-items: center; margin-left: 3px; border-radius: 5px; color: #8590a4; background: #f0f2f7; font-size: 9px; font-style: normal; }
   .e2e-debug .chat-panel, .e2e-debug .inspector-panel { display: none; min-width: 0; }
   .e2e-debug .chat-panel.mobile-visible, .e2e-debug .inspector-panel.mobile-visible { display: flex; grid-column: 2; }
-  .e2e-debug .timeline-section, .e2e-debug .artifact-section { display: none; }
-  .e2e-debug .timeline-section.mobile-visible, .e2e-debug .artifact-section.mobile-visible { display: flex; }
+  .e2e-debug .timeline-section { display: none; }
+  .e2e-debug .timeline-section.mobile-visible { display: flex; }
   .e2e-debug .context-toggle { display: none; }
 }
 
@@ -170,7 +158,7 @@
   .e2e-debug .mobile-tabs button { flex: 1; color: #98a1b1; background: transparent; font-size: 11px; }.e2e-debug .mobile-tabs button.active { color: var(--e2e-accent); border-bottom: 2px solid var(--e2e-accent); }.e2e-debug .mobile-tabs em { display: inline-grid; min-width: 16px; height: 16px; place-items: center; margin-left: 3px; border-radius: 5px; color: #8590a4; background: #f0f2f7; font-size: 9px; font-style: normal; }
   .e2e-debug .chat-panel, .e2e-debug .inspector-panel { display: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; }
   .e2e-debug .chat-panel.mobile-visible, .e2e-debug .inspector-panel.mobile-visible { display: flex; }
-  .e2e-debug .timeline-section, .e2e-debug .artifact-section { display: none; }
-  .e2e-debug .timeline-section.mobile-visible, .e2e-debug .artifact-section.mobile-visible { display: flex; }
+  .e2e-debug .timeline-section { display: none; }
+  .e2e-debug .timeline-section.mobile-visible { display: flex; }
   .e2e-debug .chat-heading { padding: 18px 18px 15px; }.e2e-debug .message-list { padding: 18px; }.e2e-debug .composer-wrap { padding: 10px 14px 13px; }.e2e-debug .empty-chat { margin-top: 18vh; }
 }

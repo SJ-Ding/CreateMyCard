@@ -16,6 +16,11 @@ class DeviceDebugContext(BaseModel):
     romVersion: str = "ALN-AL00 7.0.0.100"
     locale: str = "zh-CN"
     countryCode: str = "CN"
+    deviceFormation: str = "phone"
+    deviceType: int = 0
+    sysVer: str = "HarmonyOS"
+    paginationLimit: int = 5
+    paginationStart: str = ""
 
 
 class ConfigureFrame(BaseModel):

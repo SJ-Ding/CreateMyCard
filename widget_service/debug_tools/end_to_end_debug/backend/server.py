@@ -137,6 +137,20 @@ def create_app(
             ],
         }
 
+    @app.get("/debug/artifact")
+    async def artifact(url: str, digest: str = "") -> Any:
+        """为卡片渲染模块读取 artifact URL，统一复用后端下载与 mock 解析。"""
+
+        from .debug_agent.agent import _is_artifact_url
+        from .debug_agent.artifact_reader import ArtifactReader
+
+        if not _is_artifact_url(url):
+            return JSONResponse({"detail": "artifact URL 不受支持"}, status_code=400)
+        preview, error = await ArtifactReader().read("renderer", url, digest)
+        if preview is None:
+            return JSONResponse({"detail": error or "artifact 下载失败"}, status_code=404)
+        return preview.model_dump(mode="json", exclude_none=True)
+
     @app.websocket("/debug/agent/ws")
     @app.websocket("/debug/e2e/ws")
     async def e2e_socket(websocket: WebSocket) -> None:
@@ -1067,8 +1081,9 @@ async def _send_conversation_ready(
                 "quickPrompts": [
                     {"label": item.label, "prompt": item.prompt}
                     for item in settings.quick_prompts
-                ],
-            }
+            ],
+        }
+
         )
 
 

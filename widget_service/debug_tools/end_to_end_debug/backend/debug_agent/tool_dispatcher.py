@@ -271,15 +271,15 @@ class ToolDispatcher:
         elif result_status == "final_error":
             result_status = "failed"
         result_data = result.get("data")
-        if not isinstance(result_data, dict):
-            result_data = result
+        result_for_model = _result_for_model(result)
         successful_status = result_status in {"success", "degraded"}
         has_error_code = result_error_code not in {"", "0"}
         if result.get("ok") is False or not successful_status or has_error_code:
             failure_code = result_error_code or (
                 "BROWSER_TOOL_FAILED" if result.get("ok") is False else result_status
             )
-            return {
+            failure_result = {
+                **result_for_model,
                 "ok": False,
                 "status": result_status,
                 "error": {
@@ -288,8 +288,9 @@ class ToolDispatcher:
                 },
                 "errorCode": result_error_code,
                 "data": result_data,
-            }, frames
-        return result_data, frames
+            }
+            return failure_result, frames
+        return result_for_model, frames
 
     def _permission_stub(self, arguments: dict[str, Any]) -> dict[str, Any]:
         capability_ids = arguments.get("dataCapabilityIds")
@@ -305,4 +306,23 @@ class ToolDispatcher:
     @staticmethod
     def _error(code: str, message: str) -> dict[str, Any]:
         return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def _result_for_model(result: dict[str, Any]) -> dict[str, Any]:
+    """保留工具 envelope，同时把业务 data 展开供 Skill 直接读取。"""
+
+    result_data = result.get("data")
+    if not isinstance(result_data, dict):
+        return result
+    normalized = {
+        **result,
+        # The business status/error code is authoritative when the service
+        # repeats it inside data; otherwise the transport envelope remains.
+        **result_data,
+        "data": result_data,
+    }
+    for field in ("ok", "operation", "requestId", "finalFrame", "finalStreamContent"):
+        if field in result:
+            normalized[field] = result[field]
+    return normalized
 

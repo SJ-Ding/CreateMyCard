@@ -595,8 +595,11 @@ export function resolveTemplate(value: string, data: unknown): string {
     const concatenated = resolveConcatenation(expression, data);
     if (concatenated != null) return concatenated;
   }
-  return value.replace(/\{\{\s*\$\{([^}]+)\}\s*(?:\+\s*(['"])(.*?)\2)?\s*\}\}/g,
-    (_match, path: string, _quote: string, suffix: string) => `${stringify(getPath(data, path.trim()))}${suffix ?? ''}`);
+  return value
+    .replace(/\{\{\s*\$\{([^}]+)\}\s*(?:\+\s*(['"])(.*?)\2)?\s*\}\}/g,
+      (_match, path: string, _quote: string, suffix: string) => `${stringify(getPath(data, path.trim()))}${suffix ?? ''}`)
+    .replace(/\{\{\s*([A-Za-z0-9_$./[\]-]+)\s*\}\}/g,
+      (_match, path: string) => stringify(getPath(data, path.trim())));
 }
 
 function resolveConcatenation(expression: string, data: unknown): string | null {

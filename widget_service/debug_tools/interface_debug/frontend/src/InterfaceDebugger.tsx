@@ -57,6 +57,37 @@ function businessDefaults(operation: ToolOperation): BusinessValues {
   return values;
 }
 
+function businessValuesFromRequest(operation: ToolOperation, request: Record<string, unknown>): BusinessValues {
+  const values = businessDefaults(operation);
+  const rawContent = request.content;
+  let parsedContent: unknown = rawContent;
+  if (typeof rawContent === 'string') {
+    try { parsedContent = JSON.parse(rawContent) as unknown; } catch { parsedContent = rawContent; }
+  }
+  const content = parsedContent && typeof parsedContent === 'object' && !Array.isArray(parsedContent)
+    ? parsedContent as Record<string, unknown>
+    : request;
+  const options = content.options && typeof content.options === 'object' && !Array.isArray(content.options)
+    ? content.options as Record<string, unknown>
+    : request.options && typeof request.options === 'object' && !Array.isArray(request.options)
+      ? request.options as Record<string, unknown>
+      : {};
+  BUSINESS_FIELDS[operation].forEach((field) => {
+    const raw = field.id === 'allowDegradation' ? options[field.id] : content[field.id];
+    if (raw === undefined || raw === null) return;
+    if (field.id === 'allowDegradation') {
+      values[field.id] = raw === true || raw === 'true' ? 'true' : 'false';
+      return;
+    }
+    if (field.id === 'dataCapabilityIds' || field.id === 'candidateAssetIds') {
+      values[field.id] = Array.isArray(raw) ? raw.map(String).join(',') : String(raw);
+      return;
+    }
+    values[field.id] = typeof raw === 'string' ? raw : jsonText(raw);
+  });
+  return values;
+}
+
 function jsonText(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
@@ -203,9 +234,10 @@ export function InterfaceDebugger({
       setBuiltJson('');
       return;
     }
-    if (TOOL_OPERATIONS.includes(selectedCall.operation as ToolOperation)) {
-      setOperation(selectedCall.operation as ToolOperation);
-    }
+    const selectedOperation = TOOL_OPERATIONS.includes(selectedCall.operation as ToolOperation)
+      ? selectedCall.operation as ToolOperation
+      : operation;
+    if (selectedOperation !== operation) setOperation(selectedOperation);
     const request = selectedCall.request && typeof selectedCall.request === 'object'
       ? selectedCall.request as Record<string, unknown>
       : {};
@@ -252,7 +284,11 @@ export function InterfaceDebugger({
         },
       }]);
     }
-    setBusinessText(jsonText(request.content ?? request));
+    // Shared history stores the complete envelope.  Rehydrate the known
+    // business fields into the primary form so selecting a call is immediately
+    // editable; the advanced JSON editor remains an explicit escape hatch.
+    setBusinessValues(businessValuesFromRequest(selectedOperation, request));
+    setBusinessText('');
     setActiveHistory(null);
     setSelectedPaths(new Set());
     setArrayLimits({});

@@ -4,6 +4,7 @@ import {
   buildOutputFieldPaths,
   buildSelectedSubset,
   extractArtifact,
+  parseLegacyToolResponse,
   parsePythonRepr,
 } from '../src/parser';
 
@@ -57,5 +58,32 @@ describe('schema helpers', () => {
     const artifact = extractArtifact({ data: { genui: '{"version":"1"}', artifactUrl: 'https://example.invalid/a' } }, 'generateWidgetCardCompactDsl', 'run-1');
     expect(artifact.genui).toContain('version');
     expect(artifact.raw).toEqual({ genui: '{"version":"1"}', artifactUrl: 'https://example.invalid/a' });
+  });
+
+  it('normalizes artifact_reference URLs for renderer hand-off', () => {
+    const artifact = extractArtifact({
+      data: { artifact_reference: { url: 'mock://artifact-card.md' } },
+    }, 'generateWidgetCardCompactDsl', 'run-2');
+    expect(artifact.artifactUrl).toBe('mock://artifact-card.md');
+  });
+
+  it('parses Pydantic-style final payloads', () => {
+    const parsed = parsePythonRepr(
+      "GenerateWidgetCardResponse(status='success', artifactUrl='mock://artifact-card.md', artifactDigest='sha256:test')",
+    );
+    expect(parsed).toEqual({
+      status: 'success',
+      artifactUrl: 'mock://artifact-card.md',
+      artifactDigest: 'sha256:test',
+    });
+  });
+
+  it('unwraps Pydantic-style payloads inside a legacy final frame', () => {
+    const parsed = parseLegacyToolResponse(
+      "type='final' tool='widgetCardService' operation='generateWidgetCardCompactDsl' "
+      + "requestId='session&interaction' data=GenerateWidgetCardResponse(status='success', "
+      + "artifactUrl='mock://artifact-card.md') status='success' errorCode='' error=None",
+    );
+    expect(parsed?.data).toEqual({ status: 'success', artifactUrl: 'mock://artifact-card.md' });
   });
 });

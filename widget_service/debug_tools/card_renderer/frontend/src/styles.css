@@ -19,8 +19,6 @@
 .card-renderer *, .card-renderer *::before, .card-renderer *::after { box-sizing: border-box; }
 .card-renderer__editor, .card-renderer__preview { min-width: 0; min-height: 0; padding: 14px; }
 .card-renderer__editor { display: grid; grid-template-rows: auto 1fr auto; gap: 10px; border-right: 1px solid var(--renderer-line); background: var(--renderer-panel); overflow: hidden; }
-.card-renderer__mode { flex: none; padding: 4px 8px; border-radius: 999px; color: #244ec8; background: #e8efff; font-size: 12px; }
-.card-renderer__mode.is-error { color: var(--renderer-danger); background: #fef3f2; }
 .card-renderer__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .card-renderer button, .card-renderer__file-button, .card-renderer select { font: inherit; }
 .card-renderer button, .card-renderer__file-button { border: 1px solid var(--renderer-line); border-radius: 8px; padding: 8px 12px; color: var(--renderer-text); background: #fff; cursor: pointer; }

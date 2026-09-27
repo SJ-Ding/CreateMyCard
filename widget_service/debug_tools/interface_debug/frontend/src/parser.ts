@@ -16,14 +16,26 @@ export function streamType(frame: ToolFrame): string {
     && String(errorCode).trim() !== ''
     && String(errorCode) !== '0';
   const status = typeof frame.status === 'string' ? frame.status.toLowerCase() : '';
-  const hasErrorText = [frame.error, frame.errorMessage].some(
-    (value) => typeof value === 'string' && value.trim().length > 0,
-  );
-  if (hasOuterError || frame.ok === false || ['error', 'failed', 'final_error'].includes(status) || hasErrorText) {
-    values.push('final_error');
-  }
-  if (values.includes('final_error') || values.includes('error') || values.includes('tool.error')) return 'final_error';
-  if (values.includes('final')) return 'final';
+  const hasErrorText = [frame.error, frame.errorMessage].some((value) => {
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return Boolean(value && typeof value === 'object' && Object.keys(value).length > 0);
+  });
+  const explicitTerminal = values.some((value) => (
+    ['error', 'failed', 'final_error', 'tool.error'].includes(value)
+  ));
+  const explicitFinal = values.includes('final');
+  const explicitIntermediate = values.find((value) => (
+    ['start', 'partial', 'command', 'streaming', 'pending'].includes(value)
+  ));
+  const statusTerminal = ['error', 'failed', 'final_error'].includes(status);
+  const inferredError = hasOuterError || frame.ok === false || statusTerminal || hasErrorText;
+  if (explicitTerminal || statusTerminal) return 'final_error';
+  if (explicitFinal) return inferredError ? 'final_error' : 'final';
+  // An explicitly non-terminal stream marker wins over incidental error text
+  // on a partial frame; only an explicit terminal marker may complete a call.
+  if (explicitIntermediate && !hasOuterError && frame.ok !== false) return explicitIntermediate;
+  if (inferredError) return 'final_error';
   return values[0] ?? 'unknown';
 }
 
@@ -203,6 +215,8 @@ export function parsePythonRepr(value: unknown): unknown | null {
     const parsedLines = jsonLines.map(parseJson);
     if (parsedLines.every((line) => line !== null)) return parsedLines;
   }
+  const model = parsePythonModel(source);
+  if (model) return Object.keys(model).length === 1 && 'data' in model ? model.data : model;
   const dataObject = extractDataObject(source);
   if (dataObject) {
     const parsedData = convertPythonRepr(dataObject);
@@ -551,6 +565,79 @@ export function findFinalFrame(frames: ToolFrame[]): ToolFrame | undefined {
   });
 }
 
+/** 解析 Pydantic/BaseModel 的 `Model(field='value', ...)` 字符串表示。 */
+function parsePythonModel(source: string): Record<string, unknown> | null {
+  const match = source.match(/^[A-Za-z_][A-Za-z0-9_.]*\(([\s\S]*)\)$/);
+  if (!match) return null;
+  const fields = splitTopLevel(match[1], ',');
+  const output: Record<string, unknown> = {};
+  let parsedField = false;
+  for (const field of fields) {
+    const separator = topLevelIndexOf(field, '=');
+    if (separator < 1) continue;
+    const key = field.slice(0, separator).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    const parsed = parsePythonRepr(field.slice(separator + 1));
+    if (parsed === null) continue;
+    output[key] = parsed;
+    parsedField = true;
+  }
+  return parsedField ? output : null;
+}
+
+function splitTopLevel(source: string, separator: string): string[] {
+  const values: string[] = [];
+  let start = 0;
+  let quote = '';
+  let escaped = false;
+  const stack: string[] = [];
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if ('([{'.includes(character)) stack.push(character);
+    else if (')]}'.includes(character)) stack.pop();
+    else if (character === separator && stack.length === 0) {
+      values.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  const tail = source.slice(start).trim();
+  if (tail) values.push(tail);
+  return values;
+}
+
+function topLevelIndexOf(source: string, target: string): number {
+  let quote = '';
+  let escaped = false;
+  const stack: string[] = [];
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if ('([{'.includes(character)) stack.push(character);
+    else if (')]}'.includes(character)) stack.pop();
+    else if (character === target && stack.length === 0) return index;
+  }
+  return -1;
+}
+
 export function extractArtifact(parsed: unknown, operation: Selection['operation'], runId: string) {
   const record = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
     ? parsed as Record<string, unknown>
@@ -560,7 +647,19 @@ export function extractArtifact(parsed: unknown, operation: Selection['operation
     : {};
   const payload = { ...record, ...nested };
   const genuiValue = payload.genui ?? payload.dsl ?? payload.source ?? payload.compactDsl;
-  const artifactUrl = typeof payload.artifactUrl === 'string' ? payload.artifactUrl : undefined;
+  const rawArtifactReference = payload.artifactUrl
+    ?? payload.artifact_url
+    ?? payload.artifact_reference
+    ?? payload.artifactReference;
+  const artifactUrl = typeof rawArtifactReference === 'string'
+    ? rawArtifactReference
+    : rawArtifactReference && typeof rawArtifactReference === 'object' && !Array.isArray(rawArtifactReference)
+      ? typeof (rawArtifactReference as Record<string, unknown>).url === 'string'
+        ? (rawArtifactReference as Record<string, unknown>).url as string
+        : typeof (rawArtifactReference as Record<string, unknown>).artifactUrl === 'string'
+          ? (rawArtifactReference as Record<string, unknown>).artifactUrl as string
+          : undefined
+      : undefined;
   const artifactDigest = typeof payload.artifactDigest === 'string' ? payload.artifactDigest : undefined;
   return {
     runId,

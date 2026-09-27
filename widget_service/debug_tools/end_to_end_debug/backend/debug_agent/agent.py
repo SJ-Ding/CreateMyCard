@@ -6,6 +6,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
@@ -14,6 +15,7 @@ from models.generation import ModelRequestContext
 if TYPE_CHECKING:
     from config.config import Settings
 
+from .artifact_reader import ArtifactReader
 from .config import DebugSettings
 from .logging_utils import DebugLogger
 from .skill_loader import SkillLoader
@@ -72,6 +74,7 @@ class DebugAgentSession:
         self.last_artifact_url = ""
         self.artifacts: list[dict[str, Any]] = []
         self._generated_call_ids: dict[int, str] = {}
+        self._force_final_response = False
         self._initialize()
 
     def _initialize(self) -> None:
@@ -121,6 +124,7 @@ class DebugAgentSession:
         self.artifacts.clear()
         self.cancel_event = asyncio.Event()
         self._generated_call_ids.clear()
+        self._force_final_response = False
         self._initialize()
         self.context = preserved_context
 
@@ -143,6 +147,7 @@ class DebugAgentSession:
         self.running = True
         self.cancel_event.clear()
         self.current_query = query
+        self._force_final_response = False
         active_run_id = run_id or uuid.uuid4().hex
         started = time.perf_counter()
         await self.emit("run_started", {"query": query}, active_run_id)
@@ -201,10 +206,12 @@ class DebugAgentSession:
                 raise asyncio.CancelledError
             client = self._model_client_factory(self._model_context(), self.production_settings)
             started = time.perf_counter()
+            tool_choice = "none" if self._force_final_response else "auto"
+            model_tools = [] if self._force_final_response else self.registry.model_tools
             completion = await client.complete(
                 list(self.history),
-                tools=self.registry.model_tools,
-                tool_choice="auto",
+                tools=model_tools,
+                tool_choice=tool_choice,
                 max_tokens=self.debug_settings.max_tokens,
                 enable_thinking = client.thinking_mode != "disable",
             )
@@ -217,7 +224,7 @@ class DebugAgentSession:
                 step=step,
                 status="success",
                 history_count=len(self.history),
-                model_tool_count=len(self.registry.model_tools),
+                model_tool_count=len(model_tools),
                 content_chars=len(content),
                 tool_call_count=len(tool_calls),
                 duration_ms=round((time.perf_counter() - started) * 1000, 2),
@@ -238,6 +245,8 @@ class DebugAgentSession:
                     raise AgentRunError("模型返回空内容且没有工具调用")
                 self.history.append({"role": "assistant", "content": content})
                 return
+            if self._force_final_response:
+                raise AgentRunError("生成 DSL 成功后模型仍返回工具调用")
             assistant_message = {
                 "role": "assistant",
                 "content": content,
@@ -275,6 +284,11 @@ class DebugAgentSession:
         for frame in frames:
             await self.emit("upstream_frame", frame, run_id)
         await self._append_tool_result(call_id, result, run_id, step, call)
+        operation = self._tool_function_name(function_name, raw_arguments)
+        if operation == "generateWidgetCardCompactDsl" and _is_successful_result(result):
+            # A successful generation is the terminal tool step for this run.
+            # The next model request may only produce the user-facing answer.
+            self._force_final_response = True
         await self._maybe_preview(run_id, function_name, result)
 
     async def _dispatch_call(
@@ -354,7 +368,9 @@ class DebugAgentSession:
         status = result.get("status", "success")
         if status not in {"success", "degraded"}:
             return
-        raw_artifact_url = result.get("artifactUrl")
+        raw_artifact_url = result.get("artifactUrl") or result.get("artifact_reference")
+        if isinstance(raw_artifact_url, dict):
+            raw_artifact_url = raw_artifact_url.get("url") or raw_artifact_url.get("artifactUrl")
         artifact_url = (
             _normalize_artifact_url(raw_artifact_url)
             if isinstance(raw_artifact_url, str)
@@ -376,15 +392,31 @@ class DebugAgentSession:
             card_spec = {}
         if not genui and not card_spec:
             if artifact_url:
-                await self.emit(
-                    "diagnostic",
-                    {
-                        "kind": "artifact_reference",
-                        "artifactUrl": artifact_url,
-                        "message": "仅记录 artifact URL；调试后端不会自动下载远程产物",
-                    },
-                    run_id,
-                )
+                try:
+                    artifact_reader = ArtifactReader()
+                    loaded_preview, read_error = await artifact_reader.read(
+                        run_id,
+                        artifact_url,
+                        str(result.get("artifactDigest") or ""),
+                    )
+                except Exception as error:  # noqa: BLE001 - diagnostics must not abort the run
+                    loaded_preview = None
+                    read_error = _exception_detail(error)
+                if loaded_preview is None:
+                    await self.emit(
+                        "diagnostic",
+                        {
+                            "kind": "artifact_download_failed",
+                            "artifactUrl": artifact_url,
+                            "message": read_error or "artifact 下载失败",
+                        },
+                        run_id,
+                    )
+                    return
+                preview = loaded_preview.model_dump(mode="json", exclude_none=True)
+                self.last_artifact_url = artifact_url
+                self.artifacts.append(preview)
+                await self.emit("artifact_preview", preview, run_id)
             return
 
         if artifact_url and artifact_url == self.last_artifact_url:
@@ -517,6 +549,18 @@ def _function_name_from_result(call: Any, _result: dict[str, Any]) -> str:
     return str(function_name) if isinstance(function_name, str) else "invoke"
 
 
+def _is_successful_result(result: dict[str, Any]) -> bool:
+    """判断浏览器工具结果是否已经到达可收尾的成功终态。"""
+
+    if result.get("ok") is False:
+        return False
+    error_code = result.get("errorCode")
+    if error_code not in (None, "", 0, "0"):
+        return False
+    status = str(result.get("status") or "").strip().lower()
+    return status in {"success", "degraded", "final"}
+
+
 def _contains_output_leak(content: str) -> bool:
     markers = ("artifactUrl", "genWidgetResult", "genuiResult", "http://", "https://")
     return any(marker in content for marker in markers)
@@ -524,11 +568,20 @@ def _contains_output_leak(content: str) -> bool:
 
 def _is_artifact_url(value: str) -> bool:
     parsed = urlsplit(value.strip())
-    return (
-        parsed.scheme in {"http", "https"}
-        and bool(parsed.netloc)
-        and not any(char.isspace() for char in value)
-    )
+    if any(char.isspace() for char in value):
+        return False
+    if parsed.scheme in {"http", "https"}:
+        return bool(parsed.netloc)
+    if parsed.scheme == "mock":
+        return bool(parsed.netloc or parsed.path)
+    # Local fixture paths are resolved by ArtifactReader against the project
+    # mock_obs/workspace roots, never against an arbitrary browser path.
+    if not parsed.scheme:
+        normalized = parsed.path.replace("\\", "/").lstrip("/")
+        return normalized.startswith(("mock_obs/", "workspace/")) and bool(
+            Path(normalized).name
+        )
+    return False
 
 
 def _normalize_artifact_url(value: str) -> str:

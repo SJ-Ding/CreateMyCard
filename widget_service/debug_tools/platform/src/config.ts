@@ -66,14 +66,28 @@ export function normalizeDebugConfig(value: unknown): DebugConfig {
     stringValue(source[key], stringValue(legacy[legacyKey ?? key], String(defaultDebugConfig[key] ?? '')))
   );
   const pickEndpoint = (key: 'agentWsUrl' | 'toolWsBaseUrl', ...legacyKeys: string[]): string => {
-    if (typeof source[key] === 'string' && source[key].trim()) return source[key].trim();
+    const normalizeLegacyEndpoint = (value: string): string => {
+      const trimmed = value.trim();
+      // The old platform proxy lived at /debug/tools.  Keeping that path in a
+      // migrated browser config would route calls to the deprecation endpoint,
+      // so move the exact legacy default to the direct microservice base.
+      if (key === 'toolWsBaseUrl' && /^\/debug\/tools\/?$/i.test(trimmed)) {
+        return defaultDebugConfig.toolWsBaseUrl;
+      }
+      return trimmed;
+    };
+    if (typeof source[key] === 'string') {
+      return normalizeLegacyEndpoint(source[key]);
+    }
     for (const legacyKey of legacyKeys) {
       const valueFromEndpoints = legacyEndpoints[legacyKey];
       if (typeof valueFromEndpoints === 'string' && valueFromEndpoints.trim()) {
-        return valueFromEndpoints.trim();
+        return normalizeLegacyEndpoint(valueFromEndpoints);
       }
       const valueFromRoot = source[legacyKey];
-      if (typeof valueFromRoot === 'string' && valueFromRoot.trim()) return valueFromRoot.trim();
+      if (typeof valueFromRoot === 'string' && valueFromRoot.trim()) {
+        return normalizeLegacyEndpoint(valueFromRoot);
+      }
     }
     return defaultDebugConfig[key];
   };
@@ -129,8 +143,12 @@ export function endpointHasCredentials(value: string): boolean {
       ? new URL(normalized)
       : new URL(normalized, 'http://127.0.0.1');
     if (parsed.username || parsed.password) return true;
+    // WebSocket/HTTP fragments are never sent to the server and are often
+    // used accidentally for bearer material; reject them before persistence.
+    if (parsed.hash) return true;
     for (const key of parsed.searchParams.keys()) {
-      if (/(?:^|_|-)(?:token|api[_-]?key|secret|password|authorization|auth)(?:$|_|-)/i.test(key)) {
+      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (/(?:token|apikey|secret|password|authorization|auth)/.test(normalizedKey)) {
         return true;
       }
     }
@@ -163,12 +181,18 @@ export function loadDebugConfig(): DebugConfig {
     const raw = currentRaw ?? legacyRaw;
     if (!raw) return cloneDebugConfig(defaultDebugConfig);
     const config = persistedConfig(normalizeDebugConfig(JSON.parse(raw)));
-    if (!currentRaw && legacyRaw) {
-      localStorage.setItem(DEBUG_CONFIG_STORAGE_KEY, JSON.stringify({
-        version: DEBUG_CONFIG_VERSION,
-        config,
-      }));
-      localStorage.removeItem(LEGACY_DEBUG_CONFIG_STORAGE_KEY);
+    // Rewrite the active key after every load so a legacy entry or a manually
+    // edited URL containing credentials/hash fragments cannot remain in browser
+    // storage after it has been read once.
+    const serialized = JSON.stringify({ version: DEBUG_CONFIG_VERSION, config });
+    if (currentRaw !== serialized || legacyRaw) {
+      try {
+        localStorage.setItem(DEBUG_CONFIG_STORAGE_KEY, serialized);
+        if (legacyRaw) localStorage.removeItem(LEGACY_DEBUG_CONFIG_STORAGE_KEY);
+      } catch {
+        // A full or read-only storage must not discard the valid in-memory
+        // configuration; it simply cannot complete the migration rewrite.
+      }
     }
     return config;
   } catch {
@@ -224,13 +248,15 @@ function ensureScheme(value: string, kind: 'http' | 'ws'): URL {
     const scheme = kind === 'ws'
       ? window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       : window.location.protocol === 'https:' ? 'https:' : 'http:';
-    url = new URL(`${scheme}//${window.location.host}/${normalized.replace(/^\/+/, '')}`);
+    const host = window.location.host || '127.0.0.1:8888';
+    url = new URL(`${scheme}//${host}/${normalized.replace(/^\/+/, '')}`);
   }
   if (url.username || url.password) throw new Error('地址不能包含认证信息');
   return url;
 }
 
 function rejectMixedContent(url: URL): void {
+  if (url.hash) throw new Error('地址不能包含 hash 片段');
   if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.protocol === 'ws:') {
     throw new Error('HTTPS 页面不能连接不安全的 ws 地址');
   }
@@ -246,6 +272,7 @@ export function websocketUrl(path: string): string {
 export function httpUrl(path: string): string {
   const url = ensureScheme(path, 'http');
   if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) throw new Error('地址必须使用 http/https 协议');
+  if (url.hash) throw new Error('地址不能包含 hash 片段');
   if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.protocol === 'http:') {
     throw new Error('HTTPS 页面不能连接不安全的 http 地址');
   }

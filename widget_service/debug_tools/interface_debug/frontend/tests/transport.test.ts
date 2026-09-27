@@ -16,4 +16,20 @@ describe('buildToolSocketUrl', () => {
     expect(buildToolSocketUrl('ws://localhost:8855/api/v1/ws/tools/getWidgetCapabilityOverview', 'getWidgetCapabilityOverview'))
       .toBe('ws://localhost:8855/api/v1/ws/tools/getWidgetCapabilityOverview');
   });
+
+  it('converts http and normalizes an expanded operation with a trailing slash', () => {
+    expect(buildToolSocketUrl('https://localhost:8855/api/v1/ws/tools/getDataCapabilitySchemas/', 'getDataCapabilitySchemas'))
+      .toBe('wss://localhost:8855/api/v1/ws/tools/getDataCapabilitySchemas');
+  });
+
+  it('supports an operation template in the query string', () => {
+    expect(buildToolSocketUrl('ws://localhost:8855/tools?operation={operation}', 'generateWidgetCardCompactDsl'))
+      .toBe('ws://localhost:8855/tools?operation=generateWidgetCardCompactDsl');
+  });
+
+  it('rejects explicit empty addresses and URL fragments', () => {
+    expect(() => buildToolSocketUrl('', 'getDataCapabilitySchemas')).toThrow('不能为空');
+    expect(() => buildToolSocketUrl('ws://localhost:8855/tools#fragment', 'getDataCapabilitySchemas'))
+      .toThrow('hash');
+  });
 });

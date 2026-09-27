@@ -117,12 +117,37 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .route-content > .card-renderer .card-renderer__editor,
 .route-content > .card-renderer .card-renderer__preview { min-height: 0; overflow: hidden; }
 .route-content > .card-renderer textarea { min-height: 0; }
+.route-content > .renderer-route { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: 14px; min-height: 0; overflow: hidden; }
+.renderer-route__canvas, .renderer-route__inspector { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.renderer-route__canvas > .card-renderer { width: 100%; height: 100%; }
+.renderer-route__inspector { display: flex; flex-direction: column; }
+.renderer-route__inspector-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex: 0 0 auto; padding: 13px 14px 10px; border-bottom: 1px solid #edf1f6; }
+.renderer-route__inspector-heading h2 { margin: 3px 0 0; color: #3b465b; font-size: 14px; }
+.renderer-route__inspector-heading > span { max-width: 150px; overflow: hidden; color: var(--success); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.renderer-route__inspector-heading > span.is-error { color: var(--danger); }
+.renderer-route__artifact-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 8px 12px; border-bottom: 1px solid #edf1f6; color: var(--muted); font: 9px ui-monospace, monospace; }
+.renderer-route__artifact-actions span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.renderer-route__artifact-actions button { padding: 4px 7px; color: #69768d; background: #f3f5f9; border: 0; border-radius: 5px; font-size: 10px; }
+.renderer-route__inspector > .artifact-preview { min-height: 0; flex: 1 1 auto; overflow: auto; }
+.renderer-route__empty { display: grid; min-height: 160px; place-items: center; padding: 24px; color: var(--muted); font-size: 11px; line-height: 1.6; text-align: center; }
+.renderer-route .artifact-preview { min-height: 0; overflow: auto; border-top: 1px solid #edf0f5; background: #fff; }
+.renderer-route .artifact-preview__tabs { display: flex; gap: 4px; overflow-x: auto; padding: 8px 12px 4px; border-bottom: 1px solid #f0f2f6; }
+.renderer-route .artifact-preview__tabs button { flex: 0 0 auto; padding: 5px 7px; border: 0; border-radius: 6px; color: #8c96a8; background: transparent; font-size: 9px; white-space: nowrap; }
+.renderer-route .artifact-preview__tabs button.is-active { color: var(--accent); background: var(--accent-soft); }
+.renderer-route .artifact-preview__body { padding: 10px 12px; }
+.renderer-route .artifact-preview__canvas { max-height: 250px; overflow: auto; padding: 12px; border: 1px solid #e5e9f2; border-radius: 9px; background: #f8f9fc; }
+.renderer-route .artifact-preview__code { max-height: 260px; overflow: auto; margin: 0; padding: 8px; color: #6d778a; background: #f7f8fb; border-radius: 6px; font: 9px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.renderer-route .artifact-preview__source { margin-top: 8px; color: #8e98a9; font-size: 10px; }
+.renderer-route .artifact-preview__unknown { display: flex; flex-direction: column; gap: 3px; padding: 8px; color: #8690a2; border: 1px dashed #d6dce8; border-radius: 7px; font-size: 10px; }
+.renderer-route .artifact-preview__placeholder { display: grid; min-height: 60px; place-items: center; color: #a5adba; font-size: 10px; }
 .route-content > .app-shell { min-height: 0; height: 100%; overflow: hidden; }
 .route-content > .app-shell .workspace { height: 100%; min-height: 0; overflow: hidden; }
 
 /* The interface package switches to a two-row work area on narrow screens.
    Keep that scroll inside the route instead of letting the fixed shell grow. */
 @media (max-width: 900px) {
+  .route-content > .renderer-route { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(220px, 0.7fr); overflow-y: auto; }
+  .renderer-route__inspector { min-height: 220px; }
   .route-content > .interface-debugger .interface-grid {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
@@ -185,7 +210,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .call-history .history-heading h2 { font-size: 10px; }
   .call-history .section-kicker, .call-history .history-list { display: none; }
   .call-history .history-mobile-toggle { display: inline-flex; }
-  .call-history.is-mobile-open { position: fixed; z-index: 30; top: 84px; right: 8px; left: 8px; display: flex; width: auto; height: min(62dvh, 520px); min-height: 220px; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: rgba(15, 24, 38, .98); box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
+  .call-history.is-mobile-open { position: fixed; z-index: 30; top: 112px; right: 8px; left: 8px; display: flex; width: auto; height: min(62dvh, 520px); max-height: calc(100dvh - 120px); min-height: 180px; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: rgba(15, 24, 38, .98); box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
   .call-history.is-mobile-open .history-heading { padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
   .call-history.is-mobile-open .section-kicker, .call-history.is-mobile-open .history-list { display: block; }
   .call-history.is-mobile-open .history-list { flex: 1; min-height: 0; max-height: none; padding: 8px; background: var(--surface); }

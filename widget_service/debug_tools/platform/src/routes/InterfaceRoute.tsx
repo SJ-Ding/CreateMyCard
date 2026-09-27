@@ -1,5 +1,4 @@
 import { useWorkbench } from '../context';
-import { endpointConfig } from '../config';
 import { InterfaceDebugger } from '@widget-debug/interface';
 
 export function InterfaceRoute() {
@@ -7,7 +6,7 @@ export function InterfaceRoute() {
   const selectedCall = calls.find((item) => item.id === selectedCallId) ?? null;
   return (
     <InterfaceDebugger
-      transportBase={config.toolWsBaseUrl || endpointConfig.toolWsBaseUrl}
+      transportBase={config.toolWsBaseUrl}
       config={config}
       selectedCall={selectedCall}
       onCallStart={({ operation, request }) => recordCall({

@@ -41,6 +41,9 @@ export default defineConfig({
       '/debug/skills': {
         target: 'http://127.0.0.1:8888',
       },
+      '/debug/artifact': {
+        target: 'http://127.0.0.1:8888',
+      },
     },
   },
   build: {

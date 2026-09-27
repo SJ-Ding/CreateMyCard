@@ -222,7 +222,7 @@ class BrowserToolBridge:
                 message="tool.result 关联 ID 必须是字符串",
             )
         if (turn_present and not turn_value) or (run_present and not run_value) or (
-            not call_present or not call_id
+            not (turn_value or run_value) or not call_present or not call_id
         ):
             return BrowserToolResolution(
                 False,
@@ -254,14 +254,7 @@ class BrowserToolBridge:
                 turn_id=turn_id,
                 call_id=call_id,
             )
-        if "operation" in payload and not isinstance(payload["operation"], str):
-            return BrowserToolResolution(
-                False,
-                code="INVALID_RESULT",
-                message="tool.result.operation 必须是字符串",
-                turn_id=turn_id,
-                call_id=call_id,
-            )
+        key = (turn_id, call_id)
         conversation_value, conversation_present = _read_string_field(
             payload, "conversationId"
         )
@@ -305,14 +298,18 @@ class BrowserToolBridge:
                 turn_id=turn_id,
                 call_id=call_id,
             )
+        if "operation" in payload and not isinstance(payload["operation"], str):
+            return await self._reject_matching_pending(
+                key,
+                "INVALID_RESULT",
+                "tool.result.operation 必须是字符串",
+            )
         result = payload.get("result")
         if not isinstance(result, dict):
-            return BrowserToolResolution(
-                False,
-                code="INVALID_RESULT",
-                message="tool.result.result 必须是对象",
-                turn_id=turn_id,
-                call_id=call_id,
+            return await self._reject_matching_pending(
+                key,
+                "INVALID_RESULT",
+                "tool.result.result 必须是对象",
             )
         try:
             encoded_payload = json.dumps(
@@ -321,22 +318,17 @@ class BrowserToolBridge:
                 separators=(",", ":"),
             )
         except (TypeError, ValueError):
-            return BrowserToolResolution(
-                False,
-                code="INVALID_RESULT",
-                message="tool.result 不是可序列化 JSON",
-                turn_id=turn_id,
-                call_id=call_id,
+            return await self._reject_matching_pending(
+                key,
+                "INVALID_RESULT",
+                "tool.result 不是可序列化 JSON",
             )
         if len(encoded_payload.encode("utf-8")) > self._max_result_bytes:
-            return BrowserToolResolution(
-                False,
-                code="RESULT_TOO_LARGE",
-                message="tool.result 超出大小限制",
-                turn_id=turn_id,
-                call_id=call_id,
+            return await self._reject_matching_pending(
+                key,
+                "RESULT_TOO_LARGE",
+                "tool.result 超出大小限制",
             )
-        key = (turn_id, call_id)
         async with self._lock:
             pending = self._pending.get(key)
             if pending is None:
@@ -427,34 +419,17 @@ class BrowserToolBridge:
                         call_id=call_id,
                         operation=pending.function_name,
                     )
-                # A result with the exact pending correlation is terminal even
-                # when it is malformed.  Leaving the model future alive until
-                # the 180-second timeout would let one bad browser frame pin an
-                # Agent turn indefinitely.  Unknown/stale correlation IDs are
-                # still rejected without touching an unrelated pending call.
-                self._pending.pop(key, None)
-                self._remember_expired_locked(key, pending.function_name)
-                rejection = BrowserToolResolution(
-                    False,
-                    code=code,
-                    message=message,
-                    turn_id=turn_id,
-                    call_id=call_id,
-                    operation=pending.function_name,
-                )
-            else:
-                rejection = None
-            if rejection is not None:
-                future = pending.future
-            else:
-                future = None
-            if rejection is not None:
-                # Resolve the future after leaving the lock below.  Calling
-                # _cancel_pending here would try to acquire the same lock.
-                pass
+                rejection = (code, message)
             else:
                 normalized_input = dict(result)
-                for field in ("ok", "status", "errorCode", "error", "operation", "requestId"):
+                for field in (
+                    "ok",
+                    "status",
+                    "errorCode",
+                    "error",
+                    "operation",
+                    "requestId",
+                ):
                     if field not in normalized_input and field in payload:
                         normalized_input[field] = payload[field]
                 pending.future.set_result(_normalize_result(normalized_input))
@@ -464,23 +439,46 @@ class BrowserToolBridge:
                     call_id=call_id,
                     operation=pending.function_name,
                 )
-        if rejection is not None and future is not None:
-            if not future.done():
-                future.set_exception(BrowserToolBridgeError(rejection.message))
-                # Mark the exception as observed; invoke() may race with this
-                # cleanup while the WebSocket handler is already unwinding.
-                future.exception()
+        return await self._reject_matching_pending(
+            key,
+            rejection[0],
+            rejection[1],
+        )
+
+    async def _reject_matching_pending(
+        self,
+        key: tuple[str, str],
+        code: str,
+        message: str,
+    ) -> BrowserToolResolution:
+        """拒绝精确关联的非法终态，并立即释放对应 Agent future。"""
+
+        async with self._lock:
+            pending = self._pending.pop(key, None)
+            if pending is not None:
+                operation = pending.function_name
+                self._remember_expired_locked(key, operation)
+            else:
+                operation = self._completed.get(key, "") or self._expired.get(key, "")
+        turn_id, call_id = key
+        if pending is not None:
+            if not pending.future.done():
+                pending.future.set_exception(BrowserToolBridgeError(message))
+                # ``invoke`` may be unwinding concurrently; observe the
+                # exception here so asyncio never reports an orphaned Future.
+                pending.future.exception()
             await self._send_cancel_for_pending(
                 turn_id,
                 call_id,
-                rejection.message,
+                message,
             )
-        return rejection or BrowserToolResolution(
+        return BrowserToolResolution(
             False,
-            code="INVALID_RESULT",
-            message="tool.result 被拒绝",
+            code=code,
+            message=message,
             turn_id=turn_id,
             call_id=call_id,
+            operation=operation,
         )
 
     async def cancel_turn(self, turn_id: str) -> None:
@@ -604,18 +602,19 @@ def _string_field(payload: dict[str, Any], key: str) -> str:
 def _collect_operation_values(payload: dict[str, Any]) -> tuple[list[str], str | None]:
     """收集重复结果中的协议 operation，避免只校验顶层字段。"""
 
-    containers: list[tuple[str, dict[str, Any]]] = [("payload", payload)]
-    result = payload.get("result")
-    if isinstance(result, dict):
-        containers.append(("result", result))
-        for field in ("response", "finalFrame", "reply"):
-            nested = result.get(field)
+    containers: list[tuple[str, dict[str, Any]]] = []
+    pending_containers: list[tuple[str, dict[str, Any]]] = [("payload", payload)]
+    seen_containers: set[int] = set()
+    while pending_containers:
+        label, container = pending_containers.pop(0)
+        if id(container) in seen_containers:
+            continue
+        seen_containers.add(id(container))
+        containers.append((label, container))
+        for field in ("result", "response", "finalFrame", "reply", "streamInfo"):
+            nested = container.get(field)
             if isinstance(nested, dict):
-                containers.append((field, nested))
-    for field in ("response", "finalFrame", "reply"):
-        nested = payload.get(field)
-        if isinstance(nested, dict):
-            containers.append((field, nested))
+                pending_containers.append((f"{label}.{field}", nested))
     values: list[str] = []
     for label, container in containers:
         for field in ("operation", "functionName"):
@@ -663,15 +662,27 @@ def _validate_result(
     # Agent 桥允许关联元数据出现在 tool.result 顶层，也允许浏览器把
     # 微服务响应放在 response/data/finalFrame 中；统一在这些容器中校验，
     # 但后面的状态判断只读取 envelope 容器，避免业务 data.status 误判为流状态。
-    containers: list[tuple[str, dict[str, Any]]] = [("payload", payload), ("result", result)]
-    for field in ("response", "data", "finalFrame"):
-        value = result.get(field)
-        if value is not None:
+    containers: list[tuple[str, dict[str, Any]]] = []
+    pending_containers: list[tuple[str, dict[str, Any]]] = [
+        ("payload", payload),
+        ("result", result),
+    ]
+    seen_containers: set[int] = set()
+    while pending_containers:
+        label, container = pending_containers.pop(0)
+        if id(container) in seen_containers:
+            continue
+        seen_containers.add(id(container))
+        containers.append((label, container))
+        for field in ("response", "finalFrame", "reply", "streamInfo"):
+            value = container.get(field)
+            if value is None:
+                continue
             if not isinstance(value, dict):
                 if field == "finalFrame":
-                    return "INVALID_RESULT", "tool.result.finalFrame 必须是对象"
+                    return "INVALID_RESULT", f"{label}.finalFrame 必须是对象"
                 continue
-            containers.append((field, value))
+            pending_containers.append((f"{label}.{field}", value))
 
     metadata_containers = [item for item in containers if item[0] != "data"]
     operation_values: list[str] = []
@@ -751,22 +762,31 @@ def _validate_result(
             status_values.append((field, value.strip().lower()))
 
     result_statuses = {value for _, value in status_values}
-    payload_error_code = payload.get("errorCode")
-    has_error_code = _has_error_code(result.get("errorCode")) or _has_error_code(
-        payload_error_code
+    has_error_code = any(
+        _has_error_code(container.get("errorCode"))
+        for _, container in metadata_containers
     )
-    frame = result.get("finalFrame")
-    frame_type = _frame_stream_type(frame) if isinstance(frame, dict) else ""
+    frame_types = [
+        _frame_stream_type(container)
+        for label, container in metadata_containers
+        if label in {"payload", "result"} or ".finalFrame" in label
+    ]
+    frame_type = next((value for value in frame_types if value == "final_error"), "")
     if not frame_type:
-        frame_type = _frame_stream_type(payload)
+        frame_type = next((value for value in frame_types if value), "")
+    has_error_value = any(
+        bool(container.get("error")) or bool(container.get("errorMessage"))
+        for _, container in metadata_containers
+    )
+    has_failure_flag = any(
+        container.get("ok") is False for _, container in metadata_containers
+    )
     is_failure = (
-        result.get("ok") is False
-        or payload.get("ok") is False
+        has_failure_flag
         or bool(result_statuses & {"failed", "error", "final_error"})
         or frame_type == "final_error"
         or has_error_code
-        or bool(result.get("error"))
-        or bool(payload.get("error"))
+        or has_error_value
     )
     if frame_type and frame_type not in {"final", "final_error"}:
         return "NON_FINAL_RESULT", "只接受微服务 WebSocket 的 final 结果"
@@ -879,7 +899,7 @@ def _normalize_flat_result(result: dict[str, Any]) -> dict[str, Any]:
     if normalized.get("ok") is False:
         normalized["status"] = "failed"
         normalized.setdefault("errorCode", "BROWSER_TOOL_FAILED")
-    elif normalized.get("ok") is True or raw_status == "final":
+    elif normalized.get("ok") is True or raw_status == "final" or frame_status == "final":
         # 微服务 final 帧可能带业务成功码字符串 "0"；它仍然是成功结果。
         normalized["status"] = "success"
     return normalized

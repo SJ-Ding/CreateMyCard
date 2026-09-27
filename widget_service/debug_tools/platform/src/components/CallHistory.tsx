@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useWorkbench } from '../context';
 import type { ToolCallRecord } from '../types';
 
@@ -87,12 +88,18 @@ function responseText(call: ToolCallRecord): string {
 
 export function CallHistory() {
   const { calls, selectedCallId, selectCall, clearCalls } = useWorkbench();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const visibleCalls = useMemo(() => calls.slice(-100).reverse(), [calls]);
 
   const choose = (call: ToolCallRecord) => {
     selectCall(call.id);
     setMobileOpen(false);
+    if (call.operation === 'generateWidgetCardCompactDsl' && call.status === 'success'
+      && location.pathname !== '/renderer') {
+      navigate('/renderer');
+    }
   };
 
   return (

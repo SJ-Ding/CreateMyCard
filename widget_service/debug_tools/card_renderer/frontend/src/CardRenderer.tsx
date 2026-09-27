@@ -90,7 +90,6 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', onArt
   return <section className={`card-renderer ${className}`.trim()} aria-label="卡片生成结果渲染器">
     <div className="card-renderer__editor">
       <div className="card-renderer__toolbar">
-        <span className={`card-renderer__mode${error ? ' is-error' : ''}`}>{document?.mode ?? (error ? '解析失败' : '未渲染')}</span>
         <button type="button" className="is-primary" onClick={() => render()}>渲染</button>
         <label className="card-renderer__file-button">打开 JSONL<input type="file" accept=".jsonl,.json,.md,.txt,application/json,text/plain" onChange={loadFile} /></label>
         <button type="button" onClick={() => { setSource(''); render(''); }}>清空</button>

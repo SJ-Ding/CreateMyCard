@@ -61,13 +61,15 @@ export function normalizeBaseWebSocketUrl(value: string): string {
   if (/^wss?:\/\//i.test(configured)) return validateWebSocketUrl(configured);
   const origin = typeof window === 'undefined'
     ? 'ws://127.0.0.1:8888'
-    : `${websocketScheme()}//${window.location.host}`;
+    : `${websocketScheme()}//${window.location.host || '127.0.0.1:8888'}`;
   return validateWebSocketUrl(`${origin}${configured.startsWith('/') ? configured : `/${configured}`}`);
 }
 
 export function normalizeWebSocketUrl(value: string, operation?: ToolOperation): string {
   const base = normalizeBaseWebSocketUrl(value);
-  return operation ? appendOperation(base, operation) : base;
+  if (!operation) return base;
+  if (!ALLOWED_OPERATIONS.includes(operation)) throw new Error('不支持的工具操作');
+  return appendOperation(base, operation);
 }
 
 function validateWebSocketUrl(value: string): string {
@@ -75,6 +77,7 @@ function validateWebSocketUrl(value: string): string {
   if (!['ws:', 'wss:'].includes(parsed.protocol) || !parsed.hostname) {
     throw new Error('工具地址必须使用 ws/wss 协议');
   }
+  if (parsed.hash) throw new Error('工具地址不能包含 hash 片段');
   if (typeof window !== 'undefined' && window.location.protocol === 'https:' && parsed.protocol === 'ws:') {
     throw new Error('HTTPS 页面不能连接不安全的 ws 地址');
   }
@@ -84,7 +87,8 @@ function validateWebSocketUrl(value: string): string {
 
 function hasCredentialQuery(parsed: URL): boolean {
   for (const key of parsed.searchParams.keys()) {
-    if (/(?:^|_|-)(?:token|api[_-]?key|secret|password|authorization|auth)(?:$|_|-)/i.test(key)) {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (/(?:token|apikey|secret|password|authorization|auth)/.test(normalizedKey)) {
       return true;
     }
   }
@@ -95,16 +99,28 @@ function appendOperation(base: string, operation: ToolOperation): string {
   const encodedOperation = encodeURIComponent(operation);
   if (/^wss?:\/\//i.test(base)) {
     const parsed = new URL(base);
-    const decodedPath = decodeURIComponent(parsed.pathname).replace(/\/+$/, '');
-    const templatedPath = decodedPath.includes('{operation}')
-      ? decodedPath.split('{operation}').join(encodedOperation)
-      : decodedPath;
-    if (templatedPath !== decodedPath) {
-      parsed.pathname = templatedPath;
+    // Replace only the template token.  Decoding an entire query string would
+    // turn an encoded `%26`/`%3D` in an unrelated value into separators.
+    const rawPath = parsed.pathname.replace(/\/+$/, '');
+    const decodedPath = decodeURIComponent(rawPath);
+    const hasPathTemplate = /(?:\{operation\}|%7Boperation%7D)/i.test(rawPath);
+    const hasSearchTemplate = /(?:\{operation\}|%7Boperation%7D)/i.test(parsed.search);
+    if (hasPathTemplate || hasSearchTemplate) {
+      parsed.pathname = rawPath
+        .replace(/%7Boperation%7D/gi, encodedOperation)
+        .replace(/\{operation\}/g, encodedOperation);
+      parsed.search = parsed.search
+        .replace(/%7Boperation%7D/gi, encodedOperation)
+        .replace(/\{operation\}/g, encodedOperation);
       return parsed.toString();
     }
-    if (decodedPath.endsWith(`/${operation}`)) return parsed.toString();
-    parsed.pathname = `${decodedPath}/${encodedOperation}`;
+    if (decodedPath.endsWith(`/${operation}`)) {
+      // Normalize an already-expanded operation path as well, so a base
+      // ending in `/operation/` does not hit a strict route with a 404.
+      parsed.pathname = rawPath || '/';
+      return parsed.toString();
+    }
+    parsed.pathname = `${rawPath || ''}/${encodedOperation}`;
     return parsed.toString();
   }
   const hashIndex = base.indexOf('#');
@@ -134,14 +150,26 @@ function frameType(frame: ToolFrame): string {
     && String(errorCode).trim() !== ''
     && String(errorCode) !== '0';
   const status = typeof frame.status === 'string' ? frame.status.toLowerCase() : '';
-  const hasErrorText = [frame.error, frame.errorMessage].some(
-    (value) => typeof value === 'string' && value.trim().length > 0,
-  );
-  if (hasOuterError || frame.ok === false || ['error', 'failed', 'final_error'].includes(status) || hasErrorText) {
-    candidates.push('final_error');
-  }
-  if (candidates.includes('final_error') || candidates.includes('error') || candidates.includes('tool.error')) return 'final_error';
-  if (candidates.includes('final')) return 'final';
+  const hasErrorText = [frame.error, frame.errorMessage].some((value) => {
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return Boolean(value && typeof value === 'object' && Object.keys(value).length > 0);
+  });
+  const explicitTerminal = candidates.some((value) => (
+    ['error', 'failed', 'final_error', 'tool.error'].includes(value)
+  ));
+  const explicitFinal = candidates.includes('final');
+  const explicitIntermediate = candidates.find((value) => (
+    ['start', 'partial', 'command', 'streaming', 'pending'].includes(value)
+  ));
+  const statusTerminal = ['error', 'failed', 'final_error'].includes(status);
+  const inferredError = hasOuterError || frame.ok === false || statusTerminal || hasErrorText;
+  if (explicitTerminal || statusTerminal) return 'final_error';
+  if (explicitFinal) return inferredError ? 'final_error' : 'final';
+  // A partial/start marker is authoritative for this frame.  Error text on an
+  // intermediate diagnostic must not end the connection before its final frame.
+  if (explicitIntermediate && !hasOuterError && frame.ok !== false) return explicitIntermediate;
+  if (inferredError) return 'final_error';
   return candidates[0] ?? 'unknown';
 }
 

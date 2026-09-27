@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useWorkbench } from '../context';
-import { endpointHasCredentials } from '../config';
+import { endpointHasCredentials, websocketUrl } from '../config';
 import type { DebugConfig } from '../types';
 
 type TextFieldProps = {
@@ -36,8 +36,23 @@ export function SettingsPanel() {
   };
 
   const save = () => {
+    if (!draft.agentWsUrl.trim() || !draft.toolWsBaseUrl.trim()) {
+      setValidationError('Agent 和微服务地址不能为空。');
+      setSaved(false);
+      return;
+    }
     if (endpointHasCredentials(draft.agentWsUrl) || endpointHasCredentials(draft.toolWsBaseUrl)) {
-      setValidationError('地址不能包含用户名或密码；认证信息不会保存。');
+      setValidationError('地址不能包含认证信息或 hash；认证信息不会保存。');
+      setSaved(false);
+      return;
+    }
+    try {
+      // 在保存时就校验协议、相对路径和 HTTPS 混合内容，避免把一个只会在
+      // 发起调用时才失败的地址写入共享配置。
+      websocketUrl(draft.agentWsUrl);
+      websocketUrl(draft.toolWsBaseUrl);
+    } catch (error) {
+      setValidationError(`地址无效：${error instanceof Error ? error.message : String(error)}`);
       setSaved(false);
       return;
     }
