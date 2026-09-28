@@ -119,10 +119,13 @@ cd widget_service\debug_tools
 npm install
 npm run build
 cd ..
-..\.venv\Scripts\python.exe -m debug_tools.end_to_end_debug.backend.start_server
+.venv\Scripts\python.exe -m debug_tools --mode full
 ```
 
-浏览器打开 `http://127.0.0.1:8888/debug/`。开发时可在 `debug_tools/` 执行 `npm run dev`，Vite 会把 `/debug/*` 代理到本地 FastAPI。详细架构、接口边界和验收项见 [`docs/调试平台技术方案.md`](docs/调试平台技术方案.md)。
+浏览器打开 `http://127.0.0.1:8888/debug/`。只需要接口调试和卡片渲染时可改用
+`.venv\Scripts\python.exe -m debug_tools --mode frontend`，不会加载 Main Agent 后端。编译产物统一位于
+`debug_tools/dist/`。开发时可在 `debug_tools/` 执行 `npm run dev`，Vite 会把 `/debug/*` 代理到本地
+FastAPI。详细架构、接口边界和验收项见 [`debug_tools/调试平台技术方案.md`](debug_tools/调试平台技术方案.md)。
 
 保留的 [`docs/index.html`](docs/index.html) 仍可作为旧渲染器行为对照页面；React 渲染器只接受页面中显式粘贴、上传或打开的 artifact 内容，不代理任意 `artifactUrl`。
 

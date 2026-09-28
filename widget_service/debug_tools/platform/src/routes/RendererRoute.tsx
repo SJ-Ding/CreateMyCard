@@ -159,7 +159,7 @@ export function RendererRoute() {
       })
       .then((loaded) => {
         if (!active) return;
-        const normalized = { ...loaded, source: 'interface' as const, runId: loaded.runId || selectedCall.id };
+        const normalized = { ...loaded, source: 'interface' as const, runId: selectedCall.id };
         setDownloadedArtifact(normalized);
         setArtifact({ ...normalized });
         setArtifactStatus('artifact 已下载');
@@ -184,11 +184,16 @@ export function RendererRoute() {
     ?? renderableValue(responseData)
     ?? renderableValue(parsedStream)
     ?? finalFrameSource(selectedCall?.finalFrame);
-  const selectedValue = selectedArtifact?.genui
-    ?? (selectedArtifact?.cardSpec === undefined ? responseSource : jsonText(selectedArtifact.cardSpec))
-    ?? (responseData == null
-      ? (responsePayload == null ? selectedCall?.finalStreamContent : JSON.stringify(responsePayload, null, 2))
-      : JSON.stringify(responseData, null, 2));
+  const selectedArtifactValue = selectedArtifact?.genui
+    ?? (selectedArtifact?.cardSpec === undefined ? undefined : jsonText(selectedArtifact.cardSpec));
+  const isCompactSelection = selectedCall?.operation === COMPACT_DSL_OPERATION;
+  const selectedValue = isCompactSelection
+    ? selectedArtifactValue
+    : selectedArtifactValue
+      ?? responseSource
+      ?? (responseData == null
+        ? (responsePayload == null ? selectedCall?.finalStreamContent : JSON.stringify(responsePayload, null, 2))
+        : JSON.stringify(responseData, null, 2));
   const artifactValue = artifact?.genui
     ?? (artifact?.cardSpec == null ? undefined : JSON.stringify(artifact.cardSpec, null, 2))
     ?? (artifact?.raw == null ? undefined : JSON.stringify(artifact.raw, null, 2));

@@ -34,6 +34,8 @@ __pycache__/
 venv/
 env/
 dist/
+!widget_service/debug_tools/dist/
+!widget_service/debug_tools/dist/**
 build/
 *.egg-info/
 
