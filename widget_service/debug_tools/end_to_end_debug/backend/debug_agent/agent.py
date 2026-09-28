@@ -213,7 +213,7 @@ class DebugAgentSession:
                 tools=model_tools,
                 tool_choice=tool_choice,
                 max_tokens=self.debug_settings.max_tokens,
-                enable_thinking = client.thinking_mode != "disable",
+                enable_thinking=client.thinking_mode != "disable",
             )
             content = str(getattr(completion, "content", "") or "")
             tool_calls = tuple(getattr(completion, "tool_calls", ()) or ())
@@ -464,17 +464,6 @@ class DebugAgentSession:
         from services.multi_step_generation.core.model_adapter import PlatformChatClient
 
         provider = settings.openai_master_client
-        # 调试工作台优先复用 DeepSeek 官方 HTTP 配置；这样调试链路和云侧
-        # 使用同一个 endpoint/model/API key，而不再依赖平台 WebSocket 凭证。
-        if settings.deepseek_official_http_api_key.strip():
-            provider = "deepseek_official_http"
-        elif (
-            provider == "deepseek_platform"
-            and settings.deepseek_api_key.strip()
-            and settings.deepseek_http_url.strip().startswith(("http://", "https://"))
-        ):
-            # 兼容已有 deepseek_http 配置，沿用同一 API key 和 HTTP endpoint。
-            provider = "llmclient"
         allowed = {"deepseek_platform", "llmclient", "deepseek_official_http"}
         if provider not in allowed:
             raise ValueError(f"Debug 服务不支持当前模型 Provider: {provider}")
@@ -487,7 +476,7 @@ class DebugAgentSession:
             settings,
             request_context,
             thinking_mode="high" if thinking_enabled else "disable",
-            request_timeout=self.debug_settings.request_timeout_seconds,
+            request_timeout=settings.model_request_timeout_seconds,
         )
 
     def _system_prompt(self) -> str:

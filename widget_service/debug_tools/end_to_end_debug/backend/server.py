@@ -71,8 +71,6 @@ def create_app(
     会从云侧配置读取模型设置，但不会启动上游工具服务。
     """
 
-    production = production_settings or _load_production_settings()
-    local = debug_settings or _load_debug_settings(production)
     config_path = (
         _PROJECT_ROOT / "debug_tools" / "end_to_end_debug" / "backend" / "debug_agent.yaml"
     )
@@ -82,6 +80,8 @@ def create_app(
     from .debug_agent.config import load_debug_config
 
     debug_config = load_debug_config(config_path, _REPO_ROOT)
+    production = production_settings or _load_production_settings(debug_config)
+    local = debug_settings or _load_debug_settings(production, debug_config)
     app = FastAPI(title="AI Widget Debug Platform", version="0.1.0")
     static_dir = _PROJECT_ROOT / "debug_tools" / "end_to_end_debug" / "backend" / "static"
 
@@ -89,20 +89,8 @@ def create_app(
     async def health() -> dict[str, Any]:
         provider = str(getattr(production, "openai_master_client", "") or "")
         debug_provider = _resolve_debug_model_provider(production)
-        model_key = (
-            "deepseek_platform_model_name"
-            if provider == "deepseek_platform"
-            else (
-                "deepseek_official_http_model"
-                if provider == "deepseek_official_http"
-                else "deepseek_model"
-            )
-        )
-        debug_model_key = (
-            "deepseek_official_http_model"
-            if debug_provider == "deepseek_official_http"
-            else "deepseek_model"
-        )
+        model_key = _model_name_key(provider)
+        debug_model_key = _model_name_key(debug_provider)
         return {
             "status": "ok",
             "version": app.version,
@@ -1087,23 +1075,20 @@ async def _send_conversation_ready(
         )
 
 
-def _load_production_settings() -> Any:
+def _load_production_settings(debug_config: Any) -> Any:
     _ensure_cloud_import_path()
-    from config.config import get_settings
+    from config.config import Settings
 
-    return get_settings()
+    from .debug_agent.config import load_main_agent_model_settings
+
+    return load_main_agent_model_settings(debug_config, Settings)
 
 
-def _load_debug_settings(production: Any) -> DebugSettings:
-    from .debug_agent.config import DebugSettings, load_debug_config
+def _load_debug_settings(production: Any, debug_config: Any) -> DebugSettings:
+    from .debug_agent.config import DebugSettings
 
-    config_path = (
-        _PROJECT_ROOT / "debug_tools" / "end_to_end_debug" / "backend" / "debug_agent.yaml"
-    )
-    if not config_path.is_file():
-        raise RuntimeError(f"debug config does not exist: {config_path}")
     settings = DebugSettings.from_config(
-        load_debug_config(config_path, _REPO_ROOT),
+        debug_config,
         production,
         profile=os.getenv("DEBUG_AGENT_PROFILE"),
         port=int(os.getenv("DEBUG_AGENT_PORT", "8888")),
@@ -1131,17 +1116,15 @@ def _resolve_debug_model_provider(settings: Any) -> str:
     """返回调试 Agent 实际使用的模型传输。"""
 
     provider = str(getattr(settings, "openai_master_client", "") or "")
-    official_key = str(
-        getattr(settings, "deepseek_official_http_api_key", "") or ""
-    ).strip()
-    if official_key:
-        return "deepseek_official_http"
-    if provider == "deepseek_platform":
-        legacy_key = str(getattr(settings, "deepseek_api_key", "") or "").strip()
-        legacy_url = str(getattr(settings, "deepseek_http_url", "") or "").strip()
-        if legacy_key and legacy_url.startswith(("http://", "https://")):
-            return "llmclient"
     return provider or "未配置"
+
+
+def _model_name_key(provider: str) -> str:
+    if provider == "deepseek_platform":
+        return "deepseek_platform_model_name"
+    if provider == "deepseek_official_http":
+        return "deepseek_official_http_model"
+    return "deepseek_model"
 
 
 def _static_response(static_dir: Path, asset_path: str) -> Any:

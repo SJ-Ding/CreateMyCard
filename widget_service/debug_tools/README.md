@@ -77,12 +77,14 @@ cd widget_service
 
 ## 调试模型配置
 
-端到端调试会优先复用 DeepSeek 官方 HTTP 配置。配置
-`WIDGET_SERVICE_DEEPSEEK_OFFICIAL_HTTP_API_KEY` 后，调试 Agent 使用
-`WIDGET_SERVICE_DEEPSEEK_OFFICIAL_HTTP_URL`、`WIDGET_SERVICE_DEEPSEEK_OFFICIAL_HTTP_MODEL`
-和同一个 API key 调用官方 Chat Completions 接口，并保留工具调用和思考模式。
-未配置官方 key 时，兼容已有的 `WIDGET_SERVICE_DEEPSEEK_HTTP_URL` 与
-`WIDGET_SERVICE_DEEPSEEK_API_KEY` 配置。API key 只从服务端读取，不会下发到浏览器或写入事件日志。
+端到端 Main Agent 与微服务使用相同的 provider 名称、主备切换、失败重试、并发和超时配置语义。
+配置优先级为 `cloud/config/default_config.yaml` < `end_to_end_debug/backend/debug_agent.yaml` 的
+`model` 节 < `widget_service/.env`；进程环境变量高于三个文件。修改后需重启调试后端。
+
+实际模型传输只由 `WIDGET_SERVICE_OPENAI_MASTER_CLIENT` 选择，支持 `deepseek_official_http`、
+`deepseek_platform` 和 `llmclient`。配置 API key 或 URL 本身不会隐式改变 provider。官方 HTTP 使用
+`WIDGET_SERVICE_DEEPSEEK_OFFICIAL_HTTP_*`，平台 WebSocket 使用
+`WIDGET_SERVICE_DEEPSEEK_PLATFORM_*`。API key 只从服务端读取，不会下发到浏览器或写入事件日志。
 
 ## 范围说明
 

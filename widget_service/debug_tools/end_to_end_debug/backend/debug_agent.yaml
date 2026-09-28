@@ -19,6 +19,36 @@ profiles:
     name: harmony-card-generation-online
     display_name: 在线卡片生成
     description: 当前在线云侧编排 Skill
+# Main Agent 模型配置。优先级：default_config.yaml < 本节 < widget_service/.env。
+# 实际传输只由 openai_master_client / WIDGET_SERVICE_OPENAI_MASTER_CLIENT 选择。
+model:
+  openai_master_client: llmclient
+  openai_fallback_client: llmclient
+  enable_model_failure_retry: false
+  enable_openai_fallback: false
+  model_failure_max_retry_attempts: 1
+  fallback_model_failure_max_retry_attempts: 1
+  model_failure_retry_initial_delay_seconds: 1.0
+  model_failure_retry_max_delay_seconds: 30.0
+  model_failure_retry_backoff_multiplier: 2.0
+  model_failure_retry_jitter_ratio: 0.2
+  model_max_concurrency: 20
+  model_queue_timeout_seconds: 120
+  model_request_timeout_seconds: 120
+  deepseek_official_http_url: https://api.deepseek.com/chat/completions
+  deepseek_official_http_api_key: ""
+  deepseek_official_http_model: deepseek-flash
+  deepseek_official_http_temperature: 0.7
+  deepseek_official_http_top_p: 0.9
+  deepseek_official_http_max_tokens: 8192
+  deepseek_official_http_enable_thinking: false
+  deepseek_platform_access_key: ""
+  deepseek_platform_secret_key_sts_config_key: genui.deepseek.platform.secret.key
+  deepseek_platform_ws_url: ""
+  deepseek_platform_api_key: AccessService
+  deepseek_platform_sender: superagent
+  deepseek_platform_model_select: false
+  deepseek_platform_model_name: AGENT-DEEPSEEK-V4-FLASH
 server:
   host: 127.0.0.1
   port: 8888

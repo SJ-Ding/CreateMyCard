@@ -8,6 +8,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import yaml
+from pydantic.aliases import AliasChoices
+from pydantic_settings import DotEnvSettingsSource, EnvSettingsSource
 
 
 def _loopback(host: str) -> bool:
@@ -42,6 +44,7 @@ class DebugConfig:
     default_profile: str
     system_prompt: Path | None = None
     quick_prompts: tuple[QuickPrompt, ...] = ()
+    model_overrides: dict[str, Any] = field(default_factory=dict)
 
     def profile(self, name: str | None = None) -> SkillProfile:
         selected = name or self.default_profile
@@ -156,11 +159,13 @@ class DebugSettings:
 
     @classmethod
     def from_settings(cls, settings: Any | None = None) -> DebugSettings:
-        from config.config import get_settings
+        from config.config import Settings
 
-        production = settings or get_settings()
-        path = _debug_config_path(Path(production.repo_root))
-        return cls.from_config(load_debug_config(path, production.repo_root), production)
+        repository_root = Path(__file__).resolve().parents[5]
+        path = _debug_config_path(repository_root)
+        config = load_debug_config(path, repository_root)
+        production = settings or load_main_agent_model_settings(config, Settings)
+        return cls.from_config(config, production)
 
 
 def load_debug_config(path: Path, repo_root: Path) -> DebugConfig:
@@ -206,6 +211,9 @@ def load_debug_config(path: Path, repo_root: Path) -> DebugConfig:
     if not profiles:
         raise ValueError(f"Debug Skill 主目录不存在可用 Skill: {skill_root}")
     quick_prompts = _load_quick_prompts(raw.get("ui", {}))
+    model_overrides = raw.get("model", {})
+    if not isinstance(model_overrides, dict):
+        raise ValueError("Debug model 配置必须是对象")
     configured_default = str(raw.get("default_profile", ""))
     default_profile = configured_default if configured_default in profiles else next(iter(profiles))
     return DebugConfig(
@@ -215,7 +223,72 @@ def load_debug_config(path: Path, repo_root: Path) -> DebugConfig:
         default_profile,
         prompt_path,
         quick_prompts,
+        dict(model_overrides),
     )
+
+
+def load_main_agent_model_settings(
+    config: DebugConfig,
+    settings_type: type[Any],
+    *,
+    env_file: Path | None = None,
+) -> Any:
+    """按默认 YAML、Debug YAML、.env、进程环境的顺序加载 Main Agent 模型配置。"""
+
+    unknown_fields = set(config.model_overrides) - set(settings_type.model_fields)
+    if unknown_fields:
+        names = ", ".join(sorted(unknown_fields))
+        raise ValueError(f"Debug model 包含未知配置项: {names}")
+
+    resolved_env_file = env_file or _default_env_file(settings_type)
+    configured_keys = _configured_environment_keys(settings_type, resolved_env_file)
+    effective_overrides: dict[str, Any] = {}
+    for field_name, value in config.model_overrides.items():
+        field_info = settings_type.model_fields.get(field_name)
+        if field_info is None:
+            continue
+        aliases = _field_environment_aliases(field_name, field_info.validation_alias)
+        if aliases & configured_keys:
+            continue
+        effective_overrides[field_name] = value
+    return settings_type(_env_file=resolved_env_file, **effective_overrides)
+
+
+def _default_env_file(settings_type: type[Any]) -> Path | None:
+    configured = settings_type.model_config.get("env_file")
+    if isinstance(configured, (str, Path)):
+        return Path(configured)
+    if isinstance(configured, (tuple, list)):
+        for item in configured:
+            if isinstance(item, (str, Path)):
+                return Path(item)
+    return None
+
+
+def _configured_environment_keys(
+    settings_type: type[Any],
+    env_file: Path | None,
+) -> set[str]:
+    values = EnvSettingsSource(settings_type)()
+    if env_file is not None:
+        dotenv_values = DotEnvSettingsSource(
+            settings_type,
+            env_file=env_file,
+            env_file_encoding="utf-8",
+        )()
+        values.update(dotenv_values)
+    return {str(key).casefold() for key in values}
+
+
+def _field_environment_aliases(field_name: str, validation_alias: Any) -> set[str]:
+    aliases = {field_name.casefold()}
+    if isinstance(validation_alias, str):
+        aliases.add(validation_alias.casefold())
+    elif isinstance(validation_alias, AliasChoices):
+        for choice in validation_alias.choices:
+            if isinstance(choice, str):
+                aliases.add(choice.casefold())
+    return aliases
 
 
 def _debug_config_path(repo_root: Path) -> Path:
