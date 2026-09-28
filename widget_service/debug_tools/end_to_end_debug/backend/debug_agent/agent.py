@@ -157,15 +157,27 @@ class DebugAgentSession:
         self.history.append({"role": "user", "content": query})
         try:
             await self._loop(active_run_id)
+            duration_ms = round((time.perf_counter() - started) * 1000, 2)
             await self.emit(
                 "run_completed",
-                {"durationMs": round((time.perf_counter() - started) * 1000, 2)},
+                {"durationMs": duration_ms},
                 active_run_id,
             )
             self.debug_logger.event(
-                "run_completed", component="agent", run_id=active_run_id, status="success"
+                "run_completed",
+                component="agent",
+                run_id=active_run_id,
+                status="success",
+                duration_ms=duration_ms,
             )
         except asyncio.CancelledError:
+            self.debug_logger.event(
+                "run_cancelled",
+                component="agent",
+                run_id=active_run_id,
+                status="cancelled",
+                duration_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
             await self.emit("run_cancelled", {}, active_run_id)
             raise
         except AgentRunError as exc:
@@ -231,15 +243,15 @@ class DebugAgentSession:
             )
             if content:
                 await self.emit("assistant_message", {"content": content, "step": step}, run_id)
-                if _contains_output_leak(content):
-                    await self.emit(
-                        "diagnostic",
-                        {
-                            "kind": "assistant_output_leak",
-                            "message": "模型回复疑似暴露产物或内部字段",
-                        },
-                        run_id,
-                    )
+                # if _contains_output_leak(content):
+                #     await self.emit(
+                #         "diagnostic",
+                #         {
+                #             "kind": "assistant_output_leak",
+                #             "message": "模型回复疑似暴露产物或内部字段",
+                #         },
+                #         run_id,
+                #     )
             if not tool_calls:
                 if not content.strip():
                     raise AgentRunError("模型返回空内容且没有工具调用")

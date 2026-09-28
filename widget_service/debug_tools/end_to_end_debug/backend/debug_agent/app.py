@@ -1,7 +1,7 @@
 """端到端调试 Agent 的应用工厂。
 
-统一入口由 :mod:`debug_tools.end_to_end_debug.backend.server` 提供；保留这个模块名
-是为了让调试脚本能够按包内路径导入，而不再暴露旧的 ``/api/v1`` 入口。
+进程启动统一由 :mod:`debug_tools.__main__` 管理；本模块只保留应用工厂兼容导入，
+不再承担独立启动职责。
 """
 
 from __future__ import annotations

@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
+
+from debug_tools.static_site import FRONTEND_DIST, static_response
 
 
 def _discover_roots() -> tuple[Path, Path]:
@@ -83,7 +85,7 @@ def create_app(
     production = production_settings or _load_production_settings(debug_config)
     local = debug_settings or _load_debug_settings(production, debug_config)
     app = FastAPI(title="AI Widget Debug Platform", version="0.1.0")
-    static_dir = _PROJECT_ROOT / "debug_tools" / "end_to_end_debug" / "backend" / "static"
+    static_dir = FRONTEND_DIST
 
     @app.get("/debug/health")
     async def health() -> dict[str, Any]:
@@ -174,13 +176,13 @@ def create_app(
 
     @app.get("/debug/")
     async def debug_index() -> Any:
-        return _static_response(static_dir, "")
+        return static_response(static_dir, "")
 
     @app.get("/debug/{asset_path:path}")
     async def debug_asset(asset_path: str) -> Any:
         """提供 SPA fallback，同时只允许读取构建目录内的文件。"""
 
-        return _static_response(static_dir, asset_path)
+        return static_response(static_dir, asset_path)
 
     return app
 
@@ -1127,36 +1129,4 @@ def _model_name_key(provider: str) -> str:
     return "deepseek_model"
 
 
-def _static_response(static_dir: Path, asset_path: str) -> Any:
-    """返回静态资源或 index.html；构建目录不存在时给出可读提示。"""
-
-    if not static_dir.is_dir():
-        return JSONResponse({"status": "ok", "message": "debug platform assets are not built"})
-    normalized = Path(asset_path)
-    if asset_path and (normalized.is_absolute() or ".." in normalized.parts):
-        return JSONResponse({"detail": "invalid asset path"}, status_code=400)
-    candidate = (static_dir / normalized).resolve() if asset_path else static_dir / "index.html"
-    try:
-        candidate.relative_to(static_dir.resolve())
-    except ValueError:
-        return JSONResponse({"detail": "invalid asset path"}, status_code=400)
-    if candidate.is_file():
-        return FileResponse(candidate)
-    index_path = static_dir / "index.html"
-    if index_path.is_file():
-        return FileResponse(index_path)
-    return JSONResponse(
-        {"status": "ok", "message": "debug platform index is missing"},
-        status_code=503,
-    )
-
-
-app = create_app() if __name__ != "__main__" else None
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    _ensure_cloud_import_path()
-    app = create_app()
-    uvicorn.run(app, host="127.0.0.1", port=8888, log_config=None)
+__all__ = ["create_app"]

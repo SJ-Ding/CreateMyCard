@@ -28,33 +28,38 @@ npm run dev
 
 打开 <http://127.0.0.1:5173/debug/>，进入“连接配置”填写 `toolWsBaseUrl` 和其它固定参数。Vite 的 `/debug` 代理只服务同源 Agent/健康检查路径，不代理微服务 WebSocket；接口模块会按 `toolWsBaseUrl` 直接连接 8855。没有 Agent 后端时，“接口调试”和“卡片渲染”仍可用；“端到端调试”会显示 Agent 未连接。
 
-### Python-only 启动（无需 npm）
+### 统一 Python 启动入口
 
-仓库已经包含可由后端静态托管的前端构建产物。在只有 Python 的环境中，从项目根目录直接运行：
+前端构建产物统一位于 `debug_tools/dist/`。构建完成后，从 `widget_service` 目录选择启动模式。
 
-```powershell
-python -m debug_tools --host 127.0.0.1 --port 8888
-```
-
-然后打开 <http://127.0.0.1:8888/debug/>。该入口同时提供工作台静态文件、健康检查和 Agent WebSocket；不会启动或代理 8855 微服务。若需要重新编译前端，才需要 Node.js，日常浏览器调试不依赖 `npm run dev`。
-
-若需要端到端 Main Agent，再另开终端启动调试后端（默认 `127.0.0.1:8888`），或在连接配置中填写自定义 Agent URL：
+只启动静态前端，不加载 Main Agent 配置和模型客户端：
 
 ```powershell
-cd widget_service
-.venv\Scripts\python.exe -m debug_tools.end_to_end_debug.backend.server
+uv run debug_tools --mode frontend --host 127.0.0.1 --port 8888
 ```
 
-生产/静态预览先运行 `npm run build`，构建结果由任意静态服务器挂载到 `/debug/`；只有端到端链路需要可访问的 Agent WebSocket。
+同时启动静态前端和 Main Agent 后端：
+
+```powershell
+uv run debug_tools --mode full --host 127.0.0.1 --port 8888
+```
+
+没有使用 `uv` 时，可将上述命令替换为
+`python -m debug_tools --mode frontend|full --host 127.0.0.1 --port 8888`。
+
+两种模式均打开 <http://127.0.0.1:8888/debug/>，且都不会启动或代理 8855 微服务。
+`frontend` 模式下接口调试和卡片渲染可用，端到端页会显示 Agent 未连接；`full` 模式额外提供
+`/debug/health`、`/debug/skills`、`/debug/artifact` 和 Main Agent WebSocket。旧的嵌套
+`start_server.py` 与直接运行 `backend.server` 的入口已移除。
 
 ## 调试入口
 
 | 用途 | 地址 |
 | --- | --- |
 | 工作台（Vite 开发） | `http://127.0.0.1:5173/debug/` |
-| 工作台（后端静态托管） | `http://127.0.0.1:8888/debug/` |
-| 健康检查 | `http://127.0.0.1:8888/debug/health` |
-| 默认 Main Agent WebSocket | `ws://127.0.0.1:8888/debug/e2e/ws`（`/debug/agent/ws` 为兼容别名） |
+| 工作台（统一 Python 入口） | `http://127.0.0.1:8888/debug/` |
+| 健康检查（仅 `full`） | `http://127.0.0.1:8888/debug/health` |
+| Main Agent WebSocket（仅 `full`） | `ws://127.0.0.1:8888/debug/e2e/ws`（`/debug/agent/ws` 为兼容别名） |
 | 默认微服务 WebSocket base | `ws://127.0.0.1:8855/api/v1/ws/tools` |
 | 单个微服务接口 | `{toolWsBaseUrl}/{operation}` |
 

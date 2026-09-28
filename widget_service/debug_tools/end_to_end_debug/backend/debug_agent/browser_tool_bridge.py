@@ -886,13 +886,13 @@ def _normalize_flat_result(result: dict[str, Any]) -> dict[str, Any]:
         or error_code not in {"", "0"}
     ):
         error = result.get("error")
-        message = error if isinstance(error, str) else "浏览器工具执行失败"
-        if isinstance(error, dict):
-            message = str(error.get("message") or "浏览器工具执行失败")
+        normalized_error: Any = error
+        if error is None or error == "":
+            normalized_error = "浏览器工具执行失败"
         return {
             "status": "failed",
             "errorCode": str(result.get("errorCode") or "BROWSER_TOOL_FAILED"),
-            "error": message,
+            "error": normalized_error,
             "data": result.get("data") if isinstance(result.get("data"), dict) else {},
         }
     normalized = dict(result)

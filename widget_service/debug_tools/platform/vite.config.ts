@@ -47,7 +47,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../end_to_end_debug/backend/static',
+    outDir: '../dist',
     emptyOutDir: true,
   },
 });

@@ -86,4 +86,18 @@ describe('schema helpers', () => {
     );
     expect(parsed?.data).toEqual({ status: 'success', artifactUrl: 'mock://artifact-card.md' });
   });
+
+  it('preserves validation details containing Python tuple paths', () => {
+    const parsed = parseLegacyToolResponse(
+      "type='error' tool='widgetCardService' operation='generateWidgetCardCompactDsl' "
+      + "requestId='session&interaction' data={} status='failed' "
+      + "errorCode='INVALID_ARGUMENTS' error={'message': 'Invalid arguments.', "
+      + "'details': [{'type': 'missing', 'loc': ('title',), 'msg': 'Field required'}]}",
+    );
+
+    expect(parsed?.error).toEqual({
+      message: 'Invalid arguments.',
+      details: [{ type: 'missing', loc: ['title'], msg: 'Field required' }],
+    });
+  });
 });

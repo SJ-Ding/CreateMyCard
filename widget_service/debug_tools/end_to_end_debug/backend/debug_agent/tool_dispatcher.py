@@ -265,7 +265,6 @@ class ToolDispatcher:
         )
         result_status = str(result.get("status") or "success").lower()
         result_error_code = str(result.get("errorCode") or "")
-        result_error = str(result.get("error") or "")
         if result_status == "final" and result_error_code in {"", "0"}:
             result_status = "success"
         elif result_status == "final_error":
@@ -282,10 +281,7 @@ class ToolDispatcher:
                 **result_for_model,
                 "ok": False,
                 "status": result_status,
-                "error": {
-                    "code": failure_code,
-                    "message": result_error or "正式工具返回业务失败状态",
-                },
+                "error": _normalize_failure_error(result.get("error"), failure_code),
                 "errorCode": result_error_code,
                 "data": result_data,
             }
@@ -325,4 +321,17 @@ def _result_for_model(result: dict[str, Any]) -> dict[str, Any]:
         if field in result:
             normalized[field] = result[field]
     return normalized
+
+
+def _normalize_failure_error(error: Any, code: str) -> dict[str, Any]:
+    """保留微服务结构化错误详情，并统一补充权威错误码。"""
+
+    if isinstance(error, dict):
+        normalized = dict(error)
+        normalized["code"] = code
+        if not normalized.get("message"):
+            normalized["message"] = "正式工具返回业务失败状态"
+        return normalized
+    message = error if isinstance(error, str) and error else "正式工具返回业务失败状态"
+    return {"code": code, "message": message}
 

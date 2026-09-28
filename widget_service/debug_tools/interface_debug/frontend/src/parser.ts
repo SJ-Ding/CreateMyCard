@@ -373,6 +373,17 @@ function convertPythonRepr(source: string): unknown | null {
       } else if (source.startsWith('None', index) && isTokenBoundary(source, index, 4)) {
         output += 'null';
         index += 3;
+      } else if (character === '(') {
+        // Pydantic ValidationError uses tuples for ``loc``.  Convert tuple
+        // delimiters to JSON arrays without evaluating the response text.
+        output += '[';
+      } else if (character === ')') {
+        let trailingIndex = output.length - 1;
+        while (trailingIndex >= 0 && /\s/.test(output[trailingIndex])) trailingIndex -= 1;
+        if (output[trailingIndex] === ',') {
+          output = output.slice(0, trailingIndex) + output.slice(trailingIndex + 1);
+        }
+        output += ']';
       } else {
         output += character;
       }
