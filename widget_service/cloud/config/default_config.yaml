@@ -34,6 +34,8 @@ enable_compact_dsl_interface_retry: false
 compact_dsl_interface_retry_count: 1
 enable_openai_fallback: true
 enable_sensitive_log_fields: true
+enable_generation_trace_recording: false
+generation_trace_root: workspace/traces
 enable_card_template: false
 enable_jsx_generation: false
 fusion_ball_min_prd_version: 11.7.5.206

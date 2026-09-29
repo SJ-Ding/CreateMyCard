@@ -48,6 +48,7 @@ from services.generation_pipeline import (
     get_dsl_processor,
 )
 from services.generation_preflight import GenerationPreflight
+from services.generation_trace_recorder import GenerationTraceRecorder
 from services.multi_step_generation.core.bridge import JsxA2UIBridge
 from services.protocol_registry import (
     A2UI_FORM_PROTOCOL_PROFILE_ID,
@@ -78,6 +79,7 @@ class WidgetGenerationService:
     def __init__(self, model_runtime: ModelExecutionRuntime | None = None) -> None:
         """注入应用生命周期共享的模型运行时。"""
         self.model_runtime = model_runtime
+        self.trace_recorder = GenerationTraceRecorder()
 
     async def widget_card_service(
         self,
@@ -279,6 +281,13 @@ class WidgetGenerationService:
         stage_started_at = generation_started_at
         latency_by_stage: dict[str, float] = {}
         settings = get_settings()
+
+        self.trace_recorder.bind_request(
+            request.uid,
+            enabled=settings.enable_generation_trace_recording,
+            trace_root=settings.generation_trace_root
+        )
+
         request_body = self._request_body_for_artifact(request)
         asset_mapping = dict(settings.asset_src_url_mapping)
         generation_mode = (
@@ -683,6 +692,7 @@ class WidgetGenerationService:
             result = await self._resolve_model_result(
                 model_client.generate(prompt, model_protocol_profile)
             )
+            self.trace_recorder.record_model_output(result)
             return require_generated_dsl(result)
 
         async def repair_source_dsl(
@@ -724,6 +734,7 @@ class WidgetGenerationService:
                     model_protocol_profile,
                 )
             )
+            self.trace_recorder.record_model_output(result)
             return require_generated_dsl(result)
 
         def evaluate_source_dsl_sync(source_dsl: str) -> list[str]:

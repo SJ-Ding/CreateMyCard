@@ -230,6 +230,12 @@ class Settings(BaseSettings):
     )
     enable_openai_fallback: bool = CONFIG.get("enable_openai_fallback") == "true"
     enable_sensitive_log_fields: bool = CONFIG.get("enable_sensitive_log_fields") == "true"
+    enable_generation_trace_recording: bool = (
+        CONFIG.get("enable_generation_trace_recording", "false") == "true"
+    )
+    generation_trace_root: Path = Path(
+        CONFIG.get("generation_trace_root", "workspace/traces")
+    )
     ids_installation_filter_package_names: tuple[str, ...] = (
         "com.huawei.hmsapp.totemweather",
         "com.huawei.hmos.health",
