@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
+from debug_tools.batch_testing import register_batch_routes
 from debug_tools.static_site import FRONTEND_DIST, static_response
 
 
@@ -173,6 +174,8 @@ def create_app(
             }
         )
         await websocket.close(code=1008, reason=reason)
+
+    register_batch_routes(app)
 
     @app.get("/debug/")
     async def debug_index() -> Any:

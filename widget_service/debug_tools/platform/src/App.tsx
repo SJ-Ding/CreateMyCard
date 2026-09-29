@@ -5,11 +5,13 @@ import SettingsPanel from './components/SettingsPanel';
 import { EndToEndRoute } from './routes/EndToEndRoute';
 import { InterfaceRoute } from './routes/InterfaceRoute';
 import { RendererRoute } from './routes/RendererRoute';
+import { BatchRoute } from './routes/BatchRoute';
 
 const navigation = [
   { path: '/end-to-end', label: '端到端调试', detail: 'Main Agent · Agent 调试' },
   { path: '/interface', label: '接口调试', detail: 'WebSocket · API 调试' },
   { path: '/renderer', label: '卡片渲染', detail: 'GenUI · 预览检查' },
+  { path: '/batch', label: '批量测试', detail: '数据集 · Trace 分析' },
   { path: '/settings', label: '连接配置', detail: '地址 · 固定参数' },
 ];
 
@@ -49,6 +51,7 @@ function Shell() {
             <Route path="/end-to-end" element={<EndToEndRoute />} />
             <Route path="/interface" element={<InterfaceRoute />} />
             <Route path="/renderer" element={<RendererRoute />} />
+            <Route path="/batch" element={<BatchRoute />} />
             <Route path="/settings" element={<SettingsPanel />} />
             <Route path="*" element={<Navigate replace to="/end-to-end" />} />
           </Routes>

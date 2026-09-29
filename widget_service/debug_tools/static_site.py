@@ -7,6 +7,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from debug_tools.batch_testing import register_batch_routes
+
 DEBUG_TOOLS_ROOT = Path(__file__).resolve().parent
 FRONTEND_DIST = DEBUG_TOOLS_ROOT / "dist"
 
@@ -37,6 +39,8 @@ def create_frontend_app(static_dir: Path | None = None) -> FastAPI:
             {"status": "unavailable", "message": "Main Agent backend is disabled"},
             status_code=404,
         )
+
+    register_batch_routes(app)
 
     @app.get("/debug")
     @app.get("/debug/")

@@ -1,4 +1,4 @@
-export type DebugModule = 'end-to-end' | 'interface' | 'renderer';
+export type DebugModule = 'end-to-end' | 'interface' | 'renderer' | 'batch';
 
 /** 正式微服务接口名称。平台层重复声明一份，避免业务子包反向依赖平台。 */
 export type ToolOperation =

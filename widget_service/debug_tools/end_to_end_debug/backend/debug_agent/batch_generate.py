@@ -14,21 +14,20 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import re
 import uuid
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+
+from debug_tools.batch_testing.artifacts import (
+    DEFAULT_MAX_ARTIFACT_BYTES,
+    download_artifact,
+    parse_artifact_blocks,
+    write_artifact_blocks,
+)
 
 from .schemas import DeviceDebugContext
 
 _FUNCTION_NAME = "generateWidgetCardCompactDsl"
-_BLOCK_PATTERN = re.compile(
-    r"```(?P<name>[a-zA-Z0-9_-]+)\r?\n(?P<body>.*?)\r?\n```",
-    re.DOTALL,
-)
-_DEFAULT_MAX_ARTIFACT_BYTES = 20 * 1024 * 1024
 
 
 async def _invoke(
@@ -118,62 +117,6 @@ async def _invoke(
         raise UpstreamToolError(f"正式工具 WebSocket 调用失败: {type(exc).__name__}") from exc
 
 
-def _download_artifact(
-    artifact_url: str,
-    output_path: Path,
-    artifact_roots: tuple[Path, ...],
-    max_bytes: int,
-) -> str:
-    """下载 artifact；本地 mock OBS 文件按 debug_agent 规则回退读取。"""
-    name = Path(urlsplit(artifact_url).path).name
-    if not name or name in {".", ".."}:
-        raise ValueError("artifactUrl 缺少文件名")
-    local_candidates = [root / name for root in artifact_roots]
-    for candidate in local_candidates:
-        if candidate.is_file():
-            content = candidate.read_bytes()
-            if len(content) > max_bytes:
-                raise ValueError("artifact 超过大小限制")
-            output_path.write_bytes(content)
-            return content.decode("utf-8")
-    request = Request(artifact_url, headers={"User-Agent": "CreateMyCard-batch"})
-    with urlopen(request, timeout=35) as response:  # nosec B310: URL 来自服务返回值
-        content = response.read(max_bytes + 1)
-    if len(content) > max_bytes:
-        raise ValueError("artifact 超过大小限制")
-    output_path.write_bytes(content)
-    return content.decode("utf-8")
-
-
-def _parse_blocks(content: str) -> dict[str, Any]:
-    blocks: dict[str, Any] = {}
-    for match in _BLOCK_PATTERN.finditer(content):
-        name = match.group("name").lower()
-        if name in blocks:
-            raise ValueError(f"artifact 存在重复 block: {name}")
-        body = match.group("body")
-        try:
-            blocks[name] = json.loads(body)
-        except json.JSONDecodeError:
-            blocks[name] = body
-    return blocks
-
-
-def _write_blocks(result_dir: Path, blocks: dict[str, Any]) -> None:
-    block_dir = result_dir / "blocks"
-    block_dir.mkdir(parents=True, exist_ok=True)
-    for name, value in blocks.items():
-        suffix = ".json" if not isinstance(value, str) else ".txt"
-        target = block_dir / f"{name}{suffix}"
-        if isinstance(value, str):
-            target.write_text(value, encoding="utf-8")
-        else:
-            target.write_text(
-                json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-
-
 def _context_from_request(
     arguments: dict[str, Any], defaults: argparse.Namespace
 ) -> DeviceDebugContext:
@@ -217,14 +160,14 @@ async def _run(args: argparse.Namespace) -> int:
             artifact_url = response["data"].get("artifactUrl")
             if artifact_url:
                 artifact_path = result_dir / "artifact.md"
-                artifact_text = _download_artifact(
+                artifact_text = download_artifact(
                     str(artifact_url), artifact_path, roots, args.max_bytes
                 )
-                blocks = _parse_blocks(artifact_text)
+                blocks = parse_artifact_blocks(artifact_text)
                 (result_dir / "blocks.json").write_text(
                     json.dumps(blocks, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
                 )
-                _write_blocks(result_dir, blocks)
+                write_artifact_blocks(result_dir, blocks)
                 record["blockCount"] = len(blocks)
             else:
                 record["error"] = "响应未返回 artifactUrl"
@@ -252,7 +195,7 @@ def _parser() -> argparse.ArgumentParser:
         help="完整 WebSocket 地址；无 /api/v1 的服务请显式传入对应地址",
     )
     parser.add_argument("--timeout", type=float, default=180.0, help="单帧接收超时时间（秒）")
-    parser.add_argument("--max-bytes", type=int, default=_DEFAULT_MAX_ARTIFACT_BYTES)
+    parser.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_ARTIFACT_BYTES)
     parser.add_argument(
         "--artifact-root",
         type=Path,

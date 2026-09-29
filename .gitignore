@@ -58,6 +58,7 @@ coverage/
 *.rar
 
 output/
+widget_service/debug_tools/batch_output/
 
 重构文档.md
 card-design-share/

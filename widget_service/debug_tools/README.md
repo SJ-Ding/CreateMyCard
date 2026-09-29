@@ -1,17 +1,18 @@
 # AI Widget Debug Tools
 
-`debug_tools` 是本地浏览器测试工作台，包含三个业务模块和一个统一 React 壳：
+`debug_tools` 是本地浏览器测试工作台，包含四个业务模块和一个统一 React 壳：
 
 - `end_to_end_debug/`：端到端 Main Agent 调试服务和 Agent 事件轨迹。
 - `interface_debug/`：浏览器直连三个工具 WebSocket 接口的手工调试、final 解析和跨接口参数构建。
 - `card_renderer/`：A2UI、Compact DSL、Design Compact 产物预览和 Artifact 检查器。
+- `batch_testing/`：读取固定测试数据集、并发调用 Compact DSL 接口、保存结果并解析本地 Trace。
 - `platform/`：React/Vite 组合应用，负责路由、共享配置、左侧接口调用历史和模块间产物传递。
 
 平台壳固定为 `100dvh`。`navigation-rail` 下半部的“接口调用历史”只记录三个微服务调用的 request、`final`/`final_error` 和状态；Agent 的普通事件仍只显示在端到端模块内部，不会把中间 WebSocket 帧混入共享历史。
 
 ## 本地启动
 
-接口调试和卡片渲染可以完全在浏览器中运行，不需要启动本项目后端。先启动或准备可从浏览器访问的三个微服务 WebSocket（默认 base 为 `ws://127.0.0.1:8855/api/v1/ws/tools`）：
+接口调试和卡片渲染可以完全在浏览器中运行；批量测试需要由统一 Python 入口提供本地文件 API。先启动或准备可从浏览器和调试平台后端访问的三个微服务 WebSocket（默认 base 为 `ws://127.0.0.1:8855/api/v1/ws/tools`）：
 
 ```powershell
 cd widget_service
@@ -47,8 +48,10 @@ uv run debug_tools --mode full --host 127.0.0.1 --port 8888
 没有使用 `uv` 时，可将上述命令替换为
 `python -m debug_tools --mode frontend|full --host 127.0.0.1 --port 8888`。
 
-两种模式均打开 <http://127.0.0.1:8888/debug/>，且都不会启动或代理 8855 微服务。
-`frontend` 模式下接口调试和卡片渲染可用，端到端页会显示 Agent 未连接；`full` 模式额外提供
+两种模式均打开 <http://127.0.0.1:8888/debug/>，且都不会启动或回收 8855 微服务。
+两种模式均提供批量测试本地 API；单次接口调试仍由浏览器直连微服务，批跑后端仅为读取数据集、
+写入结果和关联 Trace 而连接配置的微服务地址。`frontend` 模式下接口调试、批量测试和卡片渲染可用，
+端到端页会显示 Agent 未连接；`full` 模式额外提供
 `/debug/health`、`/debug/skills`、`/debug/artifact` 和 Main Agent WebSocket。旧的嵌套
 `start_server.py` 与直接运行 `backend.server` 的入口已移除。
 
@@ -62,12 +65,28 @@ uv run debug_tools --mode full --host 127.0.0.1 --port 8888
 | Main Agent WebSocket（仅 `full`） | `ws://127.0.0.1:8888/debug/e2e/ws`（`/debug/agent/ws` 为兼容别名） |
 | 默认微服务 WebSocket base | `ws://127.0.0.1:8855/api/v1/ws/tools` |
 | 单个微服务接口 | `{toolWsBaseUrl}/{operation}` |
+| 批量测试页面 | `http://127.0.0.1:8888/debug/batch` |
+| 批跑数据集 | `debug_tools/test_datas/request_dataset/*.json` |
+| 批跑输出 | `debug_tools/batch_output/<runId>/` |
 
 平台不会自动拉起或回收微服务。三个允许的 operation 为
 `getWidgetCapabilityOverview`、`getDataCapabilitySchemas` 和
 `generateWidgetCardCompactDsl`。浏览器直接连接 `toolWsBaseUrl`，接收帧直到
 `final`/`final_error`，再关闭该连接；`/debug/tools/{operation}` 仅返回
 `BROWSER_DIRECT_REQUIRED` 迁移提示，不是 BFF 代理。
+
+### 批量测试
+
+“批量测试”页面固定从 `test_datas/request_dataset` 读取完整工具请求包络，可勾选样本并设置并发数
+（1～16，默认 4）和额外失败重试次数（0～5，默认 1）。每次尝试使用
+`batch-<8位运行标识>-<5位样本序号>-<3位重试序号>` UID，并覆盖请求中的
+`content.uid` 和 `userAuth.user.userId`，不修改源数据文件。
+
+批跑结果按轮次保存 `manifest.json`、`summary.json`、`summary.md` 和每个样本的请求、响应、
+artifact blocks、`genui.jsonl`、Trace 与最终结果。页面可恢复已完成轮次，并在详情中预览成功 DSL。
+微服务需要预先启动；如需 Trace，还要启用 `enable_generation_trace_recording`，并确保
+`generation_trace_root` 指向调试平台可读取的本地目录。Trace 缺失或单行解析失败只显示告警，
+不会把已经成功生成的样本改判为失败。
 
 ### Agent dotted 协议
 
