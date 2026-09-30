@@ -6,7 +6,8 @@
     "platform",
     "end_to_end_debug/frontend",
     "interface_debug/frontend",
-    "card_renderer/frontend"
+    "card_renderer/frontend",
+    "card_renderer/runtime/*"
   ],
   "scripts": {
     "dev": "npm --workspace @widget-debug/platform run dev",

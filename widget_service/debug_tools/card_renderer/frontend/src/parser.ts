@@ -6,6 +6,10 @@
  * it can also be used by the platform to inspect an artifact before rendering.
  */
 
+import { UIGraph } from '@genui-sdk/graph';
+import { JsonlStreamParser } from '@genui-sdk/parser';
+import { compileMiniDsl } from './runtime/mini-renderer';
+
 export const COMPONENT_TYPES = new Set([
   'Row',
   'Column',
@@ -43,6 +47,9 @@ export interface RendererDocument {
   data: Record<string, unknown>;
   dataPathCount: number;
   rows: unknown[];
+  graph: UIGraph;
+  warnings: string[];
+  jsonl: string;
 }
 
 export interface ParseOptions {
@@ -322,11 +329,159 @@ function parseRows(text: string): unknown[] {
 
 export function parseInput(text: string, options: ParseOptions = {}): RendererDocument {
   const rows = parseRows(text);
-  const a2uiRows = rows.filter(isA2uiRow);
-  if (a2uiRows.length > 0) return parseA2ui(a2uiRows, rows, options);
   const compactRows = rows.filter((row): row is unknown[] => Array.isArray(row));
-  if (compactRows.length > 0) return parseCompact(compactRows, options);
-  throw new Error('没有识别到 A2UI 对象行或极简协议数组行。');
+  if (compactRows.length > 0) {
+    return compileCompactDocument(
+      unwrapRenderableSource(text),
+      compactRows,
+      rows,
+      options,
+    );
+  }
+  const a2uiRows = rows.filter(isA2uiRow);
+  const source = a2uiRows.length > 0
+    ? a2uiRows.map((row) => JSON.stringify(row)).join('\n')
+    : unwrapRenderableSource(text);
+  return compileGraphDocument(source, rows, options);
+}
+
+function compileCompactDocument(
+  source: string,
+  compactRows: unknown[][],
+  allRows: unknown[],
+  options: ParseOptions,
+): RendererDocument {
+  const selectedSize = options.cardSize === '2x2' || options.cardSize === '2x4'
+    ? options.cardSize
+    : undefined;
+  const result = compileMiniDsl(source, { size: selectedSize });
+  const mode = compactRows.some((row) => isRecord(row[2]) && typeof row[2].design === 'string')
+    ? 'Design Compact DSL'
+    : 'Compact DSL';
+  return documentFromGraph({
+    graph: result.graph,
+    jsonl: result.jsonl,
+    mode,
+    options,
+    rows: allRows,
+    suggestedSize: result.size,
+    warnings: result.warnings,
+  });
+}
+
+function compileGraphDocument(
+  source: string,
+  rows: unknown[],
+  options: ParseOptions,
+): RendererDocument {
+  const graph = new UIGraph();
+  const warnings: string[] = [];
+  const commands: Record<string, unknown>[] = [];
+  const parser = new JsonlStreamParser<Record<string, unknown>>({
+    onMessage: (command) => {
+      commands.push(command);
+      graph.applyCommand(command);
+    },
+    onParseError: (_raw, error) => {
+      warnings.push(error instanceof Error ? error.message : String(error));
+    },
+    onBraceMismatch: () => warnings.push('输入包含不匹配的右花括号。'),
+  });
+  parser.push(source);
+  parser.end();
+  if (parser.getPending().trim()) warnings.push('输入末尾包含未完成的 JSON。');
+  if (!graph.getRoot()) {
+    const detail = warnings[0] ? `：${warnings[0]}` : '';
+    throw new Error(`没有识别到可渲染的 A2UI 或 Graph JSONL${detail}`);
+  }
+  return documentFromGraph({
+    graph,
+    jsonl: commands.map((command) => JSON.stringify(command)).join('\n'),
+    mode: 'A2UI',
+    options,
+    rows: rows.length > 0 ? rows : commands,
+    warnings,
+  });
+}
+
+interface DocumentFromGraphOptions {
+  graph: UIGraph;
+  jsonl: string;
+  mode: RendererDocument['mode'];
+  options: ParseOptions;
+  rows: unknown[];
+  warnings: string[];
+  suggestedSize?: '2x2' | '2x4';
+}
+
+function documentFromGraph(input: DocumentFromGraphOptions): RendererDocument {
+  const components = new Map<string, ComponentNode>();
+  for (const [id, node] of input.graph.getAllNodes()) {
+    components.set(id, {
+      id,
+      type: normalizeType(node.type).replace(/^Extended\./, ''),
+      props: { ...node.props },
+      children: [...node.children],
+    });
+  }
+  const activeSurfaceId = input.graph.getActiveSurfaceId();
+  const model = activeSurfaceId
+    ? input.graph.getDataModelValue(activeSurfaceId, '/')
+    : undefined;
+  const data = isRecord(model) ? model : {};
+  const root = input.graph.getRoot();
+  const selected = sizeForCard(input.options.cardSize);
+  const suggested = sizeForCard(input.suggestedSize ?? findSuggestSize(input.rows));
+  const declared = findDeclaredSurface(input.rows);
+  const inferred = inferSurface(root ? components.get(root.id) : undefined);
+  return {
+    mode: input.mode,
+    surface: {
+      width: selected?.width ?? declared.width ?? suggested?.width ?? inferred.width,
+      height: selected?.height ?? declared.height ?? suggested?.height ?? inferred.height,
+    },
+    rootId: root?.id ?? 'root',
+    components,
+    data,
+    dataPathCount: countLeafPaths(data),
+    rows: input.rows,
+    graph: input.graph,
+    warnings: input.warnings,
+    jsonl: input.jsonl,
+  };
+}
+
+function findDeclaredSurface(rows: unknown[]): { width: number | null; height: number | null } {
+  for (const row of rows) {
+    if (!isRecord(row) || !isRecord(row.createSurface)) continue;
+    return {
+      width: numberOr(row.createSurface.width, null),
+      height: numberOr(row.createSurface.height, null),
+    };
+  }
+  return { width: null, height: null };
+}
+
+function unwrapRenderableSource(text: string): string {
+  const trimmed = text.trim().replace(
+    /^```(?:jsonl?|genui|a2ui)?\s*\n([\s\S]*?)\n```$/i,
+    '$1',
+  );
+  const parsed = safeJsonParse(trimmed);
+  return unwrapRenderableValue(parsed) ?? trimmed;
+}
+
+function unwrapRenderableValue(value: unknown, depth = 0): string | null {
+  if (depth > 12 || value == null) return null;
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (!isRecord(value)) return null;
+  for (const key of ['genui', 'dsl', 'compactDsl', 'compact_dsl', 'artifact']) {
+    if (!(key in value)) continue;
+    const nested = unwrapRenderableValue(value[key], depth + 1);
+    if (nested !== null) return nested;
+  }
+  return JSON.stringify(value);
 }
 
 function parseA2ui(rows: UnknownRecord[], allRows: unknown[], options: ParseOptions): RendererDocument {
@@ -383,6 +538,9 @@ function parseA2ui(rows: UnknownRecord[], allRows: unknown[], options: ParseOpti
     data,
     dataPathCount: countLeafPaths(data),
     rows: allRows,
+    graph: new UIGraph(),
+    warnings: [],
+    jsonl: rows.map((row) => JSON.stringify(row)).join('\n'),
   };
 }
 
@@ -425,6 +583,9 @@ function parseCompact(rows: unknown[][], options: ParseOptions): RendererDocumen
     data,
     dataPathCount: countLeafPaths(data),
     rows,
+    graph: new UIGraph(),
+    warnings: [],
+    jsonl: rows.map((row) => JSON.stringify(row)).join('\n'),
   };
 }
 

@@ -116,5 +116,9 @@ Main Agent 后端只负责 Skill 导入、模型调用和浏览器工具等待�
 `localStorage` 的版本化键 `ai-widget-debug-config:v1`，其中 `agentWsUrl` 与 `toolWsBaseUrl` 分开设置。
 后端配置中的 `upstream_base_url` 仅为兼容旧测试/配置保留，浏览器直连路径不会让后端代理微服务。
 
-来源 `websocket_debugger` 分支中的旧 `/api/v1/ws/agent/chat` 协议没有并入本平台，避免与当前 dotted
-`/debug/e2e/ws` 的 Main Agent 协议混用。`widget_service/docs/index.html` 保留为独立的渲染回退页和行为对照基线。
+卡片渲染保留现有 artifact 选择、编辑器和批跑复用流程，
+底层统一使用从根目录 `render` 迁入的 Parser、UIGraph、组件注册表与 `renderTree`。根目录
+`render` 保留为上游行为对照，不作为第二个调试平台入口。
+
+本地素材由 `/resources/{path}` 和 `/background_assets/{path}` 提供，只允许读取固定资源根内的文件。
+外部图片不经过服务端代理；卡片动作仅在浏览器中展示解析参数，不执行跳转。

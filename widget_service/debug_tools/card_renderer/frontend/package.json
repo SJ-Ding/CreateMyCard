@@ -16,6 +16,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@genui-sdk/components": "*",
+    "@genui-sdk/graph": "*",
+    "@genui-sdk/interactions": "*",
+    "@genui-sdk/parser": "*",
+    "@genui-sdk/renderer": "*",
     "@vitejs/plugin-react": "^4.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -23,8 +28,11 @@
     "vite": "^5.4.10"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "jsdom": "^25.0.1",
     "vitest": "^2.1.5"
   }
 }

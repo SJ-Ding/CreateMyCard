@@ -23,4 +23,33 @@ describe('card renderer parser', () => {
     expect(sizeForCard('2x2')).toEqual({ width: 160, height: 160 });
     expect(sizeForCard('2x4')).toEqual({ width: 320, height: 160 });
   });
+
+  it('accepts single-component A2UI updates and artifact envelopes', () => {
+    const genui = [
+      '{"version":"v0.9","createSurface":{"surfaceId":"card","width":180,"height":120}}',
+      '{"version":"v0.9","updateComponents":{"surfaceId":"card","component":{"id":"root","component":"Extended.Text","content":{"path":"/title"}}}}',
+      '{"version":"v0.9","updateDataModel":{"surfaceId":"card","path":"/title","value":"单条更新"}}',
+    ].join('\n');
+    const document = parseInput(JSON.stringify({ artifact: { genui } }));
+
+    expect(document.mode).toBe('A2UI');
+    expect(document.surface).toEqual({ width: 180, height: 120 });
+    expect(document.graph.getRoot()?.type).toBe('Extended.Text');
+    expect(document.graph.getDataModelValue('card', '/title')).toBe('单条更新');
+  });
+
+  it('keeps valid graph commands when another record is malformed', () => {
+    const document = parseInput([
+      '{"root":{"type":"Extended.Text","props":{"content":"可渲染"}}}',
+      '{broken}',
+    ].join('\n'));
+
+    expect(document.graph.getRoot()?.id).toBe('root');
+    expect(document.warnings).toHaveLength(1);
+  });
+
+  it('honors an explicit card size over input dimensions', () => {
+    const document = parseInput(SAMPLE_A2UI, { cardSize: '2x4' });
+    expect(document.surface).toEqual({ width: 320, height: 160 });
+  });
 });

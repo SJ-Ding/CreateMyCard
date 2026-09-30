@@ -11,7 +11,7 @@ export const SAMPLE_A2UI = [
 
 export const SAMPLE_COMPACT = [
   '["root","Column",{"width":"matchParent","height":140,"padding":12,"borderRadius":18,"clip":true,"space":6,"linearGradient":{"direction":"RightBottom","colors":[["#86C5E3",0],["#F5DC62",1]]},"constraintSize":{"minWidth":140,"maxWidth":140,"minHeight":140,"maxHeight":140}},["title","main","action"]]',
-  '["title","Text",{"width":116,"height":20,"content":"青浦天气","fontSize":16,"fontWeight":700,"fontColor":"#E5000000"]]',
+  '["title","Text",{"width":116,"height":20,"content":"青浦天气","fontSize":16,"fontWeight":700,"fontColor":"#E5000000"}]',
   '["main","Text",{"width":116,"height":48,"content":{"path":"/data/weather/current/temperatureText"},"fontSize":32,"fontWeight":700,"fontColor":"#E5000000"}]',
   '["/data/weather/current/temperatureText","29°C"]',
   '["action","Button",{"width":116,"height":30,"label":"天气","fontSize":12,"fontWeight":600,"fontColor":"#FFFFFFFF","backgroundColor":"#FF0A59F7","borderRadius":15}]',

@@ -11,6 +11,23 @@ from debug_tools.batch_testing import register_batch_routes
 
 DEBUG_TOOLS_ROOT = Path(__file__).resolve().parent
 FRONTEND_DIST = DEBUG_TOOLS_ROOT / "dist"
+REPOSITORY_ROOT = DEBUG_TOOLS_ROOT.parents[1]
+RESOURCE_ROOT = REPOSITORY_ROOT / "render" / "platform" / "public" / "resources"
+RENDER_BACKGROUND_ROOT = (
+    REPOSITORY_ROOT / "render" / "platform" / "public" / "background_assets"
+)
+
+
+def register_renderer_asset_routes(app: FastAPI) -> None:
+    """注册渲染器只读资源路由，并阻止资源根之外的路径访问。"""
+
+    @app.get("/resources/{asset_path:path}")
+    async def renderer_resource(asset_path: str) -> Response:
+        return asset_response(RESOURCE_ROOT, asset_path)
+
+    @app.get("/background_assets/{asset_path:path}")
+    async def renderer_background(asset_path: str) -> Response:
+        return asset_response(RENDER_BACKGROUND_ROOT, asset_path)
 
 
 def create_frontend_app(static_dir: Path | None = None) -> FastAPI:
@@ -24,6 +41,7 @@ def create_frontend_app(static_dir: Path | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+    register_renderer_asset_routes(app)
 
     @app.get("/debug/health")
     @app.get("/debug/skills")
@@ -82,3 +100,20 @@ def static_response(static_dir: Path, asset_path: str) -> Response:
         {"status": "failed", "message": "debug frontend index is missing"},
         status_code=503,
     )
+
+
+def asset_response(asset_root: Path, asset_path: str) -> Response:
+    """从固定资源根返回文件，不对目录或越界路径提供 SPA fallback。"""
+
+    normalized = Path(asset_path)
+    if not asset_path or normalized.is_absolute() or ".." in normalized.parts:
+        return JSONResponse({"detail": "invalid asset path"}, status_code=400)
+    resolved_root = asset_root.resolve()
+    candidate = (resolved_root / normalized).resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError:
+        return JSONResponse({"detail": "invalid asset path"}, status_code=400)
+    if not candidate.is_file():
+        return JSONResponse({"detail": "asset not found"}, status_code=404)
+    return FileResponse(candidate)

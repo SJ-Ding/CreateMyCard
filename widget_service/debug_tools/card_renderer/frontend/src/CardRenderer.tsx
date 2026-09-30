@@ -1,6 +1,6 @@
 import React, { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { CardPreview } from './render';
-import { CardSize, parseInput, RendererDocument } from './parser';
+import { CardSize, ComponentNode, parseInput, RendererDocument } from './parser';
 import { SAMPLE_A2UI, SAMPLE_COMPACT, SAMPLE_DESIGN } from './fixtures';
 import './styles.css';
 
@@ -11,6 +11,8 @@ export interface CardRendererProps {
   assetBaseUrl?: string;
   /** Called after a successful parse, allowing the platform to publish the artifact. */
   onArtifact?: (document: RendererDocument) => void;
+  /** Receives resolved local actions; the renderer never performs external navigation. */
+  onAction?: (action: unknown, component: ComponentNode) => void;
   className?: string;
 }
 
@@ -20,13 +22,14 @@ function sourceValue(value: string | undefined): string {
   return typeof value === 'string' ? value : DEFAULT_SOURCE;
 }
 
-export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', onArtifact, className = '' }: CardRendererProps) {
+export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', onArtifact, onAction, className = '' }: CardRendererProps) {
   const [source, setSource] = useState(() => sourceValue(initialValue));
   const [cardSize, setCardSize] = useState<CardSize>('auto');
   const [zoom, setZoom] = useState(220);
   const [autoRender, setAutoRender] = useState(true);
   const [document, setDocument] = useState<RendererDocument | null>(null);
   const [error, setError] = useState('');
+  const [interaction, setInteraction] = useState('');
 
   useEffect(() => {
     if (initialValue === undefined) return;
@@ -36,6 +39,7 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', onArt
     // cannot display an unrelated call's document.
     setDocument(null);
     setError('');
+    setInteraction('');
   }, [initialValue]);
 
   const render = (nextSource = source) => {
@@ -65,7 +69,10 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', onArt
   const status = useMemo(() => {
     if (error) return error;
     if (!document) return source.trim() ? '未渲染' : '请输入 JSONL 或 DSL';
-    return `已渲染 ${document.components.size} 个组件，DataModel ${document.dataPathCount} 个路径。`;
+    const warningText = document.warnings.length > 0
+      ? `，${document.warnings.length} 条警告`
+      : '';
+    return `已渲染 ${document.components.size} 个组件，DataModel ${document.dataPathCount} 个路径${warningText}。`;
   }, [document, error, source]);
 
   const loadFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -84,6 +91,7 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', onArt
 
   const setSample = (value: string) => {
     setSource(value);
+    setInteraction('');
     if (!autoRender) render(value);
   };
 
@@ -104,7 +112,11 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', onArt
     </div>
     <div className="card-renderer__preview">
       <div className="card-renderer__preview-toolbar"><span>{document ? `${document.mode} · ${document.surface.width} × ${document.surface.height}` : '预览'}</span><label>缩放<input type="range" min="50" max="360" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /><span>{zoom}%</span></label></div>
-      <div className="card-renderer__stage"><div className="card-renderer__matte" style={{ transform: `scale(${zoom / 100})` }}>{document ? <CardPreview document={document} assetBaseUrl={assetBaseUrl} /> : <div className="card-renderer__empty">暂无卡片</div>}</div></div>
+      <div className="card-renderer__stage"><div className="card-renderer__matte" style={{ transform: `scale(${zoom / 100})` }}>{document ? <CardPreview document={document} assetBaseUrl={assetBaseUrl} onAction={(action, component) => {
+        setInteraction(JSON.stringify({ action, componentId: component.id }, null, 2));
+        onAction?.(action, component);
+      }} /> : <div className="card-renderer__empty">暂无卡片</div>}</div></div>
+      {interaction && <div className="card-renderer__interaction" role="status"><div><strong>点击事件</strong><button type="button" onClick={() => setInteraction('')}>清除</button></div><pre>{interaction}</pre><p>仅展示解析后的事件参数，不执行外部跳转。</p></div>}
     </div>
   </section>;
 }

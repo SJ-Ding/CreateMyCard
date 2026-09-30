@@ -20,7 +20,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 from debug_tools.batch_testing import register_batch_routes
-from debug_tools.static_site import FRONTEND_DIST, static_response
+from debug_tools.static_site import (
+    FRONTEND_DIST,
+    register_renderer_asset_routes,
+    static_response,
+)
 
 
 def _discover_roots() -> tuple[Path, Path]:
@@ -87,6 +91,7 @@ def create_app(
     local = debug_settings or _load_debug_settings(production, debug_config)
     app = FastAPI(title="AI Widget Debug Platform", version="0.1.0")
     static_dir = FRONTEND_DIST
+    register_renderer_asset_routes(app)
 
     @app.get("/debug/health")
     async def health() -> dict[str, Any]:

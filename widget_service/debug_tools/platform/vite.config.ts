@@ -1,11 +1,66 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { extname, resolve, sep } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const platformRoot = fileURLToPath(new URL('.', import.meta.url));
+const resourceRoot = fileURLToPath(
+  new URL('../../../render/platform/public/resources/', import.meta.url),
+);
+const backgroundRoot = fileURLToPath(
+  new URL('../../../render/platform/public/background_assets/', import.meta.url),
+);
+
+const CONTENT_TYPES: Record<string, string> = {
+  '.gif': 'image/gif',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+};
+
+function rendererAssets(): Plugin {
+  return {
+    name: 'renderer-assets',
+    configureServer(server: ViteDevServer) {
+      const serve = (prefix: string, root: string) => {
+        server.middlewares.use(prefix, async (
+          request: IncomingMessage,
+          response: ServerResponse,
+          next: () => void,
+        ) => {
+          const relative = decodeURIComponent((request.url ?? '').split('?')[0]).replace(/^\/+/, '');
+          const candidate = resolve(root, relative);
+          if (candidate !== root && !candidate.startsWith(`${root}${sep}`)) {
+            response.statusCode = 400;
+            response.end('invalid asset path');
+            return;
+          }
+          try {
+            if (!(await stat(candidate)).isFile()) {
+              next();
+              return;
+            }
+            response.setHeader('Content-Type', CONTENT_TYPES[extname(candidate).toLowerCase()]
+              ?? 'application/octet-stream');
+            createReadStream(candidate).pipe(response);
+          } catch {
+            next();
+          }
+        });
+      };
+      serve('/resources', resourceRoot);
+      serve('/background_assets', backgroundRoot);
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), rendererAssets()],
   base: '/debug/',
   resolve: {
     alias: {
