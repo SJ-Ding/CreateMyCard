@@ -14,6 +14,11 @@ describe('PostprocessPanel', () => {
         { apiVersion: 'batch-postprocess-v2', id: 'browser-gallery', name: '浏览器渲染画廊', version: '2.0.0', configSchema: { type: 'object' } },
         { apiVersion: 'batch-postprocess-v2', id: 'device-gallery', name: '真机截图画廊', version: '2.0.0', dependence: ['browser-gallery'], configSchema: { type: 'object' } },
       ] });
+      if (url === '/debug/device/profiles') return response({ profiles: [{
+        id: 'device_one', name: '测试设备', serial: 'USB123', deviceName: 'Pura Test',
+        kind: 'physical', resolution: { width: 1280, height: 720 }, crops: {},
+        renderWaitSeconds: 8, version: 1, updatedAt: '2026-10-11T00:00:00Z',
+      }] });
       if (url.endsWith('/postprocess') && init?.method === 'POST') return response({ executionId: 'exec_1', status: 'queued' });
       throw new Error(`unexpected request: ${url}`);
     }));
@@ -40,6 +45,7 @@ describe('PostprocessPanel', () => {
 
     fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
     expect(screen.getByRole('checkbox', { name: '浏览器渲染画廊' })).toBeChecked();
+    fireEvent.change(screen.getByLabelText('真机截图设备配置'), { target: { value: 'device_one' } });
     fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
 
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
@@ -93,6 +99,7 @@ describe('PostprocessPanel', () => {
     const gallery = await screen.findByRole('checkbox', { name: '浏览器渲染画廊' });
     expect(gallery).toBeChecked();
     fireEvent.click(screen.getByRole('checkbox', { name: '真机截图画廊' }));
+    fireEvent.change(screen.getByLabelText('真机截图设备配置'), { target: { value: 'device_one' } });
     fireEvent.click(screen.getByRole('button', { name: '更新自动执行配置' }));
 
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
@@ -126,6 +133,7 @@ describe('PostprocessPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /后处理插件/ }));
     fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
+    fireEvent.change(screen.getByLabelText('真机截图设备配置'), { target: { value: 'device_one' } });
     expect(screen.getByText('将并行执行 1 个新增插件')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
@@ -155,6 +163,8 @@ describe('PostprocessPanel', () => {
     expect(screen.queryByRole('checkbox', { name: '质量评分' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '开始后处理' })).toBeDisabled();
     expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  });
+
   it('shows running progress and exposes the partial dashboard without selecting plugins', async () => {
     render(<MemoryRouter><PostprocessPanel
       runId="run_1"

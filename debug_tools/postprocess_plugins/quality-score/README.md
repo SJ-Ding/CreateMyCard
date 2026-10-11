@@ -103,7 +103,7 @@ Web 渲染淘汰样本。平台 `success` 表示评分程序执行成功，不�
 
 在 `widget_service` 下：
 
-```shell
+```powershell
 python -m pytest tests/test_debug_quality_score.py tests/test_debug_batch_gallery.py tests/test_debug_batch_postprocess.py -q
 python -m ruff check debug_tools/postprocess_plugins/quality-score debug_tools/postprocess_plugins/gallery/plugin.py tests/test_debug_quality_score.py
 ```
@@ -111,8 +111,8 @@ python -m ruff check debug_tools/postprocess_plugins/quality-score debug_tools/p
 在 `widget_service/debug_tools` 下：
 
 ```shell
-node scripts/web_quality.test.mjs
-node scripts/quality_smoke.test.mjs
+& 'D:\Env\DevEco Studio\tools\node\node.exe' scripts/web_quality.test.mjs
+& 'D:\Env\DevEco Studio\tools\node\node.exe' scripts/quality_smoke.test.mjs
 npm --workspace @widget-debug/platform run typecheck
 ```
 

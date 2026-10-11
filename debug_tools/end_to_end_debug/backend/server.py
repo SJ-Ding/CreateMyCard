@@ -19,6 +19,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 from debug_tools.batch_testing import register_batch_routes
+from debug_tools.device_debug.api import register_device_routes
 from debug_tools.paths import (
     CLOUD_ROOT,
     DEBUG_TOOLS_ROOT,
@@ -82,6 +83,7 @@ def create_app(
     app = FastAPI(title="AI Widget Debug Platform", version="0.1.0")
     static_dir = FRONTEND_DIST
     register_renderer_asset_routes(app)
+    register_device_routes(app)
 
     @app.get("/debug/health")
     async def health() -> dict[str, Any]:

@@ -7,6 +7,7 @@ import {
   type PostprocessPlugin,
   type PostprocessPluginResult,
 } from '../batchApi';
+import { listDeviceProfiles, type DeviceProfile } from '../deviceApi';
 
 function executionStatusLabel(status: string): string {
   return ({
@@ -31,6 +32,7 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
   const [busy, setBusy] = useState(false);
   const [rerunningPluginId, setRerunningPluginId] = useState('');
   const [error, setError] = useState('');
+  const [deviceProfiles, setDeviceProfiles] = useState<DeviceProfile[]>([]);
 
   useEffect(() => {
     listPostprocessPlugins().then((items) => {
@@ -46,6 +48,9 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
       setConfigs(defaults);
     }).catch((reason) => setError(String(reason)));
   }, []);
+  useEffect(() => {
+    listDeviceProfiles().then(setDeviceProfiles).catch(() => setDeviceProfiles([]));
+  }, [open]);
 
   const waitingExecution = executions.find((item) => item.status === 'waiting');
   const active = executions.some((item) => ['queued', 'running'].includes(item.status));
@@ -185,11 +190,30 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
                 />
                 <span><b>{plugin.name}</b><small>{plugin.description ?? plugin.id}</small>
                   {dependencies.length > 0 && <em>依赖：{dependencies.map((id) => pluginById.get(id)?.name ?? id).join(' → ')}</em>}
+                  {plugin.id === 'device-gallery' && checked && <span className="postprocess-device-profile">
+                    {deviceProfiles.length ? <select aria-label="真机截图设备配置"
+                      value={String(configs[plugin.id]?.profileId ?? '')}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        setConfigs((current) => ({
+                          ...current,
+                          [plugin.id]: { ...current[plugin.id], profileId: event.target.value },
+                        }));
+                      }}>
+                      <option value="">请选择设备配置</option>
+                      {deviceProfiles.map((profile) => <option key={profile.id} value={profile.id}>
+                        {profile.name} · {profile.deviceName}
+                      </option>)}
+                    </select> : <Link to="/device-render" onClick={(event) => event.stopPropagation()}>
+                      尚无配置，前往设备渲染保存 ›
+                    </Link>}
+                  </span>}
                 </span>
               </label>;
             })}
           </section>
-          <footer className="postprocess-dialog-actions"><span>{newSelected.length ? `将并行执行 ${newSelected.length} 个新增插件` : selected.length ? '已选插件均已运行，可单独再次运行' : '尚未选择插件'}</span><button type="button" disabled={busy || active || !newSelected.length} onClick={run}>{busy ? '正在提交…' : active ? '后处理正在执行' : waitingExecution ? '更新自动执行配置' : runStatus === 'completed' ? '开始后处理' : '完成后自动执行'}</button></footer>
+          <footer className="postprocess-dialog-actions"><span>{newSelected.length ? `将并行执行 ${newSelected.length} 个新增插件` : selected.length ? '已选插件均已运行，可单独再次运行' : '尚未选择插件'}</span><button type="button" disabled={busy || active || !newSelected.length || (newSelected.includes('device-gallery') && !configs['device-gallery']?.profileId)} onClick={run}>{busy ? '正在提交…' : active ? '后处理正在执行' : waitingExecution ? '更新自动执行配置' : runStatus === 'completed' ? '开始后处理' : '完成后自动执行'}</button></footer>
           <section className="postprocess-inline-results">
             <header><strong>执行结果</strong><small>自动展示运行中插件与每个插件的最新一次结果</small></header>
             {!displayedPluginIds.length && <div className="batch-empty">尚无后处理执行记录</div>}

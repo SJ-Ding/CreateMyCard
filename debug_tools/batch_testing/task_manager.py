@@ -12,6 +12,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from ..device_debug.profiles import DeviceProfileStore
 from ..postprocess_plugins.device_capture import DeviceCaptureManager
 from ..postprocess_plugins.device_capture import run_builtin as run_device_capture_plugin
 from ..postprocess_plugins.gallery import BatchGalleryManager
@@ -50,6 +51,7 @@ class BatchTaskManager:
         gallery_manager: BatchGalleryManager | None = None,
         validation_failure_gallery_manager: ValidationFailureGalleryManager | None = None,
         device_capture_manager: DeviceCaptureManager | None = None,
+        device_profile_store: DeviceProfileStore | None = None,
         postprocess_manager: PostprocessManager | None = None,
         gallery_base_url: str = "http://127.0.0.1:8888/debug",
     ) -> None:
@@ -81,6 +83,7 @@ class BatchTaskManager:
         self.device_capture_manager = device_capture_manager or DeviceCaptureManager(
             self.output_root,
         )
+        self.device_profiles = device_profile_store or DeviceProfileStore()
         plugins_root = Path(__file__).resolve().parents[1] / "postprocess_plugins"
         self.postprocess_manager = postprocess_manager or PostprocessManager(
             self.output_root,
@@ -96,6 +99,7 @@ class BatchTaskManager:
                     self.device_capture_manager,
                 ),
             },
+            config_resolver=self._resolve_postprocess_config,
         )
         self.queue: list[str] = []
         self.active_run_id: str | None = None
@@ -104,6 +108,22 @@ class BatchTaskManager:
         self._scheduler_task: asyncio.Task[None] | None = None
         self._closing = False
         self._load_scheduler_state()
+
+    def _resolve_postprocess_config(
+        self,
+        plugin_id: str,
+        config: dict[str, Any],
+    ) -> dict[str, Any]:
+        if plugin_id != "device-gallery":
+            return config
+        profile_id = config.get("profileId")
+        if not isinstance(profile_id, str) or not profile_id:
+            raise ValueError("真机截图必须选择已保存的设备配置")
+        try:
+            snapshot = self.device_profiles.snapshot(profile_id)
+        except Exception as exc:
+            raise ValueError(f"无法加载设备配置: {exc}") from exc
+        return {"profileId": profile_id, "profileSnapshot": snapshot}
 
     async def start(self) -> None:
         await self.service_controller.recover_orphan()
@@ -394,9 +414,37 @@ class BatchTaskManager:
         return self.validation_failure_gallery_manager.items(run_id)
 
     def device_capture_path(self, run_id: str, sample_id: str, kind: str) -> Path:
+        filename = f"{sample_id}.png" if kind == "card" else f"{sample_id}.jpeg"
+        relative = Path("card" if kind == "card" else "full") / filename
+        for execution in self.postprocess_manager.executions(run_id):
+            execution_id = str(execution.get("executionId") or "")
+            path = (
+                self.output_root
+                / run_id
+                / "postprocess"
+                / execution_id
+                / "plugins"
+                / "device-gallery"
+                / relative
+            )
+            if path.is_file():
+                return path
         return self.device_capture_manager.image_path(run_id, sample_id, kind)
 
     def device_gallery_path(self, run_id: str) -> Path:
+        for execution in self.postprocess_manager.executions(run_id):
+            execution_id = str(execution.get("executionId") or "")
+            path = (
+                self.output_root
+                / run_id
+                / "postprocess"
+                / execution_id
+                / "plugins"
+                / "device-gallery"
+                / "gallery.html"
+            )
+            if path.is_file():
+                return path
         return self.device_capture_manager.gallery_path(run_id)
 
     def sample_device_capture(self, run_id: str, sample_id: str) -> dict[str, Any]:

@@ -16,6 +16,14 @@
       "required": true
     },
     {
+      "key": "device-full-capture",
+      "scope": "sample",
+      "title": "设备全屏原图",
+      "dataType": "image",
+      "renderer": "gallery",
+      "required": false
+    },
+    {
       "key": "capture-summary",
       "scope": "dataset",
       "title": "真机截图汇总",
@@ -53,6 +61,14 @@
   },
   "configSchema": {
     "type": "object",
-    "additionalProperties": false
+    "additionalProperties": false,
+    "required": ["profileId"],
+    "properties": {
+      "profileId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "设备配置"
+      }
+    }
   }
 }

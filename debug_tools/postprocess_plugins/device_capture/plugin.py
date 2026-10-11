@@ -9,7 +9,7 @@ import re
 import shutil
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +17,14 @@ from urllib.parse import quote
 
 import yaml
 from PIL import Image
+
+from debug_tools.device_debug.config import Project
+from debug_tools.device_debug.locks import device_lock
+from debug_tools.runtime_environment import (
+    ToolchainError,
+    load_toolchain,
+    resolve_config_path,
+)
 
 from .._io import atomic_write_json
 
@@ -35,6 +43,8 @@ class DeviceCaptureConfig:
     render_project: Path | None = None
     deveco_sdk_home: Path | None = None
     java_home: Path | None = None
+    node_executable: Path | None = None
+    node_source: str = "unresolved"
     hvigor: Path | None = None
     signed_hap_name: str = "entry-default-signed.hap"
     bundle_name: str = "com.example.myapplication"
@@ -52,6 +62,9 @@ class DeviceCaptureConfig:
     emulator_image_root: Path | None = None
     emulator_start_timeout_seconds: float = 120.0
     emulator_poll_seconds: float = 2.0
+    crop_boxes: dict[str, dict[str, int]] | None = None
+    expected_resolution: tuple[int, int] | None = None
+    require_signed: bool = False
 
     @classmethod
     def from_debug_agent(cls, path: Path | None = None) -> DeviceCaptureConfig:
@@ -73,21 +86,33 @@ class DeviceCaptureConfig:
         if not isinstance(raw_config, dict):
             raise DeviceCaptureError("debug_agent.yaml 的 device_capture 必须是对象")
         project_root = Path(__file__).resolve().parents[3]
+        try:
+            toolchain = load_toolchain(config_path)
+        except ToolchainError as exc:
+            raise DeviceCaptureError(str(exc)) from exc
 
         def configured_path(name: str) -> Path | None:
             value = raw_config.get(name)
             if not isinstance(value, str) or not value.strip():
                 return None
-            candidate = Path(value.strip()).expanduser()
-            return candidate if candidate.is_absolute() else project_root / candidate
+            try:
+                return resolve_config_path(
+                    value,
+                    deveco_home=toolchain.deveco_studio_home,
+                    base=project_root,
+                )
+            except ToolchainError as exc:
+                raise DeviceCaptureError(str(exc)) from exc
 
         return cls(
-            hdc=str(raw_config.get("hdc") or "hdc"),
+            hdc=str(configured_path("hdc") or toolchain.hdc or "hdc"),
             device_sn=str(raw_config.get("device_sn") or "").strip() or None,
             render_project=configured_path("render_project"),
-            deveco_sdk_home=configured_path("deveco_sdk_home"),
-            java_home=configured_path("java_home"),
-            hvigor=configured_path("hvigor"),
+            deveco_sdk_home=configured_path("deveco_sdk_home") or toolchain.sdk_home,
+            java_home=configured_path("java_home") or toolchain.java_home,
+            node_executable=toolchain.node_executable,
+            node_source=toolchain.node_source,
+            hvigor=configured_path("hvigor") or toolchain.hvigor,
             signed_hap_name=str(
                 raw_config.get("signed_hap_name") or "entry-default-signed.hap"
             ),
@@ -110,7 +135,7 @@ class DeviceCaptureConfig:
             command_timeout_seconds=float(raw_config.get("command_timeout_seconds", 300.0)),
             crop_config=configured_path("crop_config"),
             auto_start_emulator=bool(raw_config.get("auto_start_emulator", False)),
-            emulator=configured_path("emulator"),
+            emulator=configured_path("emulator") or toolchain.emulator,
             emulator_name=str(raw_config.get("emulator_name") or "").strip() or None,
             emulator_instance_root=configured_path("emulator_instance_root"),
             emulator_image_root=configured_path("emulator_image_root"),
@@ -173,6 +198,20 @@ class DeviceRenderer:
         self._validate_static_config()
         targets = await self._list_targets(log_path)
         self._resolved_sn = self._select_target(targets)
+        async with device_lock(self._resolved_sn):
+            await self._render_selected(
+                genui_path, size, work_dir, full_output, card_output, log_path,
+            )
+
+    async def _render_selected(
+        self,
+        genui_path: Path,
+        size: str,
+        work_dir: Path,
+        full_output: Path,
+        card_output: Path,
+        log_path: Path,
+    ) -> None:
         project = work_dir / "render_project"
         await asyncio.to_thread(self._prepare_workspace, project)
         await asyncio.to_thread(self._write_genui, genui_path, project)
@@ -193,17 +232,13 @@ class DeviceRenderer:
                 log_path,
                 check=False,
             )
-            await self._hdc(
-                ["shell", "bm", "uninstall", "-n", self.config.bundle_name],
-                log_path,
-                check=False,
-            )
             install = await self._hdc(
-                ["shell", "bm", "install", "-p", remote_dir], log_path
+                ["install", "-r", str(hap_path)], log_path
             )
             if "error" in install.lower() or "failed" in install.lower():
-                raise DeviceCaptureError("真机安装 HAP 失败")
-            await self._hdc(
+                detail = self._command_error_detail(install)
+                raise DeviceCaptureError(f"真机安装 HAP 失败：{detail}")
+            start = await self._hdc(
                 [
                     "shell",
                     "aa",
@@ -217,6 +252,9 @@ class DeviceRenderer:
                 ],
                 log_path,
             )
+            if "error" in start.lower() or "failed" in start.lower():
+                detail = self._command_error_detail(start)
+                raise DeviceCaptureError(f"真机应用启动失败：{detail}")
             await asyncio.sleep(self.config.render_wait_seconds)
             await self._capture(remote_image, full_output, log_path)
             await asyncio.to_thread(self._crop, full_output, card_output, size)
@@ -348,12 +386,21 @@ class DeviceRenderer:
             raise DeviceCaptureError("debug_agent.yaml 未配置 device_capture.render_project")
         if not project.is_dir():
             raise DeviceCaptureError("真机渲染工程不存在")
+        if self.config.require_signed:
+            try:
+                project_info = Project.read(project)
+            except Exception as exc:
+                raise DeviceCaptureError(f"无法验证真机工程签名：{exc}") from exc
+            if not project_info.signed:
+                raise DeviceCaptureError("真机截图要求渲染工程配置有效签名")
         if self._find_executable(self.config.hdc) is None:
             raise DeviceCaptureError("未找到 HDC 可执行文件")
         if self.config.java_home is None or not (self.config.java_home / "bin").is_dir():
             raise DeviceCaptureError("未配置有效的 DevEco JDK")
         if self.config.deveco_sdk_home is None or not self.config.deveco_sdk_home.is_dir():
             raise DeviceCaptureError("未配置有效的 DevEco SDK")
+        if self.config.node_executable is None or not self.config.node_executable.is_file():
+            raise DeviceCaptureError("未配置有效的 Node.js")
         self._validate_project_relative_path(self.config.rawfile_target, "rawfile_target")
         self._validate_project_relative_path(self.config.hap_output_dir, "hap_output_dir")
         self._resolve_hvigor(project)
@@ -364,11 +411,23 @@ class DeviceRenderer:
             raise DeviceCaptureError(f"debug_agent.yaml 中的 {name} 必须是工程内相对路径")
 
     async def _list_targets(self, log_path: Path | None = None) -> list[str]:
-        output = await self._run(
-            [self.config.hdc, "list", "targets"],
-            log_path,
-            timeout_seconds=min(15.0, self.config.command_timeout_seconds),
-        )
+        output = ""
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                output = await self._run(
+                    [self.config.hdc, "list", "targets"],
+                    log_path,
+                    timeout_seconds=min(15.0, self.config.command_timeout_seconds),
+                )
+                last_error = None
+                break
+            except (DeviceCaptureError, TimeoutError, OSError) as exc:
+                last_error = exc
+                if attempt == 0:
+                    await asyncio.sleep(0.2)
+        if last_error is not None:
+            raise last_error
         targets: list[str] = []
         for raw_line in output.splitlines():
             line = raw_line.strip()
@@ -446,10 +505,14 @@ class DeviceRenderer:
         environment = os.environ.copy()
         environment["JAVA_HOME"] = str(self.config.java_home)
         environment["DEVECO_SDK_HOME"] = str(self.config.deveco_sdk_home)
+        if self.config.node_executable is None:
+            raise DeviceCaptureError("Node.js 环境未配置")
+        environment["NODE_HOME"] = str(self.config.node_executable.parent)
+        node_bin = str(self.config.node_executable.parent)
         java_bin = str(self.config.java_home / "bin")
         toolchains = str(self.config.deveco_sdk_home / "toolchains")
         environment["PATH"] = os.pathsep.join(
-            [java_bin, toolchains, environment.get("PATH", "")]
+            [node_bin, java_bin, toolchains, environment.get("PATH", "")]
         )
         return environment
 
@@ -461,9 +524,14 @@ class DeviceRenderer:
         log_path: Path,
     ) -> None:
         executable = self._resolve_hvigor(project)
-        command = [str(executable), action]
-        if os.name == "nt" and str(executable).lower().endswith((".bat", ".cmd")):
+        if str(executable).lower().endswith(".js"):
+            if self.config.node_executable is None:
+                raise DeviceCaptureError("Node.js 环境未配置")
+            command = [str(self.config.node_executable), str(executable), action]
+        elif os.name == "nt" and str(executable).lower().endswith((".bat", ".cmd")):
             command = ["cmd", "/c", "call", str(executable), action]
+        else:
+            command = [str(executable), action]
         await self._run(command, log_path, cwd=project, environment=environment)
 
     def _resolve_hvigor(self, project: Path) -> Path | str:
@@ -494,22 +562,71 @@ class DeviceRenderer:
         return await self._run(command, log_path, check=check)
 
     async def _capture(self, remote_path: str, output: Path, log_path: Path) -> None:
-        result = await self._hdc(
-            ["shell", "snapshot_display", "-f", remote_path], log_path, check=False
-        )
-        if "error" in result.lower() or "failed" in result.lower():
-            await self._hdc(["shell", "snapshot_display", remote_path], log_path)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        temporary = output.with_suffix(output.suffix + ".tmp")
-        temporary.unlink(missing_ok=True)
-        await self._hdc(["file", "recv", remote_path, str(temporary)], log_path)
-        if not temporary.is_file() or temporary.stat().st_size < 1000:
+        last_error: Exception | None = None
+        for attempt in range(2):
+            temporary = output.with_suffix(output.suffix + ".tmp")
             temporary.unlink(missing_ok=True)
-            raise DeviceCaptureError("真机截图文件无效")
-        os.replace(temporary, output)
+            try:
+                captured_path = remote_path
+                result = await self._hdc(
+                    ["shell", "snapshot_display", "-f", remote_path],
+                    log_path,
+                    check=False,
+                )
+                if "error" in result.lower() or "failed" in result.lower():
+                    fallback = await self._hdc(
+                        ["shell", "snapshot_display", remote_path],
+                        log_path,
+                    )
+                    if "error" in fallback.lower() or "failed" in fallback.lower():
+                        detail = self._command_error_detail(fallback)
+                        raise DeviceCaptureError(f"设备截图失败：{detail}")
+                    generated_path = self._snapshot_output_path(fallback)
+                    if generated_path is not None:
+                        captured_path = generated_path
+                output.parent.mkdir(parents=True, exist_ok=True)
+                await self._hdc(
+                    ["file", "recv", captured_path, str(temporary)],
+                    log_path,
+                )
+                if not temporary.is_file() or temporary.stat().st_size < 1000:
+                    raise DeviceCaptureError("真机截图文件无效")
+                os.replace(temporary, output)
+                return
+            except (DeviceCaptureError, TimeoutError, OSError) as exc:
+                temporary.unlink(missing_ok=True)
+                last_error = exc
+                if attempt == 0:
+                    await asyncio.sleep(0.2)
+        if last_error is not None:
+            raise last_error
+
+    @staticmethod
+    def _command_error_detail(output: str) -> str:
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        for prefix in ("Error Message:", "Error cause:"):
+            for line in lines:
+                position = line.find(prefix)
+                if position >= 0:
+                    return line[position + len(prefix):].strip()
+        return lines[-1] if lines else "设备命令返回错误"
+
+    @staticmethod
+    def _snapshot_output_path(output: str) -> str | None:
+        match = re.search(r"set filename to\s+(\S+)", output, re.IGNORECASE)
+        return match.group(1) if match is not None else None
 
     def _crop(self, source: Path, output: Path, size: str) -> None:
         boxes = {"2x2": [364, 96, 920, 576], "2x4": [95, 96, 1192, 576]}
+        if self.config.crop_boxes is not None:
+            crop = self.config.crop_boxes.get(size)
+            if not isinstance(crop, dict):
+                raise DeviceCaptureError(f"设备配置尚未标定 {size} 截图区域")
+            x = int(crop.get("x", -1))
+            y = int(crop.get("y", -1))
+            width = int(crop.get("width", 0))
+            height = int(crop.get("height", 0))
+            boxes[size] = [x, y, x + width, y + height]
         if self.config.crop_config is not None:
             value = json.loads(self.config.crop_config.read_text(encoding="utf-8-sig"))
             if isinstance(value, dict):
@@ -525,6 +642,12 @@ class DeviceRenderer:
         output.parent.mkdir(parents=True, exist_ok=True)
         with Image.open(source) as image:
             width, height = image.size
+            expected = self.config.expected_resolution
+            if expected is not None and (width, height) != expected:
+                raise DeviceCaptureError(
+                    "设备截图分辨率已变化："
+                    f"当前 {width}×{height}，配置 {expected[0]}×{expected[1]}，请重新标定"
+                )
             left = max(0, min(selected[0], width - 1))
             top = max(0, min(selected[1], height - 1))
             right = max(left + 1, min(selected[2], width))
@@ -881,6 +1004,21 @@ class DeviceCaptureManager:
         stored = str(sample.get("size") or "").lower()
         return stored if stored in {"2x2", "2x4"} else "2x2"
 
+    @classmethod
+    def _resolve_size_for_sample(cls, run_dir: Path, sample: dict[str, Any]) -> str:
+        sample_id = str(sample.get("id") or "")
+        result_path = run_dir / sample_id / "result.json"
+        if result_path.is_file():
+            result = cls._read_json(result_path)
+            final_attempt = result.get("finalAttempt")
+            if isinstance(final_attempt, int):
+                return cls._resolve_size(
+                    run_dir / sample_id / f"attempt_{final_attempt:03d}",
+                    sample,
+                )
+        stored = str(sample.get("size") or "").lower()
+        return stored if stored in {"2x2", "2x4"} else "2x2"
+
     @staticmethod
     def _update_counts(
         state: dict[str, Any], items: list[dict[str, Any]], total: int
@@ -948,8 +1086,19 @@ async def run_builtin(
     run_id: str,
     _output_dir: Path,
     _config: dict[str, Any],
+    checkpoint: Callable[[dict[str, Any]], Any] | None = None,
 ) -> dict[str, Any]:
     """按统一插件结果协议执行真机截图。"""
+
+    snapshot = _config.get("profileSnapshot")
+    if isinstance(snapshot, dict) and hasattr(manager, "renderer") and hasattr(manager, "_run_dir"):
+        return await _run_profile_builtin(
+            manager,
+            run_id,
+            _output_dir,
+            snapshot,
+            checkpoint,
+        )
 
     await manager.require_available()
     manager.enqueue(run_id, retry=True)
@@ -1016,4 +1165,191 @@ async def run_builtin(
                 },
             ],
         },
+    }
+
+
+async def _run_profile_builtin(
+    manager: DeviceCaptureManager,
+    run_id: str,
+    output_dir: Path,
+    snapshot: dict[str, Any],
+    checkpoint: Callable[[dict[str, Any]], Any] | None,
+) -> dict[str, Any]:
+    """使用提交时固化的设备配置生成一次独立截图执行。"""
+
+    serial = snapshot.get("serial")
+    resolution = snapshot.get("resolution")
+    crops = snapshot.get("crops")
+    wait_seconds = snapshot.get("renderWaitSeconds", 8.0)
+    if not isinstance(serial, str) or not serial:
+        raise DeviceCaptureError("设备配置缺少连接标识")
+    if not isinstance(resolution, dict) or not isinstance(crops, dict):
+        raise DeviceCaptureError("设备配置缺少截图分辨率或裁切区域")
+    width = resolution.get("width")
+    height = resolution.get("height")
+    if not isinstance(width, int) or not isinstance(height, int):
+        raise DeviceCaptureError("设备配置截图分辨率无效")
+    renderer = manager.renderer
+    if isinstance(renderer, DeviceRenderer):
+        require_signed = snapshot.get("kind") != "emulator"
+        renderer = DeviceRenderer(
+            replace(
+                renderer.config,
+                device_sn=serial,
+                auto_start_emulator=False,
+                render_wait_seconds=float(wait_seconds),
+                crop_boxes=crops,
+                expected_resolution=(width, height),
+                signed_hap_name=(
+                    "entry-default-signed.hap"
+                    if require_signed
+                    else renderer.config.signed_hap_name
+                ),
+                require_signed=require_signed,
+            )
+        )
+    await renderer.require_available()
+    run_dir = manager._run_dir(run_id)
+    summary = manager._read_json(run_dir / "summary.json")
+    samples = summary.get("samples")
+    sample_list = samples if isinstance(samples, list) else []
+    (output_dir / "profile.json").write_text(
+        json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    sample_results: list[dict[str, Any]] = []
+    gallery_items: list[dict[str, Any]] = []
+    for index, sample in enumerate(sample_list):
+        if not isinstance(sample, dict):
+            continue
+        sample_id = str(sample.get("id") or "")
+        size = manager._resolve_size_for_sample(run_dir, sample)
+        result = await _capture_profile_sample(
+            renderer,
+            run_dir,
+            output_dir,
+            sample_id,
+            size,
+        )
+        sample_results.append(result)
+        gallery_items.append(
+            {
+                "id": sample_id,
+                "size": size,
+                "error": "" if result.get("status") == "success" else result.get("summary", ""),
+                **({"file": f"{sample_id}.png"} if result.get("status") == "success" else {}),
+            }
+        )
+        if checkpoint is not None:
+            await checkpoint(
+                {
+                    "status": "partial",
+                    "sampleResults": sample_results,
+                    "datasetResult": {
+                        "status": "skipped",
+                        "summary": f"正在截图 {index + 1}/{len(sample_list)}",
+                        "facts": {},
+                        "artifacts": [],
+                    },
+                    "progress": {
+                        "phase": "samples",
+                        "completed": index + 1,
+                        "total": len(sample_list),
+                        "message": f"正在截图 {index + 1}/{len(sample_list)}",
+                    },
+                }
+            )
+    from ..gallery.plugin import BatchGalleryManager
+
+    document = BatchGalleryManager.build_html(
+        summary,
+        {"items": gallery_items},
+        output_dir / "card",
+        gallery_title="真机截图画廊",
+        gallery_subtitle=f"设备配置：{snapshot.get('name', '')}，不替代正式验收",
+        image_alt_suffix="真机卡片截图",
+        missing_title="无真机截图",
+        missing_message="该样本没有可用的真机截图",
+    )
+    (output_dir / "gallery.html").write_text(document, encoding="utf-8")
+    succeeded = sum(1 for item in sample_results if item.get("status") == "success")
+    failed = len(sample_results) - succeeded
+    status = "success" if failed == 0 else "partial" if succeeded else "failed"
+    return {
+        "status": status,
+        "sampleResults": sample_results,
+        "datasetResult": {
+            "status": status,
+            "summary": f"真机画廊已生成：成功 {succeeded}，失败 {failed}",
+            "facts": {
+                "succeeded": succeeded,
+                "failed": failed,
+                "profileId": str(snapshot.get("id") or ""),
+                "profileVersion": int(snapshot.get("version") or 0),
+            },
+            "artifacts": [
+                {
+                    "key": "capture-summary",
+                    "data": [
+                        {"label": "成功", "value": succeeded},
+                        {"label": "失败", "value": failed},
+                    ],
+                },
+                {"key": "device-gallery", "label": "打开真机截图画廊", "path": "gallery.html"},
+            ],
+        },
+    }
+
+
+async def _capture_profile_sample(
+    renderer: Any,
+    run_dir: Path,
+    output_dir: Path,
+    sample_id: str,
+    size: str,
+) -> dict[str, Any]:
+    if not _SAFE_ID.fullmatch(sample_id):
+        return {"sampleId": sample_id, "status": "failed", "summary": "样本标识无效"}
+    result_path = run_dir / sample_id / "result.json"
+    if not result_path.is_file():
+        return {"sampleId": sample_id, "status": "skipped", "summary": "样本没有最终结果"}
+    result = DeviceCaptureManager._read_json(result_path)
+    final_attempt = result.get("finalAttempt")
+    if not isinstance(final_attempt, int):
+        return {"sampleId": sample_id, "status": "skipped", "summary": "样本没有最终 attempt"}
+    genui = run_dir / sample_id / f"attempt_{final_attempt:03d}" / "genui.jsonl"
+    if not genui.is_file():
+        return {"sampleId": sample_id, "status": "skipped", "summary": "样本没有可渲染的 GenUI"}
+    full = output_dir / "full" / f"{sample_id}.jpeg"
+    card = output_dir / "card" / f"{sample_id}.png"
+    log = output_dir / "logs" / f"{sample_id}.log"
+    try:
+        await renderer.render(genui, size, output_dir / "work" / sample_id, full, card, log)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        return {
+            "sampleId": sample_id,
+            "status": "failed",
+            "summary": f"{type(exc).__name__}: {exc}",
+            "facts": {"captureStatus": "failed", "size": size},
+            "artifacts": [],
+        }
+    return {
+        "sampleId": sample_id,
+        "status": "success",
+        "summary": "真机截图已生成",
+        "facts": {"captureStatus": "success", "size": size},
+        "artifacts": [
+            {
+                "key": "device-capture",
+                "path": f"card/{sample_id}.png",
+                "alt": f"{sample_id} 真机截图",
+            },
+            {
+                "key": "device-full-capture",
+                "path": f"full/{sample_id}.jpeg",
+                "alt": f"{sample_id} 设备全屏原图",
+            },
+        ],
     }

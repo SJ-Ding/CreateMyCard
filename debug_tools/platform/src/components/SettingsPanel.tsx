@@ -3,6 +3,7 @@ import { useWorkbench } from '../context';
 import { endpointHasCredentials, websocketUrl } from '../config';
 import { SERVICE_CONFIG_GROUPS, serviceConfigLabel } from '../serviceConfig';
 import type { DebugConfig } from '../types';
+import { ToolchainStatusWidget } from './ToolchainStatusWidget';
 
 type TextFieldProps = {
   label: string;
@@ -86,6 +87,7 @@ export function SettingsPanel() {
       </div>
 
       <div className="settings-scroll">
+        <ToolchainStatusWidget />
         <section className="settings-card">
           <div className="settings-card-heading"><h2>微服务连接</h2><span>选择当前调试使用的微服务来源</span></div>
           <div className="microservice-mode-picker" role="radiogroup" aria-label="调试微服务来源">

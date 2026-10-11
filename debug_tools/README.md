@@ -1,5 +1,47 @@
 # AI Widget 调试工作台
 
+## 本机 Node 与 DevEco 环境
+
+调试平台的本机工具链统一配置在 `end_to_end_debug/backend/debug_agent.yaml`：
+
+```yaml
+environment:
+  deveco_studio_home: D:/Env/DevEco Studio
+  node_executable: null
+```
+
+`node_executable` 应填写 `node.exe` 的完整路径。留空时先尝试
+`<deveco_studio_home>/tools/node/node.exe`，再尝试系统 `PATH`；显式路径无效时直接报错，
+避免静默使用错误版本。修改配置后需要重启调试服务。旧版
+`device_capture.deveco_home/node_home` 仍可读取，但不再作为推荐配置。
+
+`device_capture` 中属于 DevEco 安装目录的覆盖项可使用
+`${environment.deveco_studio_home}/具体路径`，例如 HDC、SDK、JBR、Hvigor 和模拟器；变量只允许出现在
+路径开头，且 `environment.deveco_studio_home` 未配置时会给出明确错误。连接配置页会每 20 秒显示
+Node、HDC、Hvigor、JBR 与 SDK 的实际可用状态，鼠标悬停可查看最终解析路径。
+
+
+不需要另外安装全局 Node。手工执行前端命令时可直接使用 DevEco 自带 npm，例如：
+
+```powershell
+& 'D:\Env\DevEco Studio\tools\node\npm.cmd' run build
+& 'D:\Env\DevEco Studio\tools\node\npm.cmd' test
+```
+
+## 设备渲染
+
+启动工作台后打开 `/debug/device-render`，刷新并选择在线设备；也可点击本地虚拟机的“启动”按钮，
+待其上线后明确选择目标。页面以目标 1fps 显示全屏，显示采集时间和实际帧率，支持暂停、恢复和重连。
+在左侧粘贴或导入 A2UI JSON/JSONL 或 Compact DSL，选择尺寸，先“检查与转换”，再“编译并运行”。
+应用启动后约 3 秒显示卡片。页面关闭不取消构建，刷新可恢复最近任务；日志中可定位失败阶段。
+
+设备专属工具路径配置位于 `end_to_end_debug/backend/debug_agent.yaml` 的 `device_capture` 节，
+默认使用 `${environment.deveco_studio_home}` 引用，未显式配置的 DevEco 工具也会从该通用配置推导。
+真机需先在 DevEco 为工程配置签名；设备类型不确定时也要求签名。
+构建仅修改 `device_output` 下的工程副本，结束后保留输入、HAP 和日志，清理副本。
+安装失败不会自动卸载应用。构建依赖须事先准备好，缺失时可根据日志在 DevEco 中同步工程。
+首次安装 Python 依赖需包含 `json5` 和 `Pillow`；`frontend`、`full` 模式均支持本模块。
+
 `debug_tools` 是 AI 卡片云侧链路的本地浏览器工作台。日常使用从这里完成端到端会话、微服务接口调用、
 卡片预览和数据集批跑；协议、存储格式和插件开发等实现细节分别维护在各子包 README 中。
 

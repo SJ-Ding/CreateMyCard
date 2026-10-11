@@ -200,6 +200,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .settings-saved { color: var(--success); font-size: 10px; }
 .settings-validation-error { color: var(--danger); font-size: 10px; }
 .settings-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 2px 2px 20px; }
+.settings-toolchain-status { margin: 0 0 12px; }
 .settings-card { margin-bottom: 12px; padding: 15px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 6px 18px #203b6d08; }
 .settings-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .settings-card-heading h2 { margin: 0; color: #46536a; font-size: 14px; }

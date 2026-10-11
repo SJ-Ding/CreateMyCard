@@ -59,7 +59,7 @@ batch_testing:
   request_timeout_seconds: 300
   service_startup_timeout_seconds: 30
   enable_generation_trace_recording: true
-  trace_root: workspace/traces
+  trace_root: E:/Workspace/CreateMyCard/workspace/traces
   enable_a2ui_model_mock: true
   enable_validation_failure_retry: false
   validation_failure_max_repair_attempts: 1
@@ -76,15 +76,20 @@ server:
   max_tokens: 8192
   request_timeout_seconds: 180
   skill_resource_max_bytes: 262144
+# 调试平台本机工具链。node_executable 留空时依次尝试 DevEco 内置 Node 和系统 PATH。
+# 修改后需要重启调试服务。
+environment:
+  deveco_studio_home: D:/Env/DevEco Studio
+  node_executable: null
 # 批跑真机截图仅由调试平台读取，不进入微服务配置或任务快照。
 # 未指定 device_sn 时必须且只能连接一台 HDC 设备。
 device_capture:
-  hdc: D:/ENV/DevEco Studio/sdk/default/openharmony/toolchains/hdc.exe
+  hdc: ${environment.deveco_studio_home}/sdk/default/openharmony/toolchains/hdc.exe
   device_sn: null
-  render_project: D:/WorkSpace/A2UI_Render_0916/A2UI_Render_0716
-  deveco_sdk_home: D:/ENV/DevEco Studio/sdk
-  java_home: D:/ENV/DevEco Studio/jbr
-  hvigor: D:/ENV/DevEco Studio/tools/hvigor/bin/hvigorw.bat
+  render_project: E:/Workspace/A2UI_Render_0716
+  deveco_sdk_home: ${environment.deveco_studio_home}/sdk
+  java_home: ${environment.deveco_studio_home}/jbr
+  hvigor: ${environment.deveco_studio_home}/tools/hvigor/bin/hvigorw.bat
   signed_hap_name: entry-default-unsigned.hap
   bundle_name: com.example.myapplication
   ability_name: EntryAbility
@@ -95,10 +100,10 @@ device_capture:
   command_timeout_seconds: 300
   crop_config: debug_tools/postprocess_plugins/device_capture/device_crop.json
   auto_start_emulator: true
-  emulator: D:/ENV/DevEco Studio/tools/emulator/Emulator.exe
-  emulator_name: Huawei_WideFold
-  emulator_instance_root: D:/ENV/HuaweiEmulator
-  emulator_image_root: D:/ENV/HuaweiSdk
+  emulator: ${environment.deveco_studio_home}/tools/emulator/Emulator.exe
+  emulator_name: Pura X View
+  emulator_instance_root: E:/HuaWei/Emulator
+  emulator_image_root: E:/HuaWei/Sdk
   emulator_start_timeout_seconds: 120
   emulator_poll_seconds: 2
 defaults:
