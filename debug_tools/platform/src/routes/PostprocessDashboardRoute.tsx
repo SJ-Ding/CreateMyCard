@@ -79,7 +79,7 @@ export function PostprocessDashboardRoute() {
   );
   const selectedIndex = samples.findIndex((item) => item.sampleId === selectedId);
   const backPath = run?.taskId ? `/batch/tasks/${encodeURIComponent(run.taskId)}`
-    : `/batch/legacy/${encodeURIComponent(runId)}`;
+    : `/batch/runs/${encodeURIComponent(runId)}`;
   const datasetArtifacts = dashboard?.datasetResult.artifacts ?? [];
   const qualitySelection = dashboard?.selection?.sampleIds
     ?? (dashboard?.samples.length === dashboard?.totalSamples ? dashboard?.samples.map((item) => item.sampleId) : []);

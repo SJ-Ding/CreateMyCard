@@ -166,7 +166,7 @@ export type PostprocessExecution = {
 };
 
 export type PostprocessPlugin = {
-  apiVersion: 'batch-postprocess-v1' | 'batch-postprocess-v2';
+  apiVersion: 'batch-postprocess-v2';
   id: string;
   name: string;
   version: string;
@@ -213,7 +213,6 @@ export type PostprocessDashboardSample = {
 
 export type PostprocessDashboard = {
   schemaVersion: 'batch-postprocess-dashboard-v2';
-  legacy?: boolean;
   runId: string;
   executionId: string;
   plugin: { id: string; name: string; version: string; apiVersion: string };
@@ -462,8 +461,6 @@ export type TraceView = {
   nodes: TraceNode[];
   warnings: string[];
   instrumentationVersion?: number;
-  rawOnly?: boolean;
-  rawRecords?: Array<Record<string, unknown>>;
 };
 
 export type BatchSampleDetail = {

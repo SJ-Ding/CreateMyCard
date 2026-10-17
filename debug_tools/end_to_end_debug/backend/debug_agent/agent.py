@@ -44,7 +44,6 @@ class DebugAgentSession:
         production_settings: Settings | None = None,
         event_sink: EventSink | None = None,
         model_client_factory: Callable[..., Any] | None = None,
-        upstream_client: Any | None = None,
         browser_tool_invoker: BrowserToolInvoker | None = None,
     ) -> None:
         self.debug_settings = debug_settings
@@ -65,7 +64,6 @@ class DebugAgentSession:
         self.cancel_event = asyncio.Event()
         self._event_sink = event_sink
         self._model_client_factory = model_client_factory or self._default_model_client
-        self._upstream_client = upstream_client
         self._browser_tool_invoker = browser_tool_invoker
         self.loader: SkillLoader
         self.registry: ToolRegistry
@@ -96,7 +94,6 @@ class DebugAgentSession:
             self.debug_settings,
             self.loader,
             self.registry,
-            self._upstream_client,
             browser_invoke=self._browser_tool_invoker,
         )
         self.history = [{"role": "system", "content": self._system_prompt()}]

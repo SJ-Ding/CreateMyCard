@@ -244,14 +244,10 @@ def register_batch_routes(
     async def resume_batch_scheduler() -> dict[str, Any]:
         return task_manager.resume()
 
-    @app.get("/debug/batch/legacy-runs")
-    async def legacy_batch_runs() -> dict[str, Any]:
-        return {"items": task_manager.legacy_runs()}
-
     @app.get("/debug/batch/runs")
     async def batch_runs() -> dict[str, Any]:
         names = {item.get("taskId"): item.get("name") for item in task_manager.list_tasks()}
-        runs = run_manager.list_runs()
+        runs = task_manager.list_runs()
         for run in runs:
             run["name"] = run.get("name") or names.get(run.get("taskId")) or run.get("datasetId")
         return {"items": runs}
@@ -307,6 +303,8 @@ def register_batch_routes(
             return task_manager.get_run(run_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="批跑记录不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/debug/batch/postprocess/plugins")
     async def batch_postprocess_plugins() -> dict[str, Any]:
@@ -335,13 +333,17 @@ def register_batch_routes(
             return {"items": task_manager.postprocess_manager.executions(run_id)}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="批跑记录不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/debug/batch/runs/{run_id}/postprocess/{execution_id}")
     async def batch_postprocess_execution(run_id: str, execution_id: str) -> dict[str, Any]:
         try:
             return task_manager.postprocess_manager.get_execution(run_id, execution_id)
-        except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+        except (KeyError, OSError) as exc:
             raise HTTPException(status_code=404, detail="后处理执行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/debug/batch/runs/{run_id}/postprocess/{execution_id}/plugins/{plugin_id}/dashboard")
     async def batch_postprocess_dashboard(
@@ -355,8 +357,10 @@ def register_batch_routes(
                 execution_id,
                 plugin_id,
             )
-        except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+        except (KeyError, OSError) as exc:
             raise HTTPException(status_code=404, detail="后处理看板不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/debug/batch/runs/{run_id}/postprocess/{execution_id}/plugins/{plugin_id}/samples")
     async def batch_postprocess_samples(
@@ -386,8 +390,10 @@ def register_batch_routes(
                 fact_key=factKey,
                 fact_value=factValue,
             )
-        except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+        except (KeyError, OSError) as exc:
             raise HTTPException(status_code=404, detail="后处理样本索引不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get(
         "/debug/batch/runs/{run_id}/postprocess/{execution_id}/plugins/"
@@ -406,8 +412,10 @@ def register_batch_routes(
                 plugin_id,
                 sample_id,
             )
-        except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+        except (KeyError, OSError) as exc:
             raise HTTPException(status_code=404, detail="后处理样本结果不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get(
         "/debug/batch/runs/{run_id}/postprocess/{execution_id}/assets/"
@@ -428,6 +436,8 @@ def register_batch_routes(
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="插件产物不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return FileResponse(path)
 
     @app.get("/debug/batch/runs/{run_id}/samples/{sample_id}")
@@ -441,13 +451,6 @@ def register_batch_routes(
 
     @app.post("/debug/batch/runs/{run_id}/stop")
     async def stop_batch(run_id: str) -> dict[str, Any]:
-        try:
-            return await task_manager.stop_run(run_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="批跑执行不存在") from exc
-
-    @app.post("/debug/batch/runs/{run_id}/cancel")
-    async def cancel_batch_compatibility(run_id: str) -> dict[str, Any]:
         try:
             return await task_manager.stop_run(run_id)
         except KeyError as exc:
@@ -485,7 +488,7 @@ def register_batch_routes(
     @app.get("/debug/batch/runs/{run_id}/gallery-captures/{sample_id}")
     async def batch_gallery_capture(run_id: str, sample_id: str) -> FileResponse:
         try:
-            path = task_manager.gallery_manager.capture_path(run_id, sample_id)
+            path = task_manager.browser_capture_path(run_id, sample_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Web 渲染截图不存在") from exc
         return FileResponse(path, media_type="image/png")

@@ -140,14 +140,7 @@ class TraceImporter:
                 ),
                 warnings,
             )
-        return {
-            **_empty_view(uid, "partial", ["旧埋点仅提供原始查看；请重新批跑取得阶段视图"]),
-            "rawOnly": True,
-            "rawRecords": records,
-            "sourceManifest": manifest,
-            "sourceSchemaVersion": "generation-trace-v2",
-            "recordCount": len(records),
-        }
+        return _empty_view(uid, "invalid", ["不支持旧埋点，请重新批跑取得阶段视图"])
 
     def _normalize_artifacts(
         self,

@@ -5,7 +5,7 @@ import { importQualityBatch, type QualityImportSample } from '../batchApi';
 const MAX_BYTES = 64 * 1024 * 1024;
 
 async function dslText(file: File) {
-  // 保留 UTF-8 BOM 与换行字节，避免旧清单的 SHA-256 因浏览器解码而失配。
+  // 保留 UTF-8 BOM 与换行字节，避免清单的 SHA-256 因浏览器解码而失配。
   return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await file.arrayBuffer());
 }
 
@@ -34,28 +34,11 @@ export async function readImportFolder(files: File[]): Promise<QualityImportSamp
     if (byPath.has(path)) throw new Error('选择的文件路径重复');
     byPath.set(path, file);
   }
-  const manifests = ['quality-import.json', 'dataset-manifest.json'].filter((name) => byPath.has(name));
-  if (manifests.length !== 1) throw new Error('所选目录根部需有且只有一份 quality-import.json 或 dataset-manifest.json');
-  const manifestFile = byPath.get(manifests[0])!;
+  const manifestFile = byPath.get('quality-import.json');
+  if (!manifestFile) throw new Error('所选目录根部需有 quality-import.json');
   if (manifestFile.size > 8 * 1024 * 1024) throw new Error('清单过大');
   const manifest = JSON.parse(await manifestFile.text());
-  let rows: ManifestRow[];
-  if (manifests[0] === 'dataset-manifest.json') {
-    if (!Array.isArray(manifest.cards)) throw new Error('旧交付清单缺少 cards');
-    rows = manifest.cards.map((card: { key: string; query: string; size: string; files: Array<{role: string; path: string; sha256?: string}> }) => {
-      if (!Array.isArray(card.files) || typeof card.key !== 'string') throw new Error('旧交付清单的卡片记录无效');
-      const role = (name: string) => {
-        const matches = card.files.filter((file) => file.role === name);
-        if (matches.length > 1) throw new Error(`重复的 ${name} 文件`);
-        return matches[0];
-      };
-      const dsl = role('dsl'), image = role('image');
-      if (!dsl || !image) throw new Error('每条卡片都必须有 DSL 和图片');
-      return { id: card.key.replaceAll('/', '__'), query: card.query, size: card.size,
-        dsl: dsl.path, image: image.path, cardspec: role('cardspec')?.path,
-        sourceSha256: dsl.sha256, imageSha256: image.sha256 };
-    });
-  } else rows = manifest.samples;
+  const rows: ManifestRow[] = manifest.samples;
   if (!Array.isArray(rows) || !rows.length || rows.length > 500) throw new Error('每次导入 1–500 条；大数据集请拆分清单');
   let bytes = 0;
   const requiredFile = (path: string): File => {

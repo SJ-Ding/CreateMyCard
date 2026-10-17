@@ -69,14 +69,6 @@
         "type": "string",
         "minLength": 1,
         "title": "在线设备"
-      },
-      "captureDelaySeconds": {
-        "type": "number",
-        "minimum": 0,
-        "maximum": 30,
-        "deprecated": true,
-        "title": "历史截图时延配置",
-        "description": "仅兼容旧执行记录；实际时延以 debug_tool.yaml 中 capture_delay_seconds 为准。"
       }
     }
   }

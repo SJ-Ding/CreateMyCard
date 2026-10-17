@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import type { ReactNode } from 'react';
 import {
-  applyDebugConfig,
   cloneDebugConfig,
   defaultDebugConfig,
   loadDebugConfig,
@@ -49,9 +48,6 @@ function createId(prefix: string): string {
 
 function initialState(): State {
   const config = loadDebugConfig();
-  // 在子路由挂载前应用持久化地址；否则它们的 WebSocket effect 首次渲染
-  // 可能会先读到旧默认值。
-  applyDebugConfig(config);
   let calls: ToolCallRecord[] = [];
   let selectedCallId: string | null = null;
   if (typeof window !== 'undefined') {
@@ -115,7 +111,6 @@ function reducer(state: State, action: Action): State {
           next.durationMs = Math.max(0, finished - started);
         }
       }
-      if (!next.completedAt && next.finishedAt) next.completedAt = next.finishedAt;
       return next;
     });
     return { ...state, calls };
@@ -144,7 +139,6 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
 
   useEffect(() => {
-    applyDebugConfig(state.config);
     saveDebugConfig(state.config);
   }, [state.config]);
 

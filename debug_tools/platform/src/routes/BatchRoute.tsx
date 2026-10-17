@@ -65,7 +65,7 @@ function previewUnavailableReason(detail: BatchSampleDetail, run: BatchRun | nul
 }
 
 export function BatchRoute() {
-  const { taskId, runId: legacyRunId } = useParams();
+  const { taskId, runId: selectedRunId } = useParams();
   const navigate = useNavigate();
   const [task, setTask] = useState<BatchTask | null>(null);
   const [run, setRun] = useState<BatchRun | null>(null);
@@ -90,14 +90,14 @@ export function BatchRoute() {
           ? run.runId
           : latestRun?.runId;
       if (preferredRunId) setRun(await getBatchRun(preferredRunId)); else setRun(null);
-    } else if (legacyRunId) {
-      setRun(await getBatchRun(legacyRunId));
+    } else if (selectedRunId) {
+      setRun(await getBatchRun(selectedRunId));
     }
-  }, [legacyRunId, run?.runId, taskId]);
+  }, [selectedRunId, run?.runId, taskId]);
 
   useEffect(() => {
     refresh().catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
-  }, [taskId, legacyRunId]);
+  }, [taskId, selectedRunId]);
 
   useEffect(() => {
     if (!run || (!ACTIVE_STATUSES.has(run.status)
@@ -151,7 +151,7 @@ export function BatchRoute() {
       <header className="batch-heading">
         <div>
           <button type="button" className="batch-back" onClick={() => navigate('/batch')}>← 返回任务中心</button>
-          <h1>{task?.name ?? '历史批量测试'}</h1>
+          <h1>{task?.name ?? '批次详情'}</h1>
           <p>{task ? `${task.datasetId} · ${task.sampleCount} 个样本 · ${task.backendMode === 'managed' ? '本地受管后端' : '已部署后端'}` : run?.runId}</p>
         </div>
         <div className="batch-heading-side">

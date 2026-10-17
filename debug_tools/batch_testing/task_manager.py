@@ -130,7 +130,6 @@ class BatchTaskManager:
             await self._scheduler_task
         await self.postprocess_manager.close()
         await self.device_capture_manager.close()
-        await self.gallery_manager.close()
         await self.service_controller.stop()
 
     def list_datasets(self) -> list[dict[str, Any]]:
@@ -221,11 +220,10 @@ class BatchTaskManager:
 
     def copy_task(self, task_id: str) -> dict[str, Any]:
         source = self._read_task(task_id)
-        copied = dict(source)
+        copied = self._task_snapshot(source)
         copied.pop("taskId", None)
         copied.pop("createdAt", None)
         copied.pop("updatedAt", None)
-        copied.pop("enableDeviceCapture", None)
         raw_config = copied.get("serviceConfig")
         if copied.get("backendMode") == "managed" and isinstance(raw_config, dict):
             current = read_configuration(self.project_root)
@@ -272,9 +270,6 @@ class BatchTaskManager:
 
         task_path = self.tasks_root / f"{task_id}.json"
         task_path.unlink()
-
-    def legacy_runs(self) -> list[dict[str, Any]]:
-        return [run for run in self.run_manager.list_runs() if not run.get("taskId")]
 
     def enqueue(self, task_id: str) -> dict[str, Any]:
         task = self._read_task(task_id)
@@ -382,11 +377,22 @@ class BatchTaskManager:
         self._wake.set()
         return self.scheduler_state()
 
+    def supports_run(self, run: dict[str, Any], run_id: str = "") -> bool:
+        if run.get("taskId") or run.get("sourceType") == "external-quality":
+            return True
+        execution = self._read_execution_optional(str(run.get("runId") or run_id))
+        return bool(execution and execution.get("taskId"))
+
+    def list_runs(self) -> list[dict[str, Any]]:
+        return [run for run in self.run_manager.list_runs() if self.supports_run(run)]
+
     def get_run(self, run_id: str) -> dict[str, Any]:
         try:
             run = self.run_manager.get_run(run_id)
         except KeyError:
             return self._execution_public(run_id)
+        if not self.supports_run(run, run_id):
+            raise KeyError("旧批次格式不再支持，请重新运行")
         execution = self._read_execution_optional(run_id)
         if execution:
             run.update(
@@ -401,27 +407,58 @@ class BatchTaskManager:
                     "serviceOverrides": execution.get("serviceOverrides", {}),
                 }
             )
-        run["gallery"] = self.gallery_manager.status(run_id)
-        run["deviceCapture"] = self.device_capture_manager.status(run_id)
+        run["gallery"] = self._plugin_status(run_id, "browser-gallery")
+        run["deviceCapture"] = self._plugin_status(run_id, "device-capture")
         run["postprocessExecutions"] = self.postprocess_manager.executions(run_id)
         return run
 
     def gallery_path(self, run_id: str) -> Path:
         path = self._latest_plugin_file(run_id, "browser-gallery", "gallery.html")
-        return path if path is not None else self.gallery_manager.gallery_path(run_id)
+        if path is None:
+            raise KeyError("浏览器画廊产物不存在")
+        return path
 
     def _latest_plugin_file(self, run_id: str, plugin_id: str, relative: str) -> Path | None:
-        result: Path | None = None
         for execution in self.postprocess_manager.executions(run_id):
-            execution_id = str(execution.get("executionId") or "")
-            try:
-                result = self.postprocess_manager.asset_path(
-                    run_id, execution_id, plugin_id, relative
-                )
-            except KeyError:
+            plugins = execution.get("plugins") or []
+            if not any(item.get("id") == plugin_id for item in plugins):
                 continue
-            break
-        return result
+            execution_id = str(execution.get("executionId") or "")
+            return self.postprocess_manager.asset_path(run_id, execution_id, plugin_id, relative)
+        return None
+
+    def _plugin_status(self, run_id: str, plugin_id: str) -> dict[str, Any]:
+        for execution in self.postprocess_manager.executions(run_id):
+            for plugin in execution.get("plugins") or []:
+                if plugin.get("id") != plugin_id:
+                    continue
+                status = plugin.get("status")
+                if status == "success":
+                    status = "ready"
+                if plugin_id == "browser-gallery" and status in {"queued", "running"}:
+                    status = "generating"
+                counts = plugin.get("counts") or {}
+                progress = plugin.get("progress") or {}
+                sample_count = plugin.get("sampleCount")
+                return {
+                    "status": status,
+                    "error": plugin.get("error", ""),
+                    "total": progress.get("total", sample_count),
+                    "completed": progress.get("completed", sample_count),
+                    "succeeded": counts.get("success"),
+                    "failed": counts.get("failed"),
+                    "skipped": counts.get("skipped"),
+                }
+        missing = "not_started" if plugin_id == "browser-gallery" else "not_requested"
+        return {"status": missing}
+
+    def browser_capture_path(self, run_id: str, sample_id: str) -> Path:
+        if not _IDENTIFIER_PATTERN.fullmatch(sample_id):
+            raise KeyError(sample_id)
+        path = self._latest_plugin_file(run_id, "browser-capture", f"{sample_id}.png")
+        if path is None:
+            raise KeyError("浏览器截图产物不存在")
+        return path
 
     def validation_failure_items(self, run_id: str) -> list[dict[str, Any]]:
         return self.validation_failure_gallery_manager.items(run_id)
@@ -430,41 +467,42 @@ class BatchTaskManager:
         valid_id = re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", sample_id)
         if valid_id is None or kind not in {"card", "full"}:
             raise KeyError(sample_id)
-        for plugin_id in ("device-capture", "device-gallery"):
-            for suffix in ("png", "jpeg"):
-                relative = f"{kind}/{sample_id}.{suffix}"
-                path = self._latest_plugin_file(run_id, plugin_id, relative)
-                if path is not None:
-                    return path
-        return self.device_capture_manager.image_path(run_id, sample_id, kind)
+        path = self._latest_plugin_file(run_id, "device-capture", f"{kind}/{sample_id}.png")
+        if path is None:
+            raise KeyError("设备截图产物不存在")
+        return path
 
     def device_gallery_path(self, run_id: str) -> Path:
         path = self._latest_plugin_file(run_id, "device-gallery", "gallery.html")
-        return path if path is not None else self.device_capture_manager.gallery_path(run_id)
+        if path is None:
+            raise KeyError("设备画廊产物不存在")
+        return path
 
     def sample_device_capture(self, run_id: str, sample_id: str) -> dict[str, Any]:
-        for plugin_id in ("device-capture", "device-gallery"):
-            for execution in self.postprocess_manager.executions(run_id):
-                execution_id = str(execution.get("executionId") or "")
-                try:
-                    result = self.postprocess_manager.sample_result(
-                        run_id, execution_id, plugin_id, sample_id
-                    )
-                except KeyError:
-                    continue
-                facts = result.get("facts") or {}
-                captured = {
-                    "id": sample_id, "status": result.get("status"),
-                    "size": facts.get("size"),
-                    "error": result.get("summary") if result.get("status") != "success" else "",
-                }
-                for artifact in result.get("artifacts") or []:
-                    if artifact.get("key") == "device-capture":
-                        captured["cardUrl"] = artifact.get("url")
-                    elif artifact.get("key") == "device-full-capture":
-                        captured["fullUrl"] = artifact.get("url")
-                return captured
-        return self.device_capture_manager.sample(run_id, sample_id)
+        for execution in self.postprocess_manager.executions(run_id):
+            plugins = execution.get("plugins") or []
+            if not any(item.get("id") == "device-capture" for item in plugins):
+                continue
+            execution_id = str(execution.get("executionId") or "")
+            try:
+                result = self.postprocess_manager.sample_result(
+                    run_id, execution_id, "device-capture", sample_id
+                )
+            except KeyError:
+                return {"id": sample_id, "status": "failed", "error": "当前设备截图结果缺失"}
+            facts = result.get("facts") or {}
+            captured = {
+                "id": sample_id, "status": result.get("status"),
+                "size": facts.get("size"),
+                "error": result.get("summary") if result.get("status") != "success" else "",
+            }
+            for artifact in result.get("artifacts") or []:
+                if artifact.get("key") == "device-capture":
+                    captured["cardUrl"] = artifact.get("url")
+                elif artifact.get("key") == "device-full-capture":
+                    captured["fullUrl"] = artifact.get("url")
+            return captured
+        return {"id": sample_id, "status": "not_requested", "error": ""}
 
     async def _scheduler_loop(self) -> None:
         while not self._closing:
@@ -503,8 +541,6 @@ class BatchTaskManager:
                 current = read_configuration(self.project_root)
                 service_config: dict[str, Any] = {}
                 warnings: list[str] = []
-                if task.get("serviceConfigVersion") != 2:
-                    warnings.append("旧任务仅保留当前可编辑的 exposed 参数，其余使用最新默认值")
                 for raw_name, value in saved_config.items():
                     name = canonical_name(raw_name)
                     if name in current.exposed and current.editable(name):
@@ -629,8 +665,17 @@ class BatchTaskManager:
             },
         )
 
+    @staticmethod
+    def _task_snapshot(task: dict[str, Any]) -> dict[str, Any]:
+        fields = (
+            "taskId", "name", "datasetId", "sampleIds", "sampleCount", "requestOverrides",
+            "concurrency", "maxRetries", "timeoutSeconds", "backendMode", "toolWsBaseUrl",
+            "serviceConfig", "serviceConfigVersion", "createdAt", "updatedAt",
+        )
+        return {key: task.get(key) for key in fields if key in task}
+
     def _task_public(self, task: dict[str, Any]) -> dict[str, Any]:
-        result = dict(task)
+        result = self._task_snapshot(task)
         raw_config = result.get("serviceConfig")
         if isinstance(raw_config, dict):
             public_config: dict[str, Any] = {}
@@ -639,7 +684,6 @@ class BatchTaskManager:
                     continue
                 public_config[key] = value
             result["serviceConfig"] = public_config
-        result.pop("enableDeviceCapture", None)
         runs = self._task_runs(str(task.get("taskId") or ""))
         latest = runs[0] if runs else None
         result["latestRun"] = latest
@@ -692,12 +736,12 @@ class BatchTaskManager:
             ):
                 if field_name in execution:
                     merged[field_name] = execution.get(field_name)
-            merged["gallery"] = self.gallery_manager.status(run_id)
-            merged["deviceCapture"] = self.device_capture_manager.status(run_id)
+            merged["gallery"] = self._plugin_status(run_id, "browser-gallery")
+            merged["deviceCapture"] = self._plugin_status(run_id, "device-capture")
             merged["postprocessExecutions"] = self.postprocess_manager.executions(run_id)
             return merged
-        execution["gallery"] = self.gallery_manager.status(run_id)
-        execution["deviceCapture"] = self.device_capture_manager.status(run_id)
+        execution["gallery"] = self._plugin_status(run_id, "browser-gallery")
+        execution["deviceCapture"] = self._plugin_status(run_id, "device-capture")
         execution["postprocessExecutions"] = self.postprocess_manager.executions(run_id)
         return execution
 
@@ -727,7 +771,7 @@ class BatchTaskManager:
                 value = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if isinstance(value, dict):
+            if isinstance(value, dict) and value.get("serviceConfigVersion") == 2:
                 tasks.append(value)
         return tasks
 
@@ -739,8 +783,8 @@ class BatchTaskManager:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise KeyError(task_id) from exc
-        if not isinstance(value, dict):
-            raise KeyError(task_id)
+        if not isinstance(value, dict) or value.get("serviceConfigVersion") != 2:
+            raise KeyError("任务配置版本不受支持，请重新创建")
         return value
 
     def _touch_task(self, task: dict[str, Any]) -> None:

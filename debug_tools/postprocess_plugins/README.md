@@ -69,7 +69,7 @@ platform:
 内置工程位于 `debug_tools/a2ui_render`，插件面板仅配置本次执行的 `targetId`。
 截图前等待默认 1 秒，通过 `debug_tools/debug_tool.yaml` 中
 `platform.device_capture.capture_delay_seconds` 设置 0～30 秒，0 表示关闭额外等待，修改后重启调试后端。
-页面不提供时延配置，旧执行记录中的 `captureDelaySeconds` 仅兼容读取，不覆盖本机 YAML。
+页面不提供时延配置，插件配置不再接受 `captureDelaySeconds`；时延仅从本机 YAML 读取。
 每个样本收到就绪终态、确认应用
 前台后再等待，截图重试也执行该等待；取消时立即中断。实际时延保存至截图元数据和汇总事实。
 只重生成画廊仍复用已有图片；调整时延后应再次运行真机截图，再次运行真机画廊。插件自动选择最新 HAP：
@@ -104,7 +104,7 @@ platform:
 插件，再重跑画廊；旧历史不修改。
 两种画廊均支持筛选联动指标、排序、列数、放大和精简布局；只内嵌自身路线图片，离线打开无需服务。
 内置插件可声明 `upstream_results` 关键字参数接收直接依赖规范化结果，checkpoint 按参数名称识别。
-示例插件无需依赖分析插件。旧结果继续只读兼容，新截图和 HTML 位于各自历史执行目录。
+示例插件无需依赖分析插件。仅展示当前 v2 执行结果，新截图和 HTML 位于各自历史执行目录。
 
 ## v2 清单
 
@@ -203,7 +203,7 @@ def finalize(context: dict[str, object]) -> dict[str, object]: ...
 
 宿主统一校验 Schema、序列化和路径边界。样本异常、超时或无效结果会转为该样本的 `failed`，不会终止
 其它样本或依赖图中的其它插件。新执行将摘要、数据集结果、逐样本结果与 `dashboard.json` 分开保存，避免详情接口
-内联大产物。旧 `batch-postprocess-v1` 文件仍能通过只读适配器展示，但所有新执行只写 v2。
+内联大产物。仅接受 `batch-postprocess-v2` 插件与执行，旧 v1 不展示、不迁移，文件保留。
 
 完整最小实现见 `example-metrics/`；覆盖全部受控数据类型和渲染方式的实现见
 `complete-showcase/`；带独立评测标注、聚合指标和逐样本解释的实现见 `component-recall/`。

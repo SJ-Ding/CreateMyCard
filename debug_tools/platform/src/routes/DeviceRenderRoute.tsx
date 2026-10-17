@@ -7,20 +7,19 @@ import {
 import { DEFAULT_ASSET_BASE_URL } from '../config';
 import './device-render.css';
 
-const STORAGE = 'ai-widget-device-editor:v1';
+const STORAGE = 'ai-widget-device-editor:v2';
 const LAST_RUN = 'ai-widget-device-run:v1';
 type InputTab = 'compact' | 'a2ui';
-type Editor = { source: string; compactSource: string; format: InputTab | 'auto'; size: '2x2' | '2x4' };
+type Editor = { source: string; compactSource: string; format: InputTab; size: '2x2' | '2x4' };
 
 function restore(): Editor {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE) ?? '{}');
-    return {
-      source: typeof value.source === 'string' ? value.source : '',
-      compactSource: typeof value.compactSource === 'string' ? value.compactSource : '',
-      format: value.format === 'compact' || value.format === 'a2ui' ? value.format : value.source ? 'auto' : 'compact',
-      size: value.size === '2x4' ? '2x4' : '2x2',
-    };
+    if (typeof value.source !== 'string' || typeof value.compactSource !== 'string'
+      || !['compact', 'a2ui'].includes(value.format) || !['2x2', '2x4'].includes(value.size)) {
+      throw new Error('设备草稿格式不受支持');
+    }
+    return { source: value.source, compactSource: value.compactSource, format: value.format, size: value.size };
   } catch {
     return { source: '', compactSource: '', format: 'compact', size: '2x2' };
   }

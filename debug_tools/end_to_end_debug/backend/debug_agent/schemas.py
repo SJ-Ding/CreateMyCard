@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,38 +23,6 @@ class DeviceDebugContext(BaseModel):
     paginationStart: str = ""
 
 
-class ConfigureFrame(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    type: Literal["configure"]
-    context: DeviceDebugContext
-
-
-class MessageFrame(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    type: Literal["message"]
-    content: str = Field(min_length=1)
-
-
-class SimpleFrame(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    type: Literal["cancel", "reset"]
-    profile: str | None = None
-
-
-class DebugEvent(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    type: str
-    sequence: int
-    sessionId: str
-    runId: str = ""
-    timestamp: str
-    data: dict[str, Any] = Field(default_factory=dict)
-
-
 class ArtifactPreview(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -70,15 +38,4 @@ class ArtifactPreview(BaseModel):
     generationPlan: dict[str, Any] = Field(default_factory=dict)
     meta: dict[str, Any] = Field(default_factory=dict)
     designToken: str | None = None
-
-
-class HealthResponse(BaseModel):
-    status: Literal["ok"]
-    debugHost: str
-    debugPort: int
-    upstream: str
-    provider: str
-    model: str
-    enableArtifactDownloadMock: bool
-    enableWidgetEdit: bool
 

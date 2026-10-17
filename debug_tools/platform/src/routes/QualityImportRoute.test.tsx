@@ -16,23 +16,23 @@ function file(path: string, content: string, type = 'application/json') {
 describe('QualityImportRoute', () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-  it('accepts the legacy delivery manifest and preserves source checksums and batch identity', async () => {
+  it('accepts the current manifest and preserves source checksums and batch identity', async () => {
     const samples = await readImportFolder([
-      file('dataset-manifest.json', JSON.stringify({ cards: [{ key: 'Astra/Q001', query: '天气', size: '2x2', files: [
-        { role: 'dsl', path: 'dsl/a.genui.jsonl', sha256: 'a'.repeat(64) },
-        { role: 'image', path: 'images/a.png', sha256: 'b'.repeat(64) },
-      ] }] })), file('dsl/a.genui.jsonl', '\ufeff[]\r\n'), file('images/a.png', 'test-png', 'image/png'),
+      file('quality-import.json', JSON.stringify({ samples: [{ id: 'Astra__Q001', query: '天气', size: '2x2',
+        dsl: 'dsl/a.genui.jsonl', image: 'images/a.png',
+        sourceSha256: 'a'.repeat(64), imageSha256: 'b'.repeat(64),
+      }] })), file('dsl/a.genui.jsonl', '\ufeff[]\r\n'), file('images/a.png', 'test-png', 'image/png'),
     ]);
     expect(samples[0]).toMatchObject({ id: 'Astra__Q001', query: '天气', dsl: '\ufeff[]\r\n',
       sourceSha256: 'a'.repeat(64), imageSha256: 'b'.repeat(64) });
     expect(samples[0].imageBase64).toBe(btoa('test-png'));
   });
 
-  it('rejects missing images, path escapes and duplicate manifests without dropping samples', async () => {
+  it('rejects missing images, path escapes and unsupported manifests without dropping samples', async () => {
     const row = { id: 'a', query: '天气', size: '2x2', dsl: 'a.jsonl', image: 'a.png' };
     await expect(readImportFolder([file('quality-import.json', JSON.stringify({ samples: [row] })), file('a.jsonl', '[]')])).rejects.toThrow('缺少文件');
     await expect(readImportFolder([file('quality-import.json', JSON.stringify({ samples: [{ ...row, dsl: '../a' }] }))])).rejects.toThrow('相对路径');
-    await expect(readImportFolder([file('quality-import.json', '{}'), file('dataset-manifest.json', '{}')])).rejects.toThrow('有且只有一份');
+    await expect(readImportFolder([file('dataset-manifest.json', '{}')])).rejects.toThrow('quality-import.json');
   });
 
   it('does nothing on entry; importing one card saves inputs and navigates without starting scoring', async () => {

@@ -90,10 +90,10 @@ describe('TraceViewer semantic flow', () => {
     expect(screen.getByText({ complete: '完整', partial: '部分', missing: '缺失', invalid: '无效' }[status]!)).toBeInTheDocument();
   });
 
-  it('restricts older views to explicitly labelled raw records', () => {
+  it('rejects older views and asks for a fresh run', () => {
     const old = trace(); old.viewVersion = 'trace-view-v1';
     show(old);
-    expect(screen.getByText(/旧埋点仅提供原始查看/)).toBeInTheDocument();
+    expect(screen.getByText(/请重新批跑/)).toBeInTheDocument();
     expect(screen.queryByLabelText('搜索 Trace 节点')).not.toBeInTheDocument();
   });
 });

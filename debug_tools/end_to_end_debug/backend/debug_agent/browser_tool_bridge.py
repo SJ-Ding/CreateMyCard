@@ -109,7 +109,7 @@ class BrowserToolBridge:
     ) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
         """发送 ``tool.call`` 并等待匹配的 ``tool.result``。
 
-        返回值沿用旧 ``ToolDispatcher`` 的 ``(result, frames)`` 约定；浏览器已
+        返回值为 ``(result, frames)``；浏览器已
         过滤掉 start/partial/command，因此 frames 始终为空，不会污染时间线。
         """
 
@@ -290,7 +290,15 @@ class BrowserToolBridge:
                 turn_id=turn_id,
                 call_id=call_id,
             )
-        if conversation_id and conversation_id != self._session_id:
+        if not conversation_id:
+            return BrowserToolResolution(
+                False,
+                code="INVALID_RESULT",
+                message="tool.result 缺少当前 conversationId/sessionId",
+                turn_id=turn_id,
+                call_id=call_id,
+            )
+        if conversation_id != self._session_id:
             return BrowserToolResolution(
                 False,
                 code="STALE_SESSION",
@@ -611,7 +619,7 @@ def _collect_operation_values(payload: dict[str, Any]) -> tuple[list[str], str |
             continue
         seen_containers.add(id(container))
         containers.append((label, container))
-        for field in ("result", "response", "finalFrame", "reply", "streamInfo"):
+        for field in ("result", "finalFrame", "reply", "streamInfo"):
             nested = container.get(field)
             if isinstance(nested, dict):
                 pending_containers.append((f"{label}.{field}", nested))
@@ -660,8 +668,10 @@ def _validate_result(
     """校验 final 标记、关联元数据和工具名称。"""
 
     # Agent 桥允许关联元数据出现在 tool.result 顶层，也允许浏览器把
-    # 微服务响应放在 response/data/finalFrame 中；统一在这些容器中校验，
+    # 微服务响应放在 result/finalFrame 中；统一在这些容器中校验，
     # 但后面的状态判断只读取 envelope 容器，避免业务 data.status 误判为流状态。
+    if "response" in result or "invokeStatus" in result:
+        return "INVALID_RESULT", "不支持旧版浏览器结果包装"
     containers: list[tuple[str, dict[str, Any]]] = []
     pending_containers: list[tuple[str, dict[str, Any]]] = [
         ("payload", payload),
@@ -674,7 +684,7 @@ def _validate_result(
             continue
         seen_containers.add(id(container))
         containers.append((label, container))
-        for field in ("response", "finalFrame", "reply", "streamInfo"):
+        for field in ("finalFrame", "reply", "streamInfo"):
             value = container.get(field)
             if value is None:
                 continue
@@ -740,7 +750,7 @@ def _validate_result(
 
     status_values: list[tuple[str, str]] = []
     for label, container in metadata_containers:
-        status_fields = ("status", "invokeStatus", "streamType")
+        status_fields = ("status", "streamType")
         if label != "payload":
             status_fields = (*status_fields, "type")
         for field in status_fields:
@@ -838,36 +848,8 @@ def _frame_stream_type(frame: dict[str, Any]) -> str:
 
 
 def _normalize_result(result: dict[str, Any]) -> dict[str, Any]:
-    """兼容浏览器直接回传 final 结果或 ``{response, invokeStatus}`` 包装。"""
+    """归一化当前 BrowserToolResult。"""
 
-    response = result.get("response")
-    if isinstance(response, dict):
-        normalized = _normalize_flat_result(response)
-        invoke_status = str(result.get("invokeStatus") or "").lower()
-        outer_status = str(result.get("status") or "").lower()
-        outer_error_code = str(result.get("errorCode") or "")
-        has_outer_error = outer_error_code not in {"", "0"}
-        if (
-            result.get("ok") is False
-            or invoke_status in {"failed", "error", "final_error"}
-            or outer_status in {"failed", "error", "final_error"}
-            or has_outer_error
-        ):
-            normalized["status"] = "failed"
-            normalized.setdefault(
-                "errorCode",
-                str(result.get("errorCode") or "BROWSER_TOOL_FAILED"),
-            )
-            if "error" not in normalized and result.get("error") is not None:
-                normalized["error"] = result["error"]
-        return normalized
-    return _normalize_flat_result(result)
-
-
-def _normalize_flat_result(result: dict[str, Any]) -> dict[str, Any]:
-    """归一化不再包裹 response 的浏览器结果。"""
-
-    invoke_status = str(result.get("invokeStatus") or "").lower()
     raw_status = str(result.get("status") or "").lower()
     error_code = str(result.get("errorCode") or "")
     frame_status = (
@@ -875,16 +857,12 @@ def _normalize_flat_result(result: dict[str, Any]) -> dict[str, Any]:
         if isinstance(result.get("finalFrame"), dict)
         else ""
     )
-    if (
-        invoke_status in {"failed", "error", "final_error"}
-        or raw_status in {
-        "failed",
-        "error",
-        "final_error",
-        }
+    failed = (
+        raw_status in {"failed", "error", "final_error"}
         or frame_status == "final_error"
         or error_code not in {"", "0"}
-    ):
+    )
+    if failed:
         error = result.get("error")
         normalized_error: Any = error
         if error is None or error == "":

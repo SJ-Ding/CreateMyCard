@@ -52,8 +52,6 @@ export type ToolCallRecord = {
   status: ToolCallStatus;
   startedAt: string;
   finishedAt?: string;
-  /** 兼容旧调用方；新代码使用 finishedAt。 */
-  completedAt?: string;
   durationMs?: number;
   request: Record<string, unknown>;
   finalFrame?: ToolFrame;

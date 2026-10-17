@@ -50,8 +50,6 @@ type Message = { role: 'user' | 'assistant'; content: string; runId?: string; ti
 type Health = Record<string, unknown> & {
   status?: string;
   model?: string;
-  upstreamStatus?: string;
-  upstreamReachable?: boolean;
 };
 
 const DEFAULT_QUICK_PROMPTS: QuickPrompt[] = [
@@ -786,115 +784,6 @@ export default function App({
       addTimeline({ type: event.type, title: 'Agent 错误', detail: message, timestamp, tone: 'error' });
       return;
     }
-    if (event.type === 'session_started') {
-      setConnected(true);
-      setConnecting(false);
-      setProfile(textValue(data.skillProfile));
-      setProfiles(Array.isArray(data.skillProfiles) ? data.skillProfiles as SkillProfile[] : []);
-      setSkillName(textValue(data.skillName, 'Main Agent Debug'));
-      if (Array.isArray(data.quickPrompts)) {
-        const configured = data.quickPrompts.filter((item): item is QuickPrompt => (
-          !!item && typeof item === 'object'
-          && typeof (item as QuickPrompt).label === 'string'
-          && typeof (item as QuickPrompt).prompt === 'string'
-          && (item as QuickPrompt).label.trim().length > 0
-          && (item as QuickPrompt).prompt.trim().length > 0
-        ));
-        setQuickPrompts(configured.length ? configured : DEFAULT_QUICK_PROMPTS);
-      }
-      // 固定设备参数由平台共享配置提供；Agent 返回的上下文仅作为内部诊断信息。
-      addTimeline({ type: event.type, title: '会话已建立', detail: textValue(data.skillProfile), timestamp, tone: 'success' });
-      return;
-    }
-    if (event.type === 'session_reset') {
-      setProfile(textValue(data.skillProfile));
-      setProfiles(Array.isArray(data.skillProfiles) ? data.skillProfiles as SkillProfile[] : []);
-      if (typeof data.skillName === 'string') setSkillName(data.skillName);
-      if (Array.isArray(data.quickPrompts)) {
-        const configured = data.quickPrompts.filter((item): item is QuickPrompt => (
-          !!item && typeof item === 'object'
-          && typeof (item as QuickPrompt).label === 'string'
-          && typeof (item as QuickPrompt).prompt === 'string'
-          && (item as QuickPrompt).label.trim().length > 0
-          && (item as QuickPrompt).prompt.trim().length > 0
-        ));
-        setQuickPrompts(configured.length ? configured : DEFAULT_QUICK_PROMPTS);
-      }
-      setMessages([]); setTimeline([]); setExpanded(new Set());
-      cancelActiveToolCalls();
-      activeTurnIdRef.current = '';
-      handledToolCallsRef.current.clear();
-      setRunStatus('会话已重置'); setRunning(false); return;
-    }
-    if (event.type === 'run_started') {
-      runStartedAt.current = Date.now(); setRunning(true); setRunStatus('正在运行');
-      setMessages((items) => [...items, { role: 'user' as const, content: textValue(data.query), runId: event.runId, timestamp }].slice(-MAX_AGENT_MESSAGES));
-      addTimeline({ type: event.type, title: '用户输入', detail: textValue(data.query), timestamp, tone: 'info', meta: { flow: 'user' } }); return;
-    }
-    if (event.type === 'assistant_message') {
-      const content = textValue(data.content);
-      setMessages((items) => [...items, { role: 'assistant' as const, content, runId: event.runId, timestamp }].slice(-MAX_AGENT_MESSAGES));
-      addTimeline({ type: event.type, title: 'Agent 回复', detail: content, timestamp, tone: 'info', meta: { flow: 'assistant' } });
-      return;
-    }
-    if (event.type === 'tool_call') {
-      const args = parseArguments(data.arguments);
-      const name = textValue(data.name, '未知工具');
-      const functionName = textValue(data.functionName || args.functionName);
-      const resourceId = textValue(data.resourceId || args.resourceId);
-      const callId = textValue(data.callId) || undefined;
-      // 旧版后端会把浏览器微服务请求适配成 underscore 事件。只要它是
-      // invoke 白名单调用，就转换成同一条标准执行路径，避免旧入口一直
-      // 等待 tool.result 而浏览器只显示一条静态时间线。
-      const legacyOperation = name === 'invoke'
-        ? textValue(args.functionName || args.operation || functionName)
-        : '';
-      if (legacyOperation && ALLOWED_TOOL_OPERATIONS.has(legacyOperation) && callId && event.runId) {
-        processEvent({
-          ...event,
-          type: 'tool.call',
-          data: {
-            ...data,
-            conversationId: event.sessionId,
-            sessionId: event.sessionId,
-            turnId: event.runId,
-            runId: event.runId,
-            callId,
-            name: 'invoke',
-            functionName: 'invoke',
-            operation: legacyOperation,
-            arguments: args,
-          },
-        });
-        return;
-      }
-      const title = name === 'invoke' && functionName ? `工具请求 · ${name} · ${functionName}` : name === 'load_skill' && resourceId ? `工具请求 · ${name} · ${resourceId}` : `工具请求 · ${name}`;
-      addTimeline({ type: event.type, title, detail: `参数:\n${prettyArguments(data.arguments)}`, timestamp, tone: 'warning', status: 'running', meta: { callId, toolName: name, resourceId, functionName, step: textValue(data.step), statusLabel: '运行中', flow: 'request' } }, callId);
-      return;
-    }
-    if (event.type === 'tool_result') {
-      const result = objectValue(data.result);
-      const callId = textValue(data.callId); const name = textValue(data.functionName || data.name, '未知工具');
-      if (callId) {
-        setTimeline((items) => items.map((item) => item.id === callId ? {
-          ...item,
-          status: result.ok === false ? 'error' : 'success',
-          tone: result.ok === false ? 'error' : 'success',
-          meta: { ...item.meta, statusLabel: result.ok === false ? '执行失败' : '执行成功' },
-        } : item));
-      }
-      const resultEntry = browserResultTimelineEntry(result as BrowserToolResult, name, callId || undefined);
-      addTimeline(
-        {
-          ...resultEntry,
-          type: event.type,
-          meta: { ...resultEntry.meta, toolName: textValue(data.name), step: textValue(data.step) },
-        },
-        callId ? `${callId}-result` : undefined,
-      );
-      return;
-    }
-    if (event.type === 'upstream_frame') return;
     if (event.type === 'diagnostic') {
       const diagnosticMessage = textValue(data.message, event.error || jsonText(data));
       addTimeline({ type: event.type, title: textValue(data.kind, '诊断'), detail: diagnosticMessage, timestamp, tone: 'error' });
@@ -910,9 +799,7 @@ export default function App({
       onArtifactRef.current?.(artifact);
       addTimeline({ type: event.type, title: 'Artifact 已转入卡片渲染', detail: event.runId ?? '', timestamp, tone: 'success' }); return;
     }
-    if (event.type === 'run_completed' || event.type === 'run_failed' || event.type === 'run_cancelled') {
-      setRunning(false); const failed = event.type === 'run_failed'; const cancelled = event.type === 'run_cancelled'; const status = failed ? '运行失败' : cancelled ? '已取消' : `完成 · ${Math.max(0, Date.now() - runStartedAt.current)} ms`; setRunStatus(status); addTimeline({ type: event.type, title: status, detail: jsonText(data), timestamp, tone: failed ? 'error' : 'success' });
-    }
+
   }, [addTimeline, cancelActiveToolCalls]);
 
   const connect = useCallback(() => {
@@ -939,8 +826,7 @@ export default function App({
       if (!isCurrentSocket()) return;
       setConnected(false); setConnecting(true); setConnectionError('');
       onEventRef.current?.({ direction: 'local', kind: 'connected', payload: { path: socketPath } });
-      // 标准 Agent 桥接协议先打开会话；兼容旧后端时该帧会被诊断事件吸收，后续
-      // turn.start 仍由同一个入口处理。
+      // 使用标准 Agent 协议打开会话。
       socket.send(JSON.stringify({
         type: 'conversation.open',
         protocolVersion: AGENT_PROTOCOL_VERSION,

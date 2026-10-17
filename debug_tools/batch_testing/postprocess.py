@@ -21,7 +21,6 @@ from .runner import atomic_write_json, utc_now
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 _RESULT_STATUSES = {"success", "partial", "failed", "skipped"}
-_BLOCK_TYPES = {"metrics", "table", "text", "issues", "image", "link", "file"}
 _DATA_TYPES = {
     "metrics",
     "records",
@@ -84,6 +83,8 @@ class PostprocessManager:
         self.output_root.mkdir(parents=True, exist_ok=True)
         for path in self.output_root.glob("*/postprocess/*/execution.json"):
             state = self._read_json(path)
+            if state.get("schemaVersion") != "batch-postprocess-execution-v2":
+                continue
             if state.get("status") in {"queued", "running"}:
                 state["status"] = "interrupted"
                 state["finishedAt"] = utc_now()
@@ -258,14 +259,16 @@ class PostprocessManager:
             return []
         values: list[dict[str, Any]] = []
         for path in root.glob("*/execution.json"):
-            try:
-                values.append(self._read_json(path))
-            except (OSError, ValueError, json.JSONDecodeError):
-                continue
+            value = self._read_json(path)
+            if value.get("schemaVersion") == "batch-postprocess-execution-v2":
+                values.append(value)
         return sorted(values, key=lambda item: str(item.get("createdAt", "")), reverse=True)
 
     def get_execution(self, run_id: str, execution_id: str) -> dict[str, Any]:
-        return self._read_json(self._execution_dir(run_id, execution_id) / "execution.json")
+        value = self._read_json(self._execution_dir(run_id, execution_id) / "execution.json")
+        if value.get("schemaVersion") != "batch-postprocess-execution-v2":
+            raise ValueError("后处理执行版本不受支持，请重新运行")
+        return value
 
     def dashboard(
         self,
@@ -275,9 +278,9 @@ class PostprocessManager:
     ) -> dict[str, Any]:
         plugin_dir = self._plugin_dir(run_id, execution_id, plugin_id)
         path = plugin_dir / "dashboard.json"
-        if path.is_file():
-            return self._read_json(path)
-        return self._legacy_dashboard(run_id, execution_id, plugin_id)
+        if not path.is_file():
+            raise KeyError("当前后处理看板文件缺失")
+        return self._read_json(path)
 
     def samples(
         self,
@@ -356,13 +359,7 @@ class PostprocessManager:
         path = plugin_dir / "samples" / sample_id / "result.json"
         if path.is_file():
             return self._read_json(path)
-        dashboard = self._legacy_dashboard(run_id, execution_id, plugin_id)
-        raw_items = dashboard.get("samples")
-        if isinstance(raw_items, list):
-            for item in raw_items:
-                if isinstance(item, dict) and item.get("sampleId") == sample_id:
-                    return item
-        raise KeyError(sample_id)
+        raise KeyError("当前后处理样本结果缺失")
 
     def asset_path(
         self,
@@ -373,6 +370,7 @@ class PostprocessManager:
     ) -> Path:
         if not _SAFE_ID.fullmatch(plugin_id):
             raise KeyError(plugin_id)
+        self.get_execution(run_id, execution_id)
         plugin_root = (self._execution_dir(run_id, execution_id) / "plugins" / plugin_id).resolve()
         path = (plugin_root / relative_path).resolve()
         if not path.is_relative_to(plugin_root) or not path.is_file():
@@ -1046,7 +1044,7 @@ class PostprocessManager:
     def _validate_manifest(value: dict[str, Any], root: Path) -> dict[str, Any]:
         plugin_id = value.get("id")
         api_version = value.get("apiVersion")
-        if api_version not in {"batch-postprocess-v1", "batch-postprocess-v2"}:
+        if api_version != "batch-postprocess-v2":
             raise ValueError("插件 apiVersion 不受支持")
         if not isinstance(plugin_id, str) or not _SAFE_ID.fullmatch(plugin_id):
             raise ValueError("插件 id 无效")
@@ -1077,15 +1075,15 @@ class PostprocessManager:
         if len(dependence) != len(set(dependence)):
             raise ValueError("插件 dependence 不得重复")
         result.setdefault("configSchema", {"type": "object", "additionalProperties": False})
-        if api_version == "batch-postprocess-v2":
-            PostprocessManager._validate_outputs(result.get("outputs"))
-            PostprocessManager._validate_presentation(result.get("presentation"))
-            has_deferred = any(
-                isinstance(output, dict) and output.get("deferred") is True
-                for output in list(result.get("outputs") or [])
-            )
-            if has_deferred and not result["hasFinalize"] and entrypoint != "builtin":
-                raise ValueError("插件声明 deferred 产物时必须实现 finalize")
+        PostprocessManager._validate_outputs(result.get("outputs"))
+        PostprocessManager._validate_presentation(result.get("presentation"))
+        has_deferred = False
+        for output in result.get("outputs") or []:
+            if isinstance(output, dict) and output.get("deferred") is True:
+                has_deferred = True
+                break
+        if has_deferred and not result["hasFinalize"] and entrypoint != "builtin":
+            raise ValueError("插件声明 deferred 产物时必须实现 finalize")
         return result
 
     @staticmethod
@@ -1387,15 +1385,11 @@ class PostprocessManager:
         asset_base_url: str = "",
         allow_deferred: bool = False,
     ) -> dict[str, Any]:
+        if "blocks" in value:
+            raise ValueError("插件结果不再支持旧 blocks，请使用 facts/artifacts")
         status = value.get("status", "success")
         if status not in _RESULT_STATUSES:
             raise ValueError("插件结果 status 无效")
-        if manifest.get("apiVersion") == "batch-postprocess-v1":
-            return cls._normalize_v1_result(
-                value,
-                asset_root=asset_root,
-                asset_base_url=asset_base_url,
-            )
         facts = cls._normalize_facts(value.get("facts", {}))
         artifacts = value.get("artifacts", [])
         if not isinstance(artifacts, list):
@@ -1460,39 +1454,6 @@ class PostprocessManager:
         for key, output in cls._output_map(manifest, scope).items():
             if output.get("required") is True and key not in present:
                 raise ValueError(f"插件缺少必选 artifact: {scope}/{key}")
-
-    @staticmethod
-    def _normalize_v1_result(
-        value: dict[str, Any],
-        *,
-        asset_root: Path | None,
-        asset_base_url: str,
-    ) -> dict[str, Any]:
-        status = value.get("status", "success")
-        blocks = value.get("blocks", [])
-        if not isinstance(blocks, list):
-            raise ValueError("插件结果 blocks 必须是数组")
-        normalized_blocks: list[dict[str, Any]] = []
-        for block in blocks:
-            if not isinstance(block, dict) or block.get("type") not in _BLOCK_TYPES:
-                raise ValueError("插件结果块类型无效")
-            normalized_block = dict(block)
-            relative_path = normalized_block.get("path")
-            if relative_path is not None:
-                if not isinstance(relative_path, str) or asset_root is None:
-                    raise ValueError("插件结果块 path 无效")
-                resolved = (asset_root / relative_path).resolve()
-                if not resolved.is_relative_to(asset_root.resolve()) or not resolved.is_file():
-                    raise ValueError("插件结果块文件不存在或路径越界")
-                safe_relative = resolved.relative_to(asset_root.resolve()).as_posix()
-                normalized_block["path"] = safe_relative
-                normalized_block["url"] = f"{asset_base_url}/{quote(safe_relative, safe='/')}"
-            normalized_blocks.append(normalized_block)
-        return {
-            "status": status,
-            "summary": str(value.get("summary") or ""),
-            "blocks": normalized_blocks,
-        }
 
     @staticmethod
     def _normalize_facts(value: object) -> dict[str, Any]:
@@ -1665,79 +1626,8 @@ class PostprocessManager:
             "status": str(result.get("status") or "failed"),
             "summary": str(result.get("summary") or ""),
             "facts": dict(result.get("facts") or {}),
-            "artifactCount": len(list(result.get("artifacts") or result.get("blocks") or [])),
+            "artifactCount": len(list(result.get("artifacts") or [])),
         }
-
-    def _legacy_dashboard(
-        self,
-        run_id: str,
-        execution_id: str,
-        plugin_id: str,
-    ) -> dict[str, Any]:
-        execution = self.get_execution(run_id, execution_id)
-        for stage in list(execution.get("plugins") or []):
-            if not isinstance(stage, dict) or stage.get("id") != plugin_id:
-                continue
-            raw_samples = stage.get("sampleResults")
-            samples: list[dict[str, Any]] = []
-            for sequence, item in enumerate(
-                raw_samples if isinstance(raw_samples, list) else [], start=1
-            ):
-                if not isinstance(item, dict):
-                    continue
-                samples.append(
-                    {
-                        "sampleId": str(item.get("sampleId") or ""),
-                        "title": str(item.get("sampleId") or ""),
-                        "sequence": sequence,
-                        "status": str(item.get("status") or "failed"),
-                        "summary": str(item.get("summary") or ""),
-                        "facts": {},
-                        "artifacts": self._legacy_artifacts(item.get("blocks")),
-                        "blocks": list(item.get("blocks") or []),
-                    }
-                )
-            dataset_result = dict(stage.get("datasetResult") or {})
-            return {
-                "schemaVersion": "batch-postprocess-dashboard-v2",
-                "legacy": True,
-                "runId": run_id,
-                "executionId": execution_id,
-                "plugin": {
-                    "id": plugin_id,
-                    "name": plugin_id,
-                    "version": "1",
-                    "apiVersion": "batch-postprocess-v1",
-                },
-                "status": str(stage.get("status") or "failed"),
-                "presentation": {"defaultView": "table", "sampleFields": []},
-                "outputs": [],
-                "datasetResult": {
-                    **dataset_result,
-                    "facts": {},
-                    "artifacts": self._legacy_artifacts(dataset_result.get("blocks")),
-                },
-                "counts": {},
-                "totalSamples": len(samples),
-                "samples": samples,
-            }
-        raise KeyError(plugin_id)
-
-    @staticmethod
-    def _legacy_artifacts(value: object) -> list[dict[str, Any]]:
-        if not isinstance(value, list):
-            return []
-        mapping = {"table": "records"}
-        artifacts: list[dict[str, Any]] = []
-        for index, block in enumerate(value):
-            if not isinstance(block, dict):
-                continue
-            block_type = str(block.get("type") or "json")
-            artifact = dict(block)
-            artifact["key"] = f"legacy-{index}"
-            artifact["dataType"] = mapping.get(block_type, block_type)
-            artifacts.append(artifact)
-        return artifacts
 
     @staticmethod
     def _sortable_fact(value: object, key: str) -> tuple[int, float | str]:
@@ -1765,6 +1655,7 @@ class PostprocessManager:
     def _plugin_dir(self, run_id: str, execution_id: str, plugin_id: str) -> Path:
         if not _SAFE_ID.fullmatch(plugin_id):
             raise KeyError(plugin_id)
+        self.get_execution(run_id, execution_id)
         execution_dir = self._execution_dir(run_id, execution_id)
         path = (execution_dir / "plugins" / plugin_id).resolve()
         if not path.is_relative_to(execution_dir) or not path.is_dir():

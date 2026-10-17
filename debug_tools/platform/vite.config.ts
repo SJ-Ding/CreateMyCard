@@ -94,10 +94,6 @@ export default defineConfig({
         target: 'http://127.0.0.1:8888',
         ws: true,
       },
-      '/debug/agent/ws': {
-        target: 'http://127.0.0.1:8888',
-        ws: true,
-      },
       '/debug/health': {
         target: 'http://127.0.0.1:8888',
       },

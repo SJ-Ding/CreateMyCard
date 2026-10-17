@@ -60,7 +60,7 @@ export function QualityRoute() {
   ));
   const galleryPath = gallery
     ? `/batch/runs/${encodeURIComponent(runId)}/postprocess/${encodeURIComponent(gallery.executionId)}/plugins/browser-capture`
-    : run?.taskId ? `/batch/tasks/${encodeURIComponent(run.taskId)}` : `/batch/legacy/${encodeURIComponent(runId)}`;
+    : run?.taskId ? `/batch/tasks/${encodeURIComponent(run.taskId)}` : `/batch/runs/${encodeURIComponent(runId)}`;
 
   return <div className="quality-page">
     <header className="batch-center-header">

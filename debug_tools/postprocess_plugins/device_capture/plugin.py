@@ -20,7 +20,7 @@ _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
 class DeviceCaptureManager:
-    """共享渲染核心的宿主，并为旧产物提供只读兼容。"""
+    """共享设备渲染核心的插件宿主。"""
 
     def __init__(
         self,
@@ -78,45 +78,7 @@ class DeviceCaptureManager:
             "error": error,
         }
 
-    def status(self, run_id: str) -> dict[str, Any]:
-        if not _SAFE_ID.fullmatch(run_id):
-            raise KeyError(run_id)
-        run_dir = (self.output_root / run_id).resolve()
-        if not run_dir.is_relative_to(self.output_root) or not run_dir.is_dir():
-            return {"status": "not_requested"}
-        path = run_dir / "device_capture.json"
-        if not path.is_file():
-            return {"status": "not_requested"}
-        return self._read_json(path)
-
-    def sample(self, run_id: str, sample_id: str) -> dict[str, Any]:
-        if not _SAFE_ID.fullmatch(sample_id):
-            raise KeyError(sample_id)
-        items = self.status(run_id).get("items", [])
-        if isinstance(items, list):
-            for item in items:
-                if isinstance(item, dict) and item.get("id") == sample_id:
-                    return dict(item)
-        return {"id": sample_id, "status": "not_requested", "error": ""}
-
-    def image_path(self, run_id: str, sample_id: str, kind: str) -> Path:
-        if not _SAFE_ID.fullmatch(sample_id) or kind not in {"card", "full"}:
-            raise KeyError(sample_id)
-        run_dir = self._legacy_run_dir(run_id)
-        suffix = ".png" if kind == "card" else ".jpeg"
-        path = (run_dir / "device_capture" / kind / f"{sample_id}{suffix}").resolve()
-        if not path.is_relative_to(run_dir) or not path.is_file():
-            raise KeyError(sample_id)
-        return path
-
-    def gallery_path(self, run_id: str) -> Path:
-        run_dir = self._legacy_run_dir(run_id)
-        path = (run_dir / "device_gallery.html").resolve()
-        if not path.is_relative_to(run_dir) or not path.is_file():
-            raise KeyError(run_id)
-        return path
-
-    def _legacy_run_dir(self, run_id: str) -> Path:
+    def run_directory(self, run_id: str) -> Path:
         if not _SAFE_ID.fullmatch(run_id):
             raise KeyError(run_id)
         path = (self.output_root / run_id).resolve()
@@ -167,13 +129,11 @@ async def run_builtin(
     target_id = config.get("targetId")
     if not isinstance(target_id, str) or not target_id:
         raise ValueError("真机截图必须选择当前在线设备")
-    device_config = getattr(manager, "config", None)
+    device_config = manager.config
     capture_delay = device_config.capture_delay_seconds if device_config is not None else 1.0
-    if not hasattr(manager, "renderer"):
-        return await _run_legacy_host(manager, run_id)
     if manager.renderer is None:
         raise DeviceError(manager.configuration_error or "设备工具未配置", 503)
-    run_dir = manager._legacy_run_dir(run_id)
+    run_dir = manager.run_directory(run_id)
     summary = manager._read_json(run_dir / "summary.json")
     samples_value = summary.get("samples", [])
     samples = [item for item in samples_value if isinstance(item, dict)]
@@ -321,25 +281,5 @@ def _checkpoint(results: list[dict[str, Any]], completed: int, total: int) -> di
             "completed": completed,
             "total": total,
             "message": f"正在截图 {completed}/{total}",
-        },
-    }
-
-
-async def _run_legacy_host(manager: Any, run_id: str) -> dict[str, Any]:
-    """仅适配外部注入的旧宿主；内置实现不会进入此分支。"""
-
-    await manager.require_available()
-    manager.enqueue(run_id, retry=True)
-    queue = getattr(manager, "queue", None)
-    if queue is not None:
-        await queue.join()
-    return {
-        "status": "success",
-        "sampleResults": [],
-        "datasetResult": {
-            "status": "success",
-            "summary": "旧宿主截图已完成",
-            "facts": {},
-            "artifacts": [{"key": "capture-summary", "data": []}],
         },
     }

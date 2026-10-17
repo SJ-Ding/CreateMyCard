@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .browser_tool_bridge import BrowserToolBridgeError
 from .config import DebugSettings
@@ -9,9 +9,6 @@ from .logging_utils import DebugLogger
 from .schemas import DeviceDebugContext
 from .skill_loader import SkillLoader
 from .tool_registry import ToolRegistry, ToolValidationError
-
-if TYPE_CHECKING:
-    from .upstream_ws_client import UpstreamWebSocketClient
 
 
 class BrowserToolError(RuntimeError):
@@ -36,14 +33,12 @@ class ToolDispatcher:
         settings: DebugSettings,
         loader: SkillLoader,
         registry: ToolRegistry,
-        upstream: UpstreamWebSocketClient | None = None,
         *,
         browser_invoke: BrowserToolInvoker | None = None,
     ) -> None:
         self.settings = settings
         self.loader = loader
         self.registry = registry
-        self.upstream = upstream
         self.browser_invoke = browser_invoke
         self.log = DebugLogger(
             skill=settings.skill_name,
@@ -225,34 +220,6 @@ class ToolDispatcher:
                 return self._error("BROWSER_TOOL_FAILED", str(exc)), ()
             if not isinstance(result, dict):
                 return self._error("BROWSER_TOOL_FAILED", "浏览器工具结果必须是对象"), ()
-        elif self.upstream is not None:
-            # 仅供离线批处理/旧测试注入；浏览器调试主链路不导入或创建该客户端。
-            from .upstream_ws_client import UpstreamToolError
-
-            try:
-                result = await self.upstream.invoke(
-                    function_name,
-                    validated,
-                    context,
-                    session_id,
-                    user_query,
-                )
-            except UpstreamToolError as exc:
-                self.log.event(
-                    "invoke_failed",
-                    component="tool",
-                    status="failed",
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
-                )
-                return self._error("UPSTREAM_FAILED", str(exc)), ()
-            frames = result.frames
-            result = {
-                "data": result.data,
-                "status": result.status,
-                "errorCode": result.error_code,
-                "error": result.error_message,
-            }
         else:
             return self._error("BROWSER_BRIDGE_UNAVAILABLE", "浏览器工具桥未连接"), ()
         self.log.event(

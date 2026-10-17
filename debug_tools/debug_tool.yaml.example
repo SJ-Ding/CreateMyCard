@@ -158,7 +158,6 @@ platform:
     # 调试平台监听端口
     port: 8888
     # 已部署微服务 WebSocket 根地址
-    upstream_base_url: ws://127.0.0.1:8855
     # 必须与所选 Skill 的工具声明及工具快照包名一致，不能替换为任意示例包名
     bundle_name: com.omega_w_0823.hmservice
     # 主 Agent 最大执行步数
@@ -186,6 +185,8 @@ platform:
     render_timeout_seconds: 30
     # 截图最大尝试次数
     capture_attempts: 6
+    # 渲染就绪后额外等待秒数，范围 0～30；仅由本机 YAML 控制。
+    capture_delay_seconds: 1
     # 模拟器可执行文件路径
     emulator: ${environment.emulator}
     # 模拟器实例目录，请替换为本机路径

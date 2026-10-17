@@ -37,7 +37,7 @@ describe('设备渲染', () => {
     expect(screen.getByRole('button', { name: '编译并运行' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('在线设备'), { target: { value: 'device-a' } });
     await waitFor(() => expect(screen.getByRole('button', { name: '编译并运行' })).toBeEnabled());
-    expect(localStorage.getItem('ai-widget-device-editor:v1')).toContain('test');
+    expect(localStorage.getItem('ai-widget-device-editor:v2')).toContain('test');
   });
 
   it('shows normalized A2UI without deploying', async () => {
@@ -130,15 +130,20 @@ describe('设备渲染', () => {
     expect(screen.getByLabelText('Compact DSL 代码')).toHaveValue('compact draft');
   });
 
-  it('restores legacy input in the A2UI tab with automatic detection', async () => {
+  it('ignores legacy input and restores only the current draft', () => {
     localStorage.setItem('ai-widget-device-editor:v1', JSON.stringify({ source: 'legacy input', size: '2x4' }));
     render(<DeviceRenderRoute />);
-    expect(screen.getByRole('tab', { name: 'A2UI' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByLabelText('A2UI 代码')).toHaveValue('legacy input');
+    expect(screen.getByRole('tab', { name: 'Compact DSL' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Compact DSL 代码')).toHaveValue('');
+    cleanup();
+    localStorage.setItem('ai-widget-device-editor:v2', JSON.stringify({
+      source: 'current a2ui', compactSource: 'compact draft', format: 'a2ui', size: '2x4',
+    }));
+    render(<DeviceRenderRoute />);
+    expect(screen.getByLabelText('A2UI 代码')).toHaveValue('current a2ui');
     expect(screen.getByLabelText('卡片尺寸')).toHaveValue('2x4');
-    await waitFor(() => expect(screen.getByText('已自动识别并转换')).toBeInTheDocument());
-    const requests = fetchMock.mock.calls.filter(([url]) => url.endsWith('/convert'));
-    expect(JSON.parse(requests.at(-1)?.[1].body)).toMatchObject({ source: 'legacy input', format: 'auto' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Compact DSL' }));
+    expect(screen.getByLabelText('Compact DSL 代码')).toHaveValue('compact draft');
   });
 
   it('displays conversion failure and permits retry', async () => {

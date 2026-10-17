@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 import yaml
 from pydantic.aliases import AliasChoices
@@ -74,7 +73,6 @@ class DebugConfig:
 class DebugSettings:
     host: str = "127.0.0.1"
     port: int = 8888
-    upstream_base_url: str = "ws://127.0.0.1:8855"
     skill_name: str = "harmony-card-generation-online"
     skill_root: Path | None = None
     skill_directory: Path | None = None
@@ -105,9 +103,6 @@ class DebugSettings:
             raise ValueError("Debug 服务只允许绑定回环地址")
         if not 1 <= self.port <= 65535:
             raise ValueError("Debug 端口必须在 1 到 65535 之间")
-        parsed = urlsplit(self.upstream_base_url)
-        if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
-            raise ValueError("工具服务必须是有效的 WebSocket 地址")
         if self.max_steps < 1 or self.max_tokens < 1:
             raise ValueError("Debug 步骤数和模型输出上限必须为正数")
 
@@ -133,9 +128,6 @@ class DebugSettings:
         return cls(
             host=str(server.get("host", "127.0.0.1")),
             port=port or int(server.get("port", 8888)),
-            upstream_base_url=str(
-                server.get("upstream_base_url", f"ws://127.0.0.1:{production.server_port}")
-            ),
             skill_name=selected.name,
             skill_root=config.skill_root,
             skill_directory=selected.directory,

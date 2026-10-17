@@ -182,7 +182,7 @@ export function TraceViewer({ runId, attempts }: { runId: string; attempts: Batc
 
   if (!traced.length) return <div className="batch-empty">该样本没有可用 Trace</div>;
   if (!view) return <div className="batch-empty">所选 attempt 没有 Trace</div>;
-  const rawOnly = view.rawOnly || view.viewVersion !== 'trace-view-v2' || view.instrumentationVersion !== 2;
+  const unsupported = view.viewVersion !== 'trace-view-v2' || view.instrumentationVersion !== 2;
   return <div className="trace-viewer trace-semantic">
     <header className="trace-summary">
       <div className="trace-warning-banner">Trace 包含完整请求、提示词与模型输出，仅用于本地调试。</div>
@@ -200,9 +200,7 @@ export function TraceViewer({ runId, attempts }: { runId: string; attempts: Batc
       </div>
       {view.warnings.length > 0 && <p role="status">{view.warnings.join('；')}</p>}
     </header>
-    {rawOnly ? <div className="trace-legacy"><p>旧埋点仅提供原始查看，请重新批跑使用阶段视图。</p>
-      <pre>{JSON.stringify(view.rawRecords ?? view.nodes.map((node) => node.raw), null, 2)}</pre></div>
-      : <>
+    {unsupported ? <p>没有当前版本的阶段视图，请重新批跑。</p> : <>
         <div className="trace-filters">
           <input aria-label="搜索 Trace 节点" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索中文阶段、步骤或错误" />
           <select aria-label="分类" value={category} onChange={(event) => setCategory(event.target.value)}>

@@ -2,23 +2,10 @@ import type { DebugConfig } from './types';
 
 export const DEBUG_CONFIG_VERSION = 1;
 export const DEBUG_CONFIG_STORAGE_KEY = `ai-widget-debug-config:v${DEBUG_CONFIG_VERSION}`;
-const LEGACY_DEBUG_CONFIG_STORAGE_KEY = 'ai-widget-debug-config';
-export const CONFIG_STORAGE_KEY = DEBUG_CONFIG_STORAGE_KEY;
 export const DEFAULT_TOOL_WS_BASE_URL = 'ws://127.0.0.1:8855/api/v1/ws/tools';
 export const DEFAULT_AGENT_WS_URL = '/debug/e2e/ws';
 export const DEFAULT_ASSET_BASE_URL = '/resources/';
 export const DEFAULT_MANAGED_SERVICE_CONFIG: Record<string, string | number | boolean> = {};
-
-type EndpointConfig = {
-  agentWsUrl: string;
-  toolWsBaseUrl: string;
-};
-
-/** 供仍未迁移到 Context 的独立模块读取的只读兼容快照。 */
-export const endpointConfig: EndpointConfig = {
-  agentWsUrl: DEFAULT_AGENT_WS_URL,
-  toolWsBaseUrl: DEFAULT_TOOL_WS_BASE_URL,
-};
 
 export const defaultDebugConfig: DebugConfig = {
   agentWsUrl: DEFAULT_AGENT_WS_URL,
@@ -57,75 +44,26 @@ function numberValue(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-/**
- * 将旧版 requestDefaults/endpoints 结构迁移成当前规范字段。
- * 动态 sessionId、interactionId 和 time 即使存在也会被忽略，不进入配置。
- */
+/** 仅归一化当前配置字段；动态会话信息不进入固定配置。 */
 export function normalizeDebugConfig(value: unknown): DebugConfig {
-  const stored = isRecord(value) ? value : {};
-  const source = isRecord(stored.config) ? stored.config : stored;
-  const legacy = isRecord(source.requestDefaults) ? source.requestDefaults : {};
-  const legacyEndpoints = isRecord(source.endpoints) ? source.endpoints : {};
-  const pickString = (key: keyof DebugConfig, legacyKey?: string): string => (
-    stringValue(source[key], stringValue(legacy[legacyKey ?? key], String(defaultDebugConfig[key] ?? '')))
+  const source = isRecord(value) ? value : {};
+  const pickString = (key: keyof DebugConfig): string => (
+    stringValue(source[key], String(defaultDebugConfig[key] ?? ''))
   );
-  const pickEndpoint = (key: 'agentWsUrl' | 'toolWsBaseUrl', ...legacyKeys: string[]): string => {
-    const normalizeLegacyEndpoint = (value: string): string => {
-      const trimmed = value.trim();
-      // The old platform proxy lived at /debug/tools.  Keeping that path in a
-      // migrated browser config would route calls to the deprecation endpoint,
-      // so move the exact legacy default to the direct microservice base.
-      if (key === 'toolWsBaseUrl' && /^\/debug\/tools\/?$/i.test(trimmed)) {
-        return defaultDebugConfig.toolWsBaseUrl;
-      }
-      return trimmed;
-    };
-    if (typeof source[key] === 'string') {
-      return normalizeLegacyEndpoint(source[key]);
-    }
-    for (const legacyKey of legacyKeys) {
-      const valueFromEndpoints = legacyEndpoints[legacyKey];
-      if (typeof valueFromEndpoints === 'string' && valueFromEndpoints.trim()) {
-        return normalizeLegacyEndpoint(valueFromEndpoints);
-      }
-      const valueFromRoot = source[legacyKey];
-      if (typeof valueFromRoot === 'string' && valueFromRoot.trim()) {
-        return normalizeLegacyEndpoint(valueFromRoot);
-      }
-    }
-    return defaultDebugConfig[key];
-  };
-  // Some early builds nested the canonical names under `endpoints`, while
-  // others used the older `toolsBaseUrl`/`e2eSocketPath` aliases.  Read both
-  // shapes so a refresh never silently switches a user's custom endpoint
-  // back to localhost.
-  const toolWsBaseUrl = pickEndpoint(
-    'toolWsBaseUrl',
-    'toolWsBaseUrl',
-    'toolsBaseUrl',
-    'toolsSocketPath',
-  );
-  const agentWsUrl = pickEndpoint('agentWsUrl', 'agentWsUrl', 'e2eSocketPath');
-  const deviceType = Math.max(0, Math.floor(numberValue(source.deviceType, numberValue(legacy.deviceType, defaultDebugConfig.deviceType))));
+  const deviceType = Math.max(0, Math.floor(numberValue(source.deviceType, defaultDebugConfig.deviceType)));
   const paginationLimit = Math.max(1, Math.floor(numberValue(source.paginationLimit, defaultDebugConfig.paginationLimit)));
   const managedServiceConfig = {};
   return {
-    agentWsUrl,
-    toolWsBaseUrl,
+    agentWsUrl: pickString('agentWsUrl'),
+    toolWsBaseUrl: pickString('toolWsBaseUrl'),
     microserviceMode: source.microserviceMode === 'managed' ? 'managed' : 'deployed',
     managedServiceWsUrl: pickString('managedServiceWsUrl'),
     bundleName: pickString('bundleName'),
-    protocolVersion: stringValue(
-      source.protocolVersion,
-      stringValue(
-        typeof source.version === 'string' ? source.version : undefined,
-        pickString('protocolVersion', 'version'),
-      ),
-    ),
+    protocolVersion: pickString('protocolVersion'),
     userId: pickString('userId'),
     deviceId: pickString('deviceId'),
     phoneType: pickString('phoneType'),
-    appVersion: pickString('appVersion', 'prdVer'),
+    appVersion: pickString('appVersion'),
     romVersion: pickString('romVersion'),
     locale: pickString('locale'),
     countryCode: pickString('countryCode'),
@@ -166,7 +104,7 @@ export function endpointHasCredentials(value: string): boolean {
   }
 }
 
-function persistedConfig(config: DebugConfig): DebugConfig {
+function persistedConfig(config: unknown): DebugConfig {
   const normalized = normalizeDebugConfig(config);
   return {
     ...normalized,
@@ -184,23 +122,19 @@ function persistedConfig(config: DebugConfig): DebugConfig {
 export function loadDebugConfig(): DebugConfig {
   if (typeof localStorage === 'undefined') return cloneDebugConfig(defaultDebugConfig);
   try {
-    const currentRaw = localStorage.getItem(DEBUG_CONFIG_STORAGE_KEY);
-    const legacyRaw = currentRaw ? null : localStorage.getItem(LEGACY_DEBUG_CONFIG_STORAGE_KEY);
-    const raw = currentRaw ?? legacyRaw;
+    const raw = localStorage.getItem(DEBUG_CONFIG_STORAGE_KEY);
     if (!raw) return cloneDebugConfig(defaultDebugConfig);
-    const config = persistedConfig(normalizeDebugConfig(JSON.parse(raw)));
-    // Rewrite the active key after every load so a legacy entry or a manually
-    // edited URL containing credentials/hash fragments cannot remain in browser
-    // storage after it has been read once.
+    const stored: unknown = JSON.parse(raw);
+    if (!isRecord(stored) || stored.version !== DEBUG_CONFIG_VERSION || !isRecord(stored.config)) {
+      return cloneDebugConfig(defaultDebugConfig);
+    }
+    const config = persistedConfig(stored.config);
+    // 清理持久化地址中的凭据；写入失败仍保留本次有效配置。
     const serialized = JSON.stringify({ version: DEBUG_CONFIG_VERSION, config });
-    if (currentRaw !== serialized || legacyRaw) {
+    if (raw !== serialized) {
       try {
         localStorage.setItem(DEBUG_CONFIG_STORAGE_KEY, serialized);
-        if (legacyRaw) localStorage.removeItem(LEGACY_DEBUG_CONFIG_STORAGE_KEY);
-      } catch {
-        // A full or read-only storage must not discard the valid in-memory
-        // configuration; it simply cannot complete the migration rewrite.
-      }
+      } catch { /* 本地存储不可写时继续使用内存配置。 */ }
     }
     return config;
   } catch {
@@ -224,13 +158,7 @@ export function clearSavedDebugConfig(): void {
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.removeItem(DEBUG_CONFIG_STORAGE_KEY);
-    localStorage.removeItem(LEGACY_DEBUG_CONFIG_STORAGE_KEY);
   } catch { /* ignore storage errors */ }
-}
-
-export function applyDebugConfig(config: DebugConfig): void {
-  endpointConfig.agentWsUrl = config.agentWsUrl;
-  endpointConfig.toolWsBaseUrl = selectedToolWsBaseUrl(config);
 }
 
 export function selectedToolWsBaseUrl(config: DebugConfig): string {

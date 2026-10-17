@@ -88,7 +88,7 @@ describe('SettingsPanel', () => {
 
   it('saves only changed values to server and refreshes their sources', async () => {
     const fetchMock = mockApi();
-    localStorage.setItem(DEBUG_CONFIG_STORAGE_KEY, JSON.stringify({ config: { managedServiceConfig: { model_max_concurrency: 99 } } }));
+    localStorage.setItem(DEBUG_CONFIG_STORAGE_KEY, JSON.stringify({ version: 1, config: { managedServiceConfig: { model_max_concurrency: 99 } } }));
     await openManaged();
     const input = screen.getByLabelText('MODEL_MAX_CONCURRENCY');
     expect(input).toHaveValue(20);

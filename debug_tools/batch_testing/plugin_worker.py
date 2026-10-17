@@ -21,24 +21,17 @@ def _load_module(entrypoint: Path) -> Any:
 
 
 async def _invoke(entrypoint: Path, hook: str, context: dict[str, Any]) -> dict[str, Any]:
+    if context.get("apiVersion") != "batch-postprocess-v2":
+        raise ValueError("插件上下文版本不受支持")
     module = _load_module(entrypoint)
     function = getattr(module, hook, None)
     if function is None:
         if hook in {"process_dataset", "finalize"}:
-            if context.get("apiVersion") == "batch-postprocess-v2":
-                if hook == "finalize":
-                    return {
-                        "status": "skipped",
-                        "summary": "插件未实现收尾任务",
-                        "sampleResults": [],
-                    }
-                return {
-                    "status": "skipped",
-                    "summary": "插件未实现数据集汇总",
-                    "facts": {},
-                    "artifacts": [],
-                }
-            return {"status": "skipped", "summary": "插件未实现数据集汇总", "blocks": []}
+            if hook == "finalize":
+                return {"status": "skipped", "summary": "插件未实现收尾任务", "sampleResults": []}
+            return {
+                "status": "skipped", "summary": "插件未实现数据集汇总", "facts": {}, "artifacts": []
+            }
         raise RuntimeError(f"插件未实现必选函数: {hook}")
     value = function(context)
     if inspect.isawaitable(value):

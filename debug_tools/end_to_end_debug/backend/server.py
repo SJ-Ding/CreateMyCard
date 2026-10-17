@@ -11,7 +11,6 @@ import json
 import os
 import uuid
 from contextlib import suppress
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -62,7 +61,6 @@ def create_app(
     *,
     production_settings: Any | None = None,
     model_client_factory: Any | None = None,
-    upstream_client: Any | None = None,
     trace_root: Path | None = None,
     gallery_base_url: str = "http://127.0.0.1:8888/debug",
 ) -> FastAPI:
@@ -95,11 +93,6 @@ def create_app(
             "version": app.version,
             "debugHost": local.host,
             "debugPort": local.port,
-            # Do not echo the deprecated URL: legacy deployments may have
-            # credentials in it, and browser-direct mode never uses it.
-            "upstream": "",
-            "upstreamReachable": None,
-            "upstreamStatus": "browser_direct",
             "toolTransport": "browser_direct",
             "provider": provider or "未配置",
             "debugModelProvider": debug_provider,
@@ -138,7 +131,6 @@ def create_app(
             return JSONResponse({"detail": error or "artifact 下载失败"}, status_code=404)
         return preview.model_dump(mode="json", exclude_none=True)
 
-    @app.websocket("/debug/agent/ws")
     @app.websocket("/debug/e2e/ws")
     async def e2e_socket(websocket: WebSocket) -> None:
         await websocket.accept()
@@ -148,28 +140,7 @@ def create_app(
             production,
             debug_config,
             model_client_factory=model_client_factory,
-            upstream_client=upstream_client,
         )
-
-    @app.websocket("/debug/tools/{operation}")
-    async def tool_proxy(websocket: WebSocket, operation: str) -> None:
-        """保留旧路径以返回明确迁移提示，不再把工具流量转发到 8855。"""
-
-        await websocket.accept()
-        reason = (
-            "unsupported operation"
-            if operation not in _ALLOWED_OPERATIONS
-            else "browser must connect to the configured microservice WebSocket directly"
-        )
-        await websocket.send_json(
-            {
-                "protocolVersion": "1.0",
-                "type": "error",
-                "code": "BROWSER_DIRECT_REQUIRED",
-                "message": reason,
-            }
-        )
-        await websocket.close(code=1008, reason=reason)
 
     register_batch_routes(
         app,
@@ -197,24 +168,14 @@ async def _run_e2e_session(
     debug_config: Any,
     *,
     model_client_factory: Any | None,
-    upstream_client: Any | None,
 ) -> None:
     from .debug_agent.agent import DebugAgentSession
     from .debug_agent.browser_tool_bridge import BrowserToolBridge, BrowserToolBridgeError
-    from .debug_agent.config import DebugSettings
-    from .debug_agent.schemas import (
-        ConfigureFrame,
-        DebugEvent,
-        DeviceDebugContext,
-        MessageFrame,
-        SimpleFrame,
-    )
+    from .debug_agent.schemas import DeviceDebugContext
     from .debug_agent.skill_loader import SkillLoadError
 
-    sequence = 0
     session: DebugAgentSession | None = None
     bridge: BrowserToolBridge
-    protocol_mode = "legacy"
 
     async def send_raw_event(payload: dict[str, Any]) -> None:
         try:
@@ -223,61 +184,20 @@ async def _run_e2e_session(
             raise BrowserToolBridgeError("浏览器 WebSocket 已断开") from exc
 
     async def send_browser_event(payload: dict[str, Any]) -> None:
-        """按当前 Agent 协议发送浏览器工具调用。
-
-        新协议直接使用 dotted ``tool.call``。旧版独立调试器只认识
-        ``tool_call``，因此保留一个窄适配层，避免把浏览器工具事件误当成
-        Agent 内部事件或写入共享调用历史。
-        """
-
-        nonlocal sequence
-        if protocol_mode == "standard":
-            await send_raw_event(payload)
-            if payload.get("type") == "tool.call":
-                await send_raw_event(
-                    {
-                        "protocolVersion": "1.0",
-                        "type": "turn.status",
-                        "conversationId": payload.get("conversationId", ""),
-                        "sessionId": payload.get("sessionId", ""),
-                        "turnId": payload.get("turnId", ""),
-                        "runId": payload.get("runId", ""),
-                        "status": "waiting_tool",
-                    }
-                )
-            return
-        if payload.get("type") != "tool.call":
-            await send_raw_event(payload)
-            return
-        arguments = payload.get("arguments")
-        business_arguments = arguments if isinstance(arguments, dict) else {}
-        function_name = str(payload.get("functionName") or payload.get("name") or "")
-        legacy_arguments = json.dumps(
-            {
-                "skillName": payload.get("skillName") or settings.skill_name,
-                "functionName": function_name,
-                "arguments": business_arguments,
-                "bundleName": payload.get("bundleName") or settings.bundle_name,
-            },
-            ensure_ascii=False,
-        )
-        sequence += 1
-        await send_raw_event(
-            DebugEvent(
-                type="tool_call",
-                sequence=sequence,
-                sessionId=session.session_id if session is not None else "",
-                runId=str(payload.get("runId") or payload.get("turnId") or ""),
-                timestamp=_timestamp(),
-                data={
-                    "name": "invoke",
-                    "callId": payload.get("callId", ""),
-                    "functionName": function_name,
-                    "arguments": legacy_arguments,
-                    "step": payload.get("step", 0),
-                },
-            ).model_dump(mode="json")
-        )
+        """发送标准浏览器工具事件与等待状态。"""
+        await send_raw_event(payload)
+        if payload.get("type") == "tool.call":
+            await send_raw_event(
+                {
+                    "protocolVersion": "1.0",
+                    "type": "turn.status",
+                    "conversationId": payload.get("conversationId", ""),
+                    "sessionId": payload.get("sessionId", ""),
+                    "turnId": payload.get("turnId", ""),
+                    "runId": payload.get("runId", ""),
+                    "status": "waiting_tool",
+                }
+            )
 
     bridge = BrowserToolBridge(
         send_browser_event,
@@ -294,40 +214,14 @@ async def _run_e2e_session(
     ) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
         return await bridge.invoke(function_name, arguments, **kwargs)
 
-    # 生产路径不传入 upstream_client，因此只通过浏览器桥接微服务工具。
-    # 显式注入 upstream_client 仅用于旧测试/离线调用，保留其原有行为，
-    # 避免测试替身被新的浏览器等待协议阻塞。
-    browser_tool_invoker = invoke_browser_tool if upstream_client is None else None
-
     async def send_event(event_type: str, data: dict[str, Any], run_id: str = "") -> None:
-        nonlocal protocol_mode, sequence
-        sequence += 1
         if session is None:
             return
-        if protocol_mode == "standard":
-            for event in _standard_agent_events(
-                event_type,
-                data,
-                run_id,
-                session.session_id,
-            ):
-                try:
-                    await websocket.send_json(event)
-                except (RuntimeError, WebSocketDisconnect):
-                    return
-            return
-        event = DebugEvent(
-            type=event_type,
-            sequence=sequence,
-            sessionId=session.session_id,
-            runId=run_id,
-            timestamp=_timestamp(),
-            data=data,
-        )
-        try:
-            await websocket.send_json(event.model_dump(mode="json"))
-        except (RuntimeError, WebSocketDisconnect):
-            return
+        for event in _standard_agent_events(event_type, data, run_id, session.session_id):
+            try:
+                await websocket.send_json(event)
+            except (RuntimeError, WebSocketDisconnect):
+                return
 
     try:
         session = DebugAgentSession(
@@ -335,8 +229,7 @@ async def _run_e2e_session(
             production_settings=production,
             event_sink=send_event,
             model_client_factory=model_client_factory,
-            upstream_client=upstream_client,
-            browser_tool_invoker=browser_tool_invoker,
+            browser_tool_invoker=invoke_browser_tool,
         )
         bridge.set_session_id(session.session_id)
     except (ValueError, SkillLoadError) as exc:
@@ -344,38 +237,6 @@ async def _run_e2e_session(
         await websocket.close(code=1011)
         await bridge.close()
         return
-
-    legacy_session_sent = False
-
-    def session_started_data() -> dict[str, Any]:
-        return {
-            "skillName": settings.skill_name,
-            "skillProfile": settings.skill_profile,
-            "skillVersion": settings.skill_version,
-            "skillProfiles": list(settings.available_profiles),
-            "quickPrompts": [
-                {"label": item.label, "prompt": item.prompt} for item in settings.quick_prompts
-            ],
-            "systemPromptPath": str(settings.system_prompt_path or ""),
-            "bundleName": settings.bundle_name,
-            "context": DeviceDebugContext(
-                uid=settings.default_uid,
-                odid=settings.default_device_id,
-                deviceId=settings.default_device_id,
-                phoneType=settings.default_phone_type,
-                appVersion=settings.default_app_version,
-                romVersion=settings.default_rom_version,
-                locale=settings.default_locale,
-                countryCode=settings.default_country_code,
-            ).model_dump(mode="json"),
-        }
-
-    async def ensure_legacy_session() -> None:
-        nonlocal legacy_session_sent
-        if legacy_session_sent:
-            return
-        legacy_session_sent = True
-        await send_event("session_started", session_started_data())
 
     running_task: asyncio.Task[None] | None = None
     active_turn_id = ""
@@ -385,32 +246,13 @@ async def _run_e2e_session(
             try:
                 payload = json.loads(raw)
             except json.JSONDecodeError:
-                if protocol_mode == "standard":
-                    await _send_protocol_error(
-                        websocket,
-                        "PROTOCOL_INVALID",
-                        "帧必须是合法 JSON",
-                    )
-                    continue
-                await ensure_legacy_session()
-                await send_event(
-                    "diagnostic", {"kind": "invalid_frame", "message": "帧必须是合法 JSON"}
-                )
+                await _send_protocol_error(websocket, "PROTOCOL_INVALID", "帧必须是合法 JSON")
                 continue
             if not isinstance(payload, dict) or not isinstance(payload.get("type"), str):
-                if protocol_mode == "standard":
-                    await _send_protocol_error(
-                        websocket,
-                        "PROTOCOL_INVALID",
-                        "帧类型无效",
-                    )
-                    continue
-                await ensure_legacy_session()
-                await send_event("diagnostic", {"kind": "invalid_frame", "message": "帧类型无效"})
+                await _send_protocol_error(websocket, "PROTOCOL_INVALID", "帧类型无效")
                 continue
-            frame_type = payload["type"]
+            frame_type = payload.get("type")
             if frame_type == "conversation.open":
-                protocol_mode = "standard"
                 if not _supported_protocol_version(payload):
                     await _send_protocol_error(
                         websocket,
@@ -482,33 +324,19 @@ async def _run_e2e_session(
                 )
                 continue
             standard_frame_types = {
-                "turn.start",
-                "turn.cancel",
-                "conversation.reset",
-                "tool.result",
-                "tool_result",
+                "turn.start", "turn.cancel", "conversation.reset", "tool.result"
             }
-            if protocol_mode == "standard":
-                if frame_type not in standard_frame_types:
-                    await _send_protocol_error(
-                        websocket,
-                        "PROTOCOL_INVALID",
-                        f"标准协议不支持帧类型：{frame_type}",
-                    )
-                    continue
-            elif frame_type in {"turn.start", "turn.cancel", "conversation.reset"}:
-                protocol_mode = "standard"
-            else:
-                await ensure_legacy_session()
-            if protocol_mode == "standard" and not _supported_protocol_version(payload):
+            if frame_type not in standard_frame_types:
                 await _send_protocol_error(
-                    websocket,
-                    "UNSUPPORTED_PROTOCOL_VERSION",
-                    "当前仅支持 protocolVersion 1.0",
+                    websocket, "PROTOCOL_INVALID", f"标准协议不支持帧类型：{frame_type}"
+                )
+                continue
+            if not _supported_protocol_version(payload):
+                await _send_protocol_error(
+                    websocket, "UNSUPPORTED_PROTOCOL_VERSION", "当前仅支持 protocolVersion 1.0"
                 )
                 continue
             if frame_type == "turn.start":
-                protocol_mode = "standard"
                 raw_conversation_id = payload.get("conversationId")
                 raw_session_id = payload.get("sessionId")
                 if (
@@ -547,8 +375,6 @@ async def _run_e2e_session(
                     await _send_protocol_error(websocket, "TURN_REJECTED", "已有运行中的任务")
                     continue
                 text = payload.get("text")
-                if not isinstance(text, str):
-                    text = payload.get("content")
                 if not isinstance(text, str) or not text.strip():
                     await _send_protocol_error(
                         websocket,
@@ -587,7 +413,6 @@ async def _run_e2e_session(
                 running_task = asyncio.create_task(session.run(text, run_id=active_turn_id))
                 continue
             if frame_type == "turn.cancel":
-                protocol_mode = "standard"
                 raw_conversation_id = payload.get("conversationId")
                 raw_session_id = payload.get("sessionId")
                 if (
@@ -644,7 +469,6 @@ async def _run_e2e_session(
                         await running_task
                 continue
             if frame_type == "conversation.reset":
-                protocol_mode = "standard"
                 raw_conversation_id = payload.get("conversationId")
                 raw_session_id = payload.get("sessionId")
                 if (
@@ -683,119 +507,9 @@ async def _run_e2e_session(
                 active_turn_id = ""
                 await _send_conversation_ready(websocket, session, resumed=False, settings=settings)
                 continue
-            if frame_type in {"tool.result", "tool_result"}:
-                result_payload = payload
-                if frame_type == "tool_result":
-                    data = payload.get("data")
-                    if isinstance(data, dict):
-                        result_payload = {
-                            **payload,
-                            **data,
-                            "type": "tool.result",
-                            "turnId": data.get("turnId")
-                            or payload.get("turnId")
-                            or payload.get("runId"),
-                            "conversationId": data.get("conversationId")
-                            or payload.get("conversationId")
-                            or payload.get("sessionId"),
-                        }
-                        if "result" not in result_payload:
-                            result_payload["result"] = data
-                resolution = await bridge.resolve(result_payload)
+            if frame_type == "tool.result":
+                resolution = await bridge.resolve(payload)
                 await _send_bridge_resolution(websocket, session.session_id, resolution)
-                continue
-            if frame_type == "configure":
-                if running_task is not None and not running_task.done():
-                    await send_event(
-                        "diagnostic", {"kind": "busy", "message": "运行中不能修改配置"}
-                    )
-                    continue
-                try:
-                    frame = ConfigureFrame.model_validate(payload)
-                    session.configure(frame.context)
-                except (TypeError, ValueError) as exc:
-                    await send_event("diagnostic", {"kind": "invalid_config", "message": str(exc)})
-                    continue
-                await send_event(
-                    "diagnostic",
-                    {"kind": "configured", "context": frame.context.model_dump(mode="json")},
-                )
-                continue
-            if frame_type == "message":
-                if running_task is not None and not running_task.done():
-                    await send_event("diagnostic", {"kind": "busy", "message": "已有运行中的任务"})
-                    continue
-                try:
-                    message = MessageFrame.model_validate(payload)
-                except (TypeError, ValueError) as exc:
-                    await send_event("diagnostic", {"kind": "invalid_message", "message": str(exc)})
-                    continue
-                running_task = asyncio.create_task(session.run(message.content))
-                continue
-            if frame_type == "cancel":
-                try:
-                    SimpleFrame.model_validate(payload)
-                except (TypeError, ValueError) as exc:
-                    await send_event("diagnostic", {"kind": "invalid_cancel", "message": str(exc)})
-                    continue
-                if running_task is not None and not running_task.done():
-                    await session.cancel()
-                    await bridge.cancel_turn(active_turn_id)
-                    running_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await running_task
-                continue
-            if frame_type == "reset":
-                try:
-                    reset_frame = SimpleFrame.model_validate(payload)
-                    if running_task is not None and not running_task.done():
-                        await session.cancel()
-                        running_task.cancel()
-                        with suppress(asyncio.CancelledError):
-                            await running_task
-                    await bridge.cancel_all()
-                    if reset_frame.profile:
-                        selected = DebugSettings.from_config(
-                            debug_config,
-                            production,
-                            profile=reset_frame.profile,
-                            log_level=settings.log_level,
-                            trace=settings.log_trace,
-                            port=settings.port,
-                        )
-                        settings = selected
-                        session = DebugAgentSession(
-                            settings,
-                            production_settings=production,
-                            event_sink=send_event,
-                            model_client_factory=model_client_factory,
-                            upstream_client=upstream_client,
-                            browser_tool_invoker=browser_tool_invoker,
-                        )
-                        bridge.set_session_id(session.session_id)
-                    else:
-                        session.reset()
-                        bridge.set_session_id(session.session_id)
-                    running_task = None
-                    active_turn_id = ""
-                except (TypeError, ValueError) as exc:
-                    await send_event("diagnostic", {"kind": "invalid_reset", "message": str(exc)})
-                    continue
-                sequence = 0
-                await send_event(
-                    "session_reset",
-                    {
-                        "skillName": settings.skill_name,
-                        "skillProfile": settings.skill_profile,
-                        "skillProfiles": list(settings.available_profiles),
-                        "quickPrompts": [
-                            {"label": item.label, "prompt": item.prompt}
-                            for item in settings.quick_prompts
-                        ],
-                    },
-                )
-                continue
-            await send_event("diagnostic", {"kind": "unknown_frame", "message": frame_type})
     except WebSocketDisconnect:
         return
     finally:
@@ -1093,20 +807,11 @@ def _load_debug_settings(production: Any, debug_config: Any) -> DebugSettings:
         log_level=os.getenv("DEBUG_AGENT_LOG_LEVEL"),
         trace=True,
     )
-    upstream = os.getenv("DEBUG_AGENT_UPSTREAM_URL")
-    if upstream:
-        from dataclasses import replace
-
-        settings = replace(settings, upstream_base_url=upstream)
     return settings
 
 
 def _ensure_cloud_import_path() -> None:
     ensure_cloud_import_path()
-
-
-def _timestamp() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _resolve_debug_model_provider(settings: Any) -> str:

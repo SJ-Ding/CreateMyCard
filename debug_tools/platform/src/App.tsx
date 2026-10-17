@@ -80,7 +80,7 @@ function Shell() {
             <Route path="/batch" element={<BatchTaskCenterRoute />} />
             <Route path="/batch/new" element={<BatchTaskCreateRoute />} />
             <Route path="/batch/tasks/:taskId" element={<BatchRoute />} />
-            <Route path="/batch/legacy/:runId" element={<BatchRoute />} />
+            <Route path="/batch/runs/:runId" element={<BatchRoute />} />
             <Route path="/quality" element={<QualityRoute />} />
             <Route path="/quality/import" element={<QualityImportRoute />} />
             <Route path="/quality/compare" element={<QualityCompareRoute />} />
