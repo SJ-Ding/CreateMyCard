@@ -13,6 +13,8 @@ from services.card_validation.enhancement_rules import (
     EnhancementChange,
     available_fields,
     available_icons,
+    enhancement_targets,
+    property_parent,
     protected_text_ids,
     validate_changes,
 )
@@ -32,8 +34,8 @@ def _apply(source: str, changes: list[EnhancementChange], values: tuple[str, ...
         node = indexed.get(change.component_id)
         if node is None:
             raise ValueError("增强目标已不存在")
-        parent = node.get("styles", {}) if change.property_name.startswith("styles.") else node
-        key = change.property_name.removeprefix("styles.")
+        parent = property_parent(node, change.property_name)
+        key = change.property_name.split(".")[-1]
         parent[key] = value
     return encode(records)
 
@@ -73,6 +75,9 @@ async def enhance_artifact(
                 "dataFields": fields,
                 "iconAssets": icons,
                 "protectedTextIds": sorted(protected),
+                "editableTargets": enhancement_targets(indexed, protected, icons),
+                "acceptedInformationPlan": accepted_plan,
+                "sourceLayout": source_layout,
             }
             span.json_artifacts["enhancement_context"] = payload
             span.artifact_roles["enhancement_context"] = "input"

@@ -219,6 +219,53 @@ def _text_variant(original: Any, variant: ExpressionNode, component: dict) -> No
         raise ValueError("无法确认新增动态文本的宽度预算")
 
 
+ALLOWED_PROPERTIES = {
+    "Text": ("content", "styles.fontColor", "styles.backgroundColor", "styles.shadow.color"),
+    "Image": ("src", "styles.fillColor", "styles.backgroundColor", "styles.shadow.color"),
+}
+
+
+def property_parent(component: dict, property_name: str) -> dict:
+    parent = component
+    parts = property_name.split(".")
+    for part in parts[:-1]:
+        child = parent.get(part)
+        if not isinstance(child, dict):
+            raise ValueError("增强不能创建属性对象")
+        parent = child
+    if parts[-1] not in parent:
+        raise ValueError("增强只能修改已有属性")
+    return parent
+
+
+def enhancement_targets(
+    components: dict[str, dict], protected: frozenset[str], icons: list[dict],
+) -> list[dict]:
+    """提示词和组装器共用权限，逐目标提供原值及内容保护提示。"""
+    sources = {icon.get("src") for icon in icons}
+    targets = []
+    for identity, component in components.items():
+        if identity.startswith("__post_theme_"):
+            continue
+        for property_name in ALLOWED_PROPERTIES.get(component.get("component"), ()):
+            if property_name == "content" and identity in protected:
+                continue
+            if component.get("component") == "Image" and component.get("src") not in sources:
+                continue
+            try:
+                parent = property_parent(component, property_name)
+            except ValueError:
+                continue  # 缺失的属性不是本次增强目标。
+            targets.append({
+                "componentId": identity, "property": property_name,
+                "currentValue": parent.get(property_name.split(".")[-1]),
+                "purpose": (
+                    "conditional wording" if property_name == "content" else "state emphasis"
+                ),
+            })
+    return targets
+
+
 def validate_changes(
     payload: Any, components: dict[str, dict], fields: dict[str, dict], icons: list[dict],
     *, protected_text_ids: frozenset[str] = frozenset(),
@@ -243,16 +290,15 @@ def validate_changes(
         if target in seen:
             raise ValueError("重复增强目标")
         seen.add(target)
-        allowed = {"Text": {"content", "styles.fontColor"}, "Image": {"src"}}
-        if property_name not in allowed.get(component.get("component"), set()):
+        if property_name not in ALLOWED_PROPERTIES.get(component.get("component"), ()):
             raise ValueError("不允许修改该组件属性")
         if property_name == "content" and identity in protected_text_ids:
             raise ValueError("标题、标签、动作及核心静态事实不允许替换")
-        parent = component.get("styles", {}) if property_name.startswith("styles.") else component
-        key = property_name.removeprefix("styles.")
+        parent = property_parent(component, property_name)
+        key = property_name.split(".")[-1]
         if key not in parent:
             raise ValueError("增强只能修改已有属性")
-        if property_name == "src" and parent.get(key) not in allowed_icons:
+        if component.get("component") == "Image" and component.get("src") not in allowed_icons:
             raise ValueError("原始素材不是授权图标")
         root = parse_expression(expression)
         if _expression_type(root, fields) != "string":
@@ -260,7 +306,7 @@ def validate_changes(
         values = []
         for variant in result_variants(root):
             value = "{{ " + variant.render() + " }}"
-            if property_name == "styles.fontColor":
+            if property_name.startswith("styles."):
                 value = literal_string(variant)
                 if HEX_RE.fullmatch(value) is None:
                     raise ValueError("分支字体颜色非法")

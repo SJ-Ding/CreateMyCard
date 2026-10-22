@@ -249,11 +249,50 @@ def test_branch_limit_is_bounded():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("attribute", ["content", "styles.fontColor", "src"])
+@pytest.mark.parametrize("prop", ["styles.backgroundColor", "styles.shadow.color"])
+async def test_existing_conditional_effects_and_prompt_targets(artifact, prop):
+    records = decode(artifact.genui)
+    text = next(node for node in components(records) if node.get("id") == "advice")
+    styles = text.get("styles")
+    assert isinstance(styles, dict)
+    styles["backgroundColor"] = "#00000000"
+    styles["shadow"] = {"radius": 4, "color": "#00000000"}
+    artifact.genui = encode(records)
+    client = SimpleNamespace(generate=AsyncMock(return_value=json.dumps([
+        change("advice", prop, COLOR)])))
+    validator = SimpleNamespace(validate=Mock(return_value=[]))
+    result = await enhance_artifact(artifact, client, validator, {})
+    assert result is not artifact
+    payload = json.loads(client.generate.call_args.args[0][1].get("content"))
+    targets = payload.get("editableTargets")
+    assert isinstance(targets, list)
+    assert any(target.get("property") == prop for target in targets)
+    result_text = next(node for node in components(decode(result.genui))
+                       if node.get("id") == "advice")
+    result_styles = result_text.get("styles")
+    assert isinstance(result_styles, dict)
+    if prop == "styles.shadow.color":
+        assert result_styles.get("shadow") == {"radius": 4, "color": COLOR}
+    else:
+        assert result_styles.get("backgroundColor") == COLOR
+
+
+def test_missing_effect_structure_cannot_be_created(artifact):
+    with pytest.raises(ValueError, match="属性对象"):
+        validate(artifact, [change("advice", "styles.shadow.color", COLOR)])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("attribute", ["content", "styles.fontColor", "styles.shadow.color", "src"])
 async def test_real_artifact_validator_accepts_enhanced_dsl(artifact, attribute, storage):
     actual_path = "/data/weather/current/temperatureC"
     artifact.genui = artifact.genui.replace(PATH, actual_path)
     records = decode(artifact.genui)
+    if attribute == "styles.shadow.color":
+        number = next(node for node in components(records) if node.get("id") == "number")
+        styles = number.get("styles")
+        assert isinstance(styles, dict)
+        styles["shadow"] = {"radius": 4, "color": "#00000000"}
     for row in records:
         surface = row.get("createSurface")
         if isinstance(surface, dict):
@@ -278,7 +317,7 @@ async def test_real_artifact_validator_accepts_enhanced_dsl(artifact, attribute,
     assert validator.validate(artifact, profile) == []
     expression = EXPR
     identity = "advice"
-    if attribute == "styles.fontColor":
+    if attribute.startswith("styles."):
         expression = COLOR
         identity = "number"
     elif attribute == "src":
@@ -304,10 +343,11 @@ async def test_real_artifact_validator_accepts_enhanced_dsl(artifact, attribute,
     nodes = {node.get("id"): node for node in components(decode(restored.artifact.genui))}
     parent = nodes.get(identity)
     assert parent is not None
-    if attribute.startswith("styles."):
-        parent = parent.get("styles")
+    for part in attribute.split(".")[:-1]:
+        parent = parent.get(part)
+        assert isinstance(parent, dict)
     original_expression = payload[0].get("expression")
-    actual_expression = parent.get(attribute.removeprefix("styles."))
+    actual_expression = parent.get(attribute.split(".")[-1])
     assert parse_expression(actual_expression).render() == parse_expression(
         original_expression,
     ).render()
