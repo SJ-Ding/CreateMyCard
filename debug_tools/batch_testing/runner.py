@@ -854,6 +854,8 @@ class BatchRunManager:
             atomic_write_json(attempt_dir / "request.json", request)
             sample["attemptCount"] = attempt + 1
             sample["status"] = "running"
+            sample["traceStatus"] = "pending"
+            sample["traceRecordCount"] = 0
             self._persist_state(state)
 
             def publish_response(
