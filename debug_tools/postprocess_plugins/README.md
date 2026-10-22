@@ -49,32 +49,19 @@ uv run debug_tools
 `device-capture` 复用 `device_debug` 的 Render Session。先安装 DevEco Studio 及对应 SDK，再在
 `debug_tools/debug_tool.yaml` 中配置本机工具链和模拟器目录：
 
-```yaml
-platform:
-  environment:
-    deveco_studio_home: D:/DevEco
-    workspace_root: D:/Workspace
-    sdk_home: ${environment.deveco_studio_home}/sdk
-    hdc: ${environment.sdk_home}/default/openharmony/toolchains/hdc.exe
-  device_capture:
-    hdc: ${environment.hdc}
-    deveco_sdk_home: ${environment.sdk_home}
-    java_home: ${environment.java_home}
-    hvigor: ${environment.hvigor}
-    render_timeout_seconds: 30
-    capture_attempts: 6
-    auto_start_emulator: false
-```
+完整字段及路径变量以 [`debug_tool.yaml.example`](../debug_tool.yaml.example) 为准，
+避免从不完整的片段复制配置。内置工程固定为 `debug_tools/a2ui_render`；面板选择当次在线目标和截图模式，
+不保存设备序列号。真机要求 signed HAP，模拟器可用 unsigned HAP。
 
-内置工程位于 `debug_tools/a2ui_render`，插件面板仅配置本次执行的 `targetId`。
-截图前等待默认 1 秒，通过 `debug_tools/debug_tool.yaml` 中
-`platform.device_capture.capture_delay_seconds` 设置 0～30 秒，0 表示关闭额外等待，修改后重启调试后端。
-页面不提供时延配置，旧执行记录中的 `captureDelaySeconds` 仅兼容读取，不覆盖本机 YAML。
-每个样本收到就绪终态、确认应用
-前台后再等待，截图重试也执行该等待；取消时立即中断。实际时延保存至截图元数据和汇总事实。
-只重生成画廊仍复用已有图片；调整时延后应再次运行真机截图，再次运行真机画廊。插件自动选择最新 HAP：
-真机和未知目标要求 signed，模拟器可使用 unsigned。App 的 `A2UI_RUN` 终态决定成功、警告或失败，
-卡片裁切严格使用 App 返回的 `cropPx`。
+- **桌面模式（新建配置默认）**：先在设备页点击“编译并安装项目”，手动添加2x2和2x4各一张，
+  放在同页并保持解锁、无遮挡。后处理只更新已有实例，不编译安装、翻页或加桌。
+- **应用预览模式**：一次 Render Session 构建安装一次，动态传输样本，等待 `A2UI_RUN` 终态及前台确认，
+  按 App 返回的 `cropPx` 裁切。该模式与桌面截图的证据分别保存。
+
+额外截图等待由本机 YAML 的 `platform.device_capture.capture_delay_seconds` 配置，默认1秒、范围0～30秒；
+修改后重启后端。桌面模式还要求连续稳定帧和最终复核，具体见
+[桌面截图规范](../调试平台运行规范.md#桌面卡片截图)。页面不提供时延配置，旧执行的
+`captureDelaySeconds` 不覆盖本机 YAML。只重跑画廊会复用已有图片；调整等待或更新内容后应先重跑截图。
 
 启动前可先验证工具和设备：
 

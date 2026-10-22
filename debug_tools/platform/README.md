@@ -11,10 +11,12 @@
 | `/debug/end-to-end` | 端到端调试 |
 | `/debug/interface` | 接口调试 |
 | `/debug/renderer` | 卡片渲染 |
+| `/debug/device-render` | 设备转换、编译安装与卡片截图 |
+| `/debug/quality` | 质量评分、导入与对比入口 |
 | `/debug/batch` | 批量测试任务中心 |
 | `/debug/settings` | 连接与公共请求配置 |
 
-批跑详情、单样本 Trace、画廊捕获和插件看板使用独立子路由。未知路由会回到端到端调试页。
+批跑详情、单样本 Trace、画廊捕获和插件看板使用独立子路由；评分另有 import、evaluation、compare 子路由。未知路由会回到端到端调试页。
 
 ## 共享状态
 
@@ -30,7 +32,7 @@
 帧。端到端 Agent 的普通事件保留在端到端页面内部。
 
 浏览器配置保存到版本化的 `localStorage` 键 `ai-widget-debug-config:v1`。保存前会拒绝或清除地址中的用户
-信息、hash 和常见凭据参数。API Key 不属于浏览器配置。
+信息、hash 和常见凭据参数。API Key 不属于浏览器配置。受管参数由后端读取和保存到本机 YAML，不写入浏览器配置。
 
 ## 本地开发
 
