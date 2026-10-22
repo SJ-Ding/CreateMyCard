@@ -7,6 +7,7 @@
  */
 
 import { UIGraph } from '@genui-sdk/graph';
+import { evaluateExpression, ExpressionError } from '@genui-sdk/interactions';
 import { JsonlStreamParser } from '@genui-sdk/parser';
 
 export const COMPONENT_TYPES = new Set([
@@ -776,73 +777,21 @@ export function countLeafPaths(value: unknown): number {
 }
 
 export function resolveTemplate(value: string, data: unknown): string {
-  const fullExpression = value.match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
+  const fullExpression = value.trim().match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
   if (fullExpression) {
-    const expression = fullExpression[1];
-    const countdown = expression.match(
-      /^\$\{([^}]+)\}\s*==\s*0\s*\?\s*'([^']*)'\s*:\s*\(\s*\$\{([^}]+)\}\s*>\s*0\s*\?\s*\$\{([^}]+)\}\s*\+\s*'([^']*)'\s*:\s*'([^']*)'\s*\)$/,
-    );
-    if (countdown && countdown[1] === countdown[3] && countdown[1] === countdown[4]) {
-      const numeric = Number(getPath(data, countdown[1].trim()));
-      if (numeric === 0) return countdown[2];
-      return numeric > 0 ? `${numeric}${countdown[5]}` : countdown[6];
+    try {
+      return stringify(evaluateExpression(fullExpression[1], path => getPath(data, path)));
+    } catch (error) {
+      // Preserve the legacy helper's literal/relative-path fallback. The renderer
+      // itself reports invalid expressions through its preview error boundary.
+      if (!(error instanceof ExpressionError)) throw error;
     }
-    const booleanChoice = expression.match(/^\$\{([^}]+)\}\s*\?\s*'([^']*)'\s*:\s*'([^']*)'$/);
-    if (booleanChoice) return getPath(data, booleanChoice[1].trim()) ? booleanChoice[2] : booleanChoice[3];
-    const concatenated = resolveConcatenation(expression, data);
-    if (concatenated != null) return concatenated;
   }
   return value
     .replace(/\{\{\s*\$\{([^}]+)\}\s*(?:\+\s*(['"])(.*?)\2)?\s*\}\}/g,
       (_match, path: string, _quote: string, suffix: string) => `${stringify(getPath(data, path.trim()))}${suffix ?? ''}`)
     .replace(/\{\{\s*([A-Za-z0-9_$./[\]-]+)\s*\}\}/g,
       (_match, path: string) => stringify(getPath(data, path.trim())));
-}
-
-function resolveConcatenation(expression: string, data: unknown): string | null {
-  let index = 0;
-  const values: string[] = [];
-  while (index < expression.length) {
-    index = skipWhitespace(expression, index);
-    const operand = readExpressionOperand(expression, index, data);
-    if (!operand) return null;
-    values.push(operand.value);
-    index = skipWhitespace(expression, operand.nextIndex);
-    if (index === expression.length) return values.join('');
-    if (expression[index] !== '+') return null;
-    index += 1;
-  }
-  return null;
-}
-
-function readExpressionOperand(expression: string, index: number, data: unknown): { value: string; nextIndex: number } | null {
-  if (expression.startsWith('${', index)) {
-    const end = expression.indexOf('}', index + 2);
-    if (end < 0) return null;
-    const path = expression.slice(index + 2, end).trim();
-    return path ? { value: stringify(getPath(data, path)), nextIndex: end + 1 } : null;
-  }
-  const quote = expression[index];
-  if (quote !== "'" && quote !== '"') return null;
-  let value = '';
-  for (let cursor = index + 1; cursor < expression.length; cursor += 1) {
-    const character = expression[cursor];
-    if (character === quote) return { value, nextIndex: cursor + 1 };
-    if (character !== '\\') {
-      value += character;
-      continue;
-    }
-    cursor += 1;
-    if (cursor >= expression.length) return null;
-    value += ({ n: '\n', r: '\r', t: '\t' } as Record<string, string>)[expression[cursor]] ?? expression[cursor];
-  }
-  return null;
-}
-
-function skipWhitespace(value: string, index: number): number {
-  let cursor = index;
-  while (cursor < value.length && /\s/.test(value[cursor])) cursor += 1;
-  return cursor;
 }
 
 export function resolveValue(value: unknown, data: unknown): unknown {

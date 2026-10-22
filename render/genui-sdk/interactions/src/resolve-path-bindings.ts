@@ -20,7 +20,7 @@ export function resolvePathBindingsInValue(
   getLeaf: (path: string) => unknown,
 ): unknown {
   if (typeof value === "string") {
-    const full = value.match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
+    const full = value.trim().match(/^\{\{\s*([\s\S]*?)\s*\}\}$/);
     if (full) return evaluateExpression(full[1], getLeaf);
     // Match the reference web renderer without evaluating JavaScript expressions.
     return value.replace(/\{\{\s*\$\{([^}]+)\}\s*(?:\+\s*(['"])(.*?)\2)?\s*\}\}/g,
