@@ -218,6 +218,23 @@ def test_crop_uses_reported_density_and_bounds():
         physical_rect(screen_reply(rectVp={"left": 500, "top": 0, "width": 100, "height": 100}))
 
 
+@pytest.mark.parametrize(
+    "actual,expected",
+    [
+        (Rect(423, 801, 474, 474), True),
+        (Rect(421, 799, 474, 474), True),
+        (Rect(425, 803, 474, 474), True),
+        (Rect(420, 801, 474, 474), False),
+        (Rect(423, 804, 474, 474), False),
+        (Rect(423, 801, 475, 474), False),
+        (Rect(423, 801, 474, 475), False),
+    ],
+)
+def test_rect_within_allows_only_two_pixel_position_tolerance(actual, expected):
+    baseline = Rect(423, 801, 474, 474)
+    assert actual.within(baseline) is expected
+
+
 @pytest.mark.asyncio
 async def test_no_compilation_record_fails_without_build_install_or_desktop_operations(tmp_path):
     session = MemorySession(tmp_path)
@@ -372,7 +389,11 @@ def test_historical_preview_and_desktop_metadata_are_separate():
 def same_page_tree(missing=None):
     nodes = []
     values = [
-        ("icon", {"id": "AppIconCommonView_debug.app.EntryAbility"}, "[100,1400][250,1550]"),
+        (
+            "icon",
+            {"text": "AI卡片调试", "originalText": "AI卡片调试"},
+            "[100,1400][250,1550]",
+        ),
         ("small", {"description": "A2UI_FORM:small"}, "[423,801][897,1275]"),
         ("large", {"description": "A2UI_FORM:large"}, "[129,201][1191,675]"),
     ]
@@ -405,7 +426,7 @@ def same_page_driver():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("missing", [None, "icon", "small", "large"])
-async def test_same_page_required_without_any_swipe(missing):
+async def test_same_page_requires_both_cards_and_treats_app_entry_as_optional(missing):
     driver = same_page_driver()
     commands = []
 
@@ -418,8 +439,10 @@ async def test_same_page_required_without_any_swipe(missing):
 
     driver.layout = layout
     driver.hdc = hdc
-    if missing is None:
+    if missing in (None, "icon"):
         await driver.navigate()
+        expected = None if missing == "icon" else True
+        assert driver.app_entry_on_page is expected
     else:
         with pytest.raises(DesktopEnvironmentError, match="同一个桌面页面"):
             await driver.navigate()
@@ -427,17 +450,18 @@ async def test_same_page_required_without_any_swipe(missing):
 
 
 @pytest.mark.parametrize("invalid", ["hidden", "outside", "dock", "duplicate"])
-def test_same_page_rejects_hidden_off_page_dock_or_duplicate_items(invalid):
+def test_same_page_rejects_hidden_off_page_dock_or_duplicate_cards(invalid):
     driver = same_page_driver()
     root = same_page_tree()
     workspace = root.children[0]
-    target = workspace.children[0]
+    target = workspace.children[1]
     if invalid == "hidden":
         target.attributes["visible"] = "false"
     elif invalid == "outside":
         target.attributes["bounds"] = "[1250,1400][1300,1550]"
     elif invalid == "dock":
-        workspace = type(workspace)(workspace.attributes, workspace.children[1:])
+        children = (workspace.children[0], workspace.children[2])
+        workspace = type(workspace)(workspace.attributes, children)
         root = type(root)(root.attributes, (workspace, target))
     else:
         workspace = type(workspace)(workspace.attributes, (*workspace.children, target))
@@ -446,11 +470,37 @@ def test_same_page_rejects_hidden_off_page_dock_or_duplicate_items(invalid):
         driver.same_page_workspace(root)
 
 
+@pytest.mark.parametrize(
+    "variant,expected",
+    [("missing", None), ("text", True), ("originalText", True),
+     ("hidden", False), ("outside", False), ("duplicate", False)],
+)
+def test_app_entry_check_is_optional(variant, expected):
+    driver = same_page_driver()
+    root = same_page_tree("icon" if variant == "missing" else None)
+    workspace = root.children[0]
+    if variant != "missing":
+        icon = workspace.children[0]
+        if variant == "text":
+            icon.attributes["originalText"] = ""
+        elif variant == "originalText":
+            icon.attributes["text"] = ""
+        elif variant == "hidden":
+            icon.attributes["visible"] = "false"
+        elif variant == "outside":
+            icon.attributes["bounds"] = "[1250,1400][1300,1550]"
+        else:
+            workspace = type(workspace)(workspace.attributes, (*workspace.children, icon))
+            root = type(root)(root.attributes, (workspace,))
+    assert driver.same_page_workspace(root) == workspace
+    assert driver.app_entry_on_page is expected
+
+
 @pytest.mark.asyncio
-async def test_inspection_rechecks_other_form_and_icon_on_every_capture():
+async def test_inspection_rechecks_other_form_on_every_capture():
     driver = same_page_driver()
     driver.card = Rect(423, 801, 474, 474)
-    pages = iter([same_page_tree(), same_page_tree("large")])
+    pages = iter([same_page_tree("icon"), same_page_tree("large")])
 
     async def layout():
         return next(pages)
@@ -459,6 +509,29 @@ async def test_inspection_rechecks_other_form_and_icon_on_every_capture():
     assert await driver.inspect() == {"formBounds": driver.card.__dict__}
     with pytest.raises(DesktopEnvironmentError, match="同一个桌面页面"):
         await driver.inspect()
+
+
+@pytest.mark.parametrize(
+    "bounds,accepted",
+    [
+        ("[421,799][895,1273]", True),
+        ("[425,803][899,1277]", True),
+        ("[420,799][894,1273]", False),
+        ("[423,804][897,1278]", False),
+        ("[423,801][898,1275]", False),
+    ],
+)
+def test_inspection_compares_card_size_and_position_tolerance(bounds, accepted):
+    driver = same_page_driver()
+    driver.card = Rect(423, 801, 474, 474)
+    root = same_page_tree()
+    root.children[0].children[1].attributes["bounds"] = bounds
+    target_rect = root.children[0].children[1].rect()
+    if accepted:
+        assert driver.inspect_root(root) == {"formBounds": target_rect.__dict__}
+    else:
+        with pytest.raises(DesktopEnvironmentError, match="卡片节点与实际边界不一致"):
+            driver.inspect_root(root)
 
 
 @pytest.mark.asyncio
@@ -571,7 +644,7 @@ async def test_final_verification_failure_discards_captured_files(tmp_path, monk
         return [{**session.current_envelope, "formId": "small", "state": "FAILED"}]
 
     async def bridge(_operation):
-        return screen_reply(rectVp={"left": 1, "top": 0, "width": 200, "height": 200})
+        return screen_reply(rectVp={"left": 3, "top": 0, "width": 200, "height": 200})
 
     async def no_wait(_delay):
         return None

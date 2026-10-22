@@ -416,7 +416,7 @@ class DesktopRenderSession(RenderSession):
                 raise DesktopEnvironmentError("合并更新回包与本轮样本不一致")
         for key in ("beforeRectVp", "stagedRectVp", "updatedRectVp", "rectVp"):
             checked = {**reply, "rectVp": reply.get(key)}
-            if physical_rect(checked) != expected:
+            if not physical_rect(checked).within(expected):
                 raise DesktopEnvironmentError("桌面卡片位置或尺寸发生变化，请重新开始截图")
         self.current_envelope = envelope
         driver.card = expected
@@ -516,7 +516,7 @@ class DesktopRenderSession(RenderSession):
                         # 最终图片已完成；只在这一阶段集中做一次手机端核验，再返回桌面。
                         await self._say("图片采集完成，集中核验实际边界和渲染回执")
                         after_rect = physical_rect(await self.bridge("rect"))
-                        if after_rect != first:
+                        if not after_rect.within(first):
                             raise DesktopEnvironmentError("截图后实际卡片边界发生变化")
                         await self.require_no_render_failure()
                         succeeded = True
