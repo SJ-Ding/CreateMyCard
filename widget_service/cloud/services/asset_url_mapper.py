@@ -52,10 +52,46 @@ class AssetUrlMapper:
             return False
         original = props.get(key)
         resolved = self._resolve(original, restore)
+        if isinstance(original, str) and original.strip().startswith("{{"):
+            resolved = self._rewrite_enhancement_expression(original, restore)
         if resolved == original:
             return False
         props[key] = resolved
         return True
+
+    def _rewrite_enhancement_expression(self, value: str, restore: bool) -> str:
+        """仅映射受限三目结果中的素材常量，不改条件引用或其它字符串字段。"""
+        from services.card_validation.enhancement_expression import (
+            ExpressionNode,
+            literal_string,
+            parse_expression,
+        )
+
+        try:
+            root = parse_expression(value)
+        except ValueError:
+            # 历史表达式继续按原路径保留；只处理本次新增的受限语法。
+            return value
+
+        changed = False
+
+        def rewrite(node: ExpressionNode) -> ExpressionNode:
+            nonlocal changed
+            if node.kind == "conditional":
+                condition, yes, no = node.children
+                return ExpressionNode(node.kind, node.value, (condition, rewrite(yes), rewrite(no)))
+            if node.kind != "string":
+                return node
+            original_path = literal_string(node)
+            mapped = self._resolve(original_path, restore)
+            if mapped == original_path:
+                return node
+            changed = True
+            quoted = "'" + mapped.replace("\\", "\\\\").replace("'", "\\'") + "'"
+            return ExpressionNode("string", quoted)
+
+        result = rewrite(root)
+        return "{{ " + result.render() + " }}" if changed else value
 
     def rewrite_standard(self, dsl: str, *, restore: bool = False) -> str:
         """只处理标准 Image.src 和 styles.backgroundImage，不改数据、文本、事件。"""
