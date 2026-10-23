@@ -265,10 +265,14 @@ async def test_host_runs_browser_dependency_and_scores_without_new_frontend(tmp_
     gallery = BatchGalleryManager(tmp_path, "http://localhost/debug", capture=capture)
 
     async def builtin(run_id: str, output: Path, config: dict) -> dict:
-        return await run_builtin(gallery, run_id, output, config)
+        from debug_tools.postprocess_plugins.gallery.report import run_capture_gallery
+
+        return await run_capture_gallery(
+            gallery, "browser", run_id, output, config, upstream_results=[],
+        )
 
     manager = PostprocessManager(
-        tmp_path, PLUGIN_DIR.parent, builtin_runners={"browser-capture": builtin}
+        tmp_path, PLUGIN_DIR.parent, builtin_runners={"browser-gallery": builtin}
     )
     await manager.start()
     try:

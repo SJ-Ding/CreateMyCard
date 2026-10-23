@@ -68,10 +68,14 @@ async def test_subset_executes_only_selected_and_keeps_history(tmp_path: Path) -
 
     async def gallery(_run: str, _output: Path, _config: dict) -> dict:
         # 无截图的测试依赖；评分必须待评，不能凭空给分。
+        (_output / "gallery.html").write_text("test gallery", encoding="utf-8")
         return {"status": "success", "sampleResults": [],
-                "datasetResult": {"status": "skipped", "artifacts": []}}
+                "datasetResult": {"status": "success", "artifacts": [
+                    {"key": "browser-gallery", "path": "gallery.html"},
+                    {"key": "capture-summary", "data": []},
+                ]}}
 
-    manager = PostprocessManager(tmp_path, PLUGINS, builtin_runners={"browser-capture": gallery})
+    manager = PostprocessManager(tmp_path, PLUGINS, builtin_runners={"browser-gallery": gallery})
     await manager.start()
     try:
         first = manager.enqueue("run", ["quality-score"], {"quality-score": {"count": 1}})

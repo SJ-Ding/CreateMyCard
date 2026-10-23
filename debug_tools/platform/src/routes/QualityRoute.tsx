@@ -56,10 +56,10 @@ export function QualityRoute() {
     selectionError = '请至少选择一个样本';
   }
   const gallery = run?.postprocessExecutions?.find((item) => (
-    item.plugins?.some((plugin) => plugin.id === 'browser-capture' && plugin.status !== 'queued')
+    item.plugins?.some((plugin) => ['browser-gallery', 'browser-capture'].includes(plugin.id) && plugin.status !== 'queued')
   ));
   const galleryPath = gallery
-    ? `/batch/runs/${encodeURIComponent(runId)}/postprocess/${encodeURIComponent(gallery.executionId)}/plugins/browser-capture`
+    ? `/batch/runs/${encodeURIComponent(runId)}/postprocess/${encodeURIComponent(gallery.executionId)}/plugins/${gallery.plugins.find((plugin) => ['browser-gallery', 'browser-capture'].includes(plugin.id))?.id}`
     : run?.taskId ? `/batch/tasks/${encodeURIComponent(run.taskId)}` : `/batch/legacy/${encodeURIComponent(runId)}`;
 
   return <div className="quality-page">

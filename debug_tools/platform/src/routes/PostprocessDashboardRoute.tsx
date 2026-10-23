@@ -77,6 +77,10 @@ export function PostprocessDashboardRoute() {
   const currentExecution = run?.postprocessExecutions?.find(
     (item) => item.executionId === executionId,
   );
+  const currentPlugin = currentExecution?.plugins.find((item) => item.id === pluginId);
+  const legacyConfig = pluginId === 'device-gallery'
+    ? currentExecution?.plugins.find((item) => item.id === 'device-capture')?.config : undefined;
+  const currentConfig = legacyConfig ? { ...legacyConfig, ...currentPlugin?.config } : currentPlugin?.config;
   const selectedIndex = samples.findIndex((item) => item.sampleId === selectedId);
   const backPath = run?.taskId ? `/batch/tasks/${encodeURIComponent(run.taskId)}`
     : `/batch/legacy/${encodeURIComponent(runId)}`;
@@ -139,7 +143,8 @@ export function PostprocessDashboardRoute() {
     if (isQuality) { await qualityRun.start(qualitySelection ?? []); return; }
     setBusy(true); setError('');
     try {
-      const execution = await startPostprocess(runId, [pluginId], {}, true);
+      const execution = await startPostprocess(runId, [pluginId], currentConfig
+        ? { [pluginId]: currentConfig } : {}, true);
       navigate(`/batch/runs/${encodeURIComponent(runId)}/postprocess/`
         + `${encodeURIComponent(execution.executionId)}/plugins/${encodeURIComponent(pluginId)}`);
     } catch (reason) {
@@ -196,6 +201,17 @@ export function PostprocessDashboardRoute() {
       </div>
     </header>
     {(error || qualityRun.error) && <div className="batch-error" role="alert">{error || qualityRun.error}</div>}
+    {!isQuality && <details className="postprocess-config-view" open>
+      <summary>本次执行参数</summary>
+      {currentConfig ? <dl>{Object.entries(currentConfig).map(([key, value]) => <div key={key}>
+        <dt>{({ targetId: '在线设备', captureMode: '截图模式', captureDelaySeconds: '历史截图时延配置',
+          includeHidden: '统计隐藏文件' } as Record<string, string>)[key] ?? key}</dt>
+        <dd>{value === 'desktop' ? '桌面卡片' : value === 'preview' ? '应用预览'
+          : typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
+      </div>)}</dl> : <p>该历史记录未保存参数，再次运行沿用最近可用配置。</p>}
+      {currentConfig && !Object.keys(currentConfig).length && <p>此插件无需参数。</p>}
+      <p>再次运行使用本次参数；如需修改，请返回批量测试结果中的后处理插件。</p>
+    </details>}
     {isQuality && <div className="quality-dashboard-note">
       <p>本次历史参数以本看板 policy 产物为准。再次运行使用当前方案并复用画廊；旧证据可能待评，请先到画廊看板显式再次运行。</p>
       {!qualitySelection?.length && <p>该历史结果没有完整样本选择，请先重新选择批次与样本。</p>}

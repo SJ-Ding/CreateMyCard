@@ -1,26 +1,75 @@
 {
   "apiVersion": "batch-postprocess-v2",
-  "version": "3.0.0",
+  "version": "6.0.0",
   "entrypoint": "builtin",
   "dependence": [
-    "device-capture",
     "data-analysis"
   ],
   "configSchema": {
     "type": "object",
-    "additionalProperties": false
+    "additionalProperties": false,
+    "required": [
+      "targetId"
+    ],
+    "properties": {
+      "captureMode": {
+        "type": "string",
+        "enum": [
+          "desktop",
+          "preview"
+        ],
+        "default": "desktop",
+        "title": "截图模式"
+      },
+      "targetId": {
+        "type": "string",
+        "minLength": 1,
+        "title": "在线设备"
+      },
+      "captureDelaySeconds": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 30,
+        "deprecated": true,
+        "title": "历史截图时延配置",
+        "description": "仅兼容旧执行记录；实际时延以 debug_tool.yaml 中 capture_delay_seconds 为准。"
+      }
+    }
   },
   "id": "device-gallery",
   "name": "真机截图画廊",
-  "description": "复用截图与数据分析结果生成可筛选的离线 HTML 画廊。",
+  "description": "采集截图与渲染证据，并生成可筛选的离线 HTML 画廊。",
   "outputs": [
+    {
+      "key": "device-capture-metadata",
+      "scope": "sample",
+      "title": "截图元数据",
+      "dataType": "json",
+      "required": false
+    },
     {
       "key": "device-capture",
       "scope": "sample",
-      "title": "渲染截图",
+      "title": "真机卡片截图",
       "dataType": "image",
-      "required": false,
-      "renderer": "gallery"
+      "renderer": "gallery",
+      "required": true
+    },
+    {
+      "key": "device-full-capture",
+      "scope": "sample",
+      "title": "设备全屏原图",
+      "dataType": "image",
+      "renderer": "gallery",
+      "required": false
+    },
+    {
+      "key": "capture-summary",
+      "scope": "dataset",
+      "title": "真机截图汇总",
+      "dataType": "metrics",
+      "renderer": "kpi",
+      "required": true
     },
     {
       "key": "device-gallery",

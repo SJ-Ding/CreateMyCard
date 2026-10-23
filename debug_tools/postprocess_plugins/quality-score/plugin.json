@@ -5,7 +5,7 @@
   "version": "3.0.0",
   "description": "支持 Web 批跑和 DSL＋截图＋Query 导入，共用四类扣分模型，展示问题、分数及批次／单条对比。",
   "entrypoint": "plugin.py",
-  "dependence": ["browser-capture", "data-analysis"],
+  "dependence": ["browser-gallery", "data-analysis"],
   "timeoutSeconds": 60,
   "configSchema": {
     "type": "object", "additionalProperties": false,
