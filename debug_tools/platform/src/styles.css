@@ -177,8 +177,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* The interface package switches to a two-row work area on narrow screens.
    Keep that scroll inside the route instead of letting the fixed shell grow. */
 @media (max-width: 900px) {
-  .route-content > .renderer-route { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(220px, 0.7fr); overflow-y: auto; }
-  .renderer-route__inspector { min-height: 220px; }
+  .route-content > .renderer-route { grid-template-columns: 1fr; grid-template-rows: 780px minmax(420px, 65dvh); overflow-y: auto; align-content: start; }
+  .renderer-route__canvas > .card-renderer { grid-template-rows: 300px 480px; }
+  .renderer-route__inspector { min-height: 420px; }
   .route-content > .interface-debugger .interface-grid {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;

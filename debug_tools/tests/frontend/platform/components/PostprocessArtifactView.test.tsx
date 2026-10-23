@@ -1,10 +1,29 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PostprocessArtifact } from '../../../../platform/src/batchApi';
 import { PostprocessArtifactView } from '../../../../platform/src/components/PostprocessArtifactView';
+import * as snapshots from '../../../../platform/src/rendererSnapshot';
 
 describe('PostprocessArtifactView', () => {
-  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  it('实时 DSL 画廊将当前源码、完整上下文和尺寸传给新标签页入口', async () => {
+    const open = vi.spyOn(snapshots, 'openRendererSnapshot').mockResolvedValue();
+    const source = [
+      { version: 'v0.9', createSurface: { surfaceId: 'gallery' } },
+      { version: 'v0.9', updateComponents: { surfaceId: 'gallery', root: 'root', components: [
+        { id: 'root', component: 'Text', content: '画廊实时卡片' },
+      ] } },
+    ].map(row => JSON.stringify(row)).join('\n');
+    const blocks = { cardspec: { suggestSize: '2x4' }, taskspec: { appVersion: '11.7.7.330' } };
+    const request = { deviceInfo: { romVersion: '7.0' } };
+    render(<PostprocessArtifactView artifact={{ key: 'live', dataType: 'image', renderer: 'gallery', data: [
+      { label: '实时卡片', dsl: source, size: '2x4', appVersion: '11.7.7.330', blocks, request },
+    ] } as PostprocessArtifact} />);
+    await screen.findByText('画廊实时卡片');
+    fireEvent.click(screen.getByRole('button', { name: /在卡片渲染中打开/ }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith({ source, artifact: blocks, request,
+      view: { cardSize: '2x4', appVersion: '11.7.7.330', width: 300, height: 150, zoom: 100 } }));
+  });
   it.each([
     ['metrics', 'kpi', [{ label: '召回率', value: 87.5, unit: '%' }], '87.5'],
     ['records', 'table', [{ component: 'SingleLineTitle', matched: 3 }], 'SingleLineTitle'],

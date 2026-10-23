@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), rendererAssets()],
   base: '/debug/',
   server: {
-    proxy: { '/debug/renderer/convert': { target: 'http://127.0.0.1:8888' } },
+    proxy: { '/debug/renderer/': { target: 'http://127.0.0.1:8888' } },
   },
   build: {
     outDir: '../static',

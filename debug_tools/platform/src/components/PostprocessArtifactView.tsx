@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { CardPreview, parseInput, resolveAppVersion, resolveCardSize, type RendererDocument } from '@widget-debug/card-renderer';
 import type { PostprocessArtifact } from '../batchApi';
 import { DEFAULT_ASSET_BASE_URL } from '../config';
+import { OpenRendererButton } from './OpenRendererButton';
 
 type RecordRow = Record<string, unknown>;
 
@@ -146,6 +147,10 @@ function DslGalleryPreview({ item }: { item: RecordRow }) {
     return <div className="postprocess-image-error">{result.error || '正在渲染…'}</div>;
   }
   return <div className={`postprocess-dsl-preview ${item.size === '2x4' ? 'wide' : ''}`}>
+    <OpenRendererButton snapshot={{ source: String(item.dsl ?? ''), artifact: item.blocks ?? item.artifact ?? item,
+      request: item.request, view: { cardSize: resolveCardSize(null, '', String(item.size ?? '2x2')),
+        appVersion: resolveAppVersion(item), width: result.document.surface.width,
+        height: result.document.surface.height, zoom: 100 } }} />
     <CardPreview document={result.document} assetBaseUrl={DEFAULT_ASSET_BASE_URL} />
   </div>;
 }

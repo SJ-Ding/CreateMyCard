@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArtifactPreview, type ArtifactRecord } from '@widget-debug/end-to-end';
-import { CardRenderer, resolveAppVersion, resolveCardSize } from '@widget-debug/card-renderer';
+import { artifactObject, CardRenderer, RendererDebugProvider, RendererDebugPanel, resolveAppVersion, resolveCardSize } from '@widget-debug/card-renderer';
+import { loadSnapshot, type RendererSnapshot } from '../rendererSnapshot';
 import { parseLegacyToolResponse, parsePythonRepr } from '@widget-debug/interface';
 import { useWorkbench } from '../context';
 import { DEFAULT_ASSET_BASE_URL } from '../config';
@@ -97,11 +98,31 @@ function jsonText(value: unknown): string {
 }
 
 export function RendererRoute() {
+  const id = new URLSearchParams(window.location.search).get('snapshot');
+  const [snapshot, setSnapshot] = useState<RendererSnapshot | null>(null);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    setSnapshot(null); setError('');
+    void loadSnapshot(id).then(value => { if (active) setSnapshot(value); })
+      .catch(reason => { if (active) setError(String(reason)); });
+    return () => { active = false; };
+  }, [id, retry]);
+  if (id && (!snapshot || snapshot.id !== id)) return <div role={error ? 'alert' : 'status'}>{error || '正在恢复卡片快照…'}
+    {error && <button type="button" onClick={() => setRetry(value => value + 1)}>重试</button>}</div>;
+  return <RendererContent key={id ?? 'shared'} snapshot={id ? snapshot : null} />;
+}
+
+function RendererContent({ snapshot }: { snapshot: RendererSnapshot | null }) {
   const { artifact, calls, selectedCallId, pushEvent, setArtifact } = useWorkbench();
-  const selectedCall = calls.find((item) => item.id === selectedCallId);
+  const selectedCall = snapshot ? undefined : calls.find((item) => item.id === selectedCallId);
   const [downloadedArtifact, setDownloadedArtifact] = useState<ArtifactRecord | null>(null);
   const [artifactKind, setArtifactKind] = useState('genui');
   const [artifactStatus, setArtifactStatus] = useState('');
+  const [editorSource, setEditorSource] = useState('');
+  const importedArtifact = useMemo(() => artifactObject(editorSource), [editorSource]);
 
   const responsePayload = selectedCall?.response;
   const responseData = responsePayload?.data;
@@ -175,17 +196,20 @@ export function RendererRoute() {
     && (!selectedCall || downloadedArtifact.runId === selectedCall.id)
     ? downloadedArtifact
     : null;
-  const selectedArtifact = activeDownloadedArtifact ?? inlineArtifact ?? (
+  const inheritedArtifact = snapshot ? { ...artifactObject(snapshot.artifact), genui: snapshot.source, runId: snapshot.id } as ArtifactRecord : activeDownloadedArtifact ?? inlineArtifact ?? (
     artifact && (!selectedCall || artifact.runId === selectedCall.id || artifact.artifactUrl === inlineArtifactUrl)
       ? artifact as ArtifactRecord
       : null
   );
+  const selectedArtifact = useMemo(() => importedArtifact.cardSpec || importedArtifact.meta
+    ? { ...inheritedArtifact, ...importedArtifact, runId: inheritedArtifact?.runId ?? 'import' } as ArtifactRecord
+    : inheritedArtifact, [inheritedArtifact, importedArtifact]);
   const responseSource = renderableValue(responsePayload)
     ?? renderableValue(responseData)
     ?? renderableValue(parsedStream)
     ?? finalFrameSource(selectedCall?.finalFrame);
-  const selectedArtifactValue = selectedArtifact?.genui
-    ?? (selectedArtifact?.cardSpec === undefined ? undefined : jsonText(selectedArtifact.cardSpec));
+  const selectedArtifactValue = inheritedArtifact?.genui
+    ?? (inheritedArtifact?.cardSpec === undefined ? undefined : jsonText(inheritedArtifact.cardSpec));
   const isCompactSelection = selectedCall?.operation === COMPACT_DSL_OPERATION;
   const selectedValue = isCompactSelection
     ? selectedArtifactValue
@@ -197,14 +221,14 @@ export function RendererRoute() {
   const artifactValue = artifact?.genui
     ?? (artifact?.cardSpec == null ? undefined : JSON.stringify(artifact.cardSpec, null, 2))
     ?? (artifact?.raw == null ? undefined : JSON.stringify(artifact.raw, null, 2));
-  const initialValue = selectedCall ? selectedValue : artifactValue;
+  const initialValue = snapshot?.source ?? (selectedCall ? selectedValue : artifactValue);
   const activeArtifact = selectedArtifact ?? artifact;
   const activeArtifactRecord = recordValue(activeArtifact);
   const rendererCardSize = resolveCardSize(
     activeArtifact,
     activeArtifactRecord.taskSpec ?? selectedCall?.request ?? activeArtifactRecord.raw,
   );
-  const artifactKey = selectedCall?.id ?? artifact?.runId ?? artifact?.artifactDigest ?? initialValue ?? 'empty';
+  const artifactKey = snapshot?.id ?? selectedCall?.id ?? artifact?.runId ?? artifact?.artifactDigest ?? initialValue ?? 'empty';
   const availableKinds = useMemo(
     () => ARTIFACT_KINDS.filter(([kind]) => selectedArtifact?.[kind] !== undefined),
     [selectedArtifact],
@@ -216,6 +240,8 @@ export function RendererRoute() {
   }, [availableKinds, artifactKind]);
 
   return (
+    <RendererDebugProvider key={artifactKey} artifact={activeArtifact} request={snapshot?.request ?? selectedCall?.request}
+      appVersion={snapshot?.view?.appVersion ?? resolveAppVersion(activeArtifact, selectedCall?.request)}>
     <div className="renderer-route">
       <div className="renderer-route__canvas">
         <CardRenderer
@@ -223,8 +249,11 @@ export function RendererRoute() {
           initialValue={selectedCall ? (initialValue ?? '') : initialValue}
           assetBaseUrl={DEFAULT_ASSET_BASE_URL}
           conversionUrl="/debug/renderer/convert"
-          cardSize={rendererCardSize}
-          appVersion={resolveAppVersion(activeArtifact, selectedCall?.request)}
+          cardSize={snapshot?.view?.cardSize ?? rendererCardSize}
+          appVersion={snapshot?.view?.appVersion ?? resolveAppVersion(activeArtifact, selectedCall?.request)}
+          initialView={snapshot?.view}
+          debugTools
+          onSourceChange={setEditorSource}
           onArtifact={(document) => {
             pushEvent({
               channel: 'renderer',
@@ -237,10 +266,10 @@ export function RendererRoute() {
       </div>
       <aside className="renderer-route__inspector" aria-label="Artifact 检查器">
         <div className="renderer-route__inspector-heading">
-          <div><span className="section-kicker">ARTIFACT</span><h2>Artifact 检查器</h2></div>
+          <div><span className="section-kicker">ARTIFACT</span><h2>渲染检查</h2></div>
           {artifactStatus && <span className={artifactStatus.includes('失败') || artifactStatus.includes('错误') ? 'is-error' : ''}>{artifactStatus}</span>}
         </div>
-        {selectedArtifact ? (
+        <RendererDebugPanel artifactPanel={selectedArtifact ? (
           <>
             <div className="renderer-route__artifact-actions">
               <span title={selectedArtifact.artifactUrl}>{selectedArtifact.artifactUrl || '当前接口返回'}</span>
@@ -254,8 +283,9 @@ export function RendererRoute() {
           </>
         ) : (
           <div className="renderer-route__empty">点击左侧成功的 Compact DSL 调用后，这里会自动读取 artifact 并渲染。</div>
-        )}
+        )} />
       </aside>
     </div>
+    </RendererDebugProvider>
   );
 }

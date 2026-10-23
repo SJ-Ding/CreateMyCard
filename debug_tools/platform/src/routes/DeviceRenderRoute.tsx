@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CardRenderer } from '@widget-debug/card-renderer';
+import { openRendererSnapshot } from '../rendererSnapshot';
 import {
   DeviceApiError, deviceRequest, terminal,
   type Check, type DeviceRun, type Emulator, type EnvironmentStatus, type Operation, type Target,
@@ -215,6 +216,7 @@ export function DeviceRenderRoute() {
           {showBrowser && <section className="device-browser-preview" aria-label="浏览器截图">
             <h3>浏览器截图</h3><CardRenderer key={`${editor.size}:${converted}`}
               initialValue={converted} assetBaseUrl={DEFAULT_ASSET_BASE_URL} cardSize={editor.size}
+              onOpenPreview={view => openRendererSnapshot({ source: view.source, view })}
               previewOnly zoom={previewZoom} onZoomChange={setPreviewZoom} /></section>}
           {showDevice && <section className="device-card-preview" aria-label="真机截图">
             <h3>{run?.captureMode === 'desktop' ? '桌面卡片截图' : '应用预览截图'}</h3>
