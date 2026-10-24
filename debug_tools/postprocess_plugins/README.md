@@ -18,9 +18,9 @@ uv sync
 
 | 插件 | Python 外依赖 | 是否需要额外配置 |
 | --- | --- | --- |
-| `browser-capture` | Node.js、npm、`playwright-core`、Edge/Chrome/Chromium | 非标准安装路径的浏览器需配置环境变量 |
+| `browser-gallery` | Node.js、npm、`playwright-core`、Edge/Chrome/Chromium | 非标准安装路径的浏览器需配置环境变量 |
 | `validation-failure-gallery` | Node.js、npm、`playwright-core`、Edge/Chrome/Chromium | 同上 |
-| `device-capture` | DevEco JDK、SDK、HDC、Hvigor、ArkTS 渲染工程、HarmonyOS 设备或模拟器 | 必须配置 `debug_tool.yaml` |
+| `device-gallery` | DevEco JDK、SDK、HDC、Hvigor、ArkTS 渲染工程、HarmonyOS 设备或模拟器 | 必须配置 `debug_tool.yaml` |
 
 ### 浏览器截图插件
 
@@ -46,35 +46,22 @@ uv run debug_tools
 
 ### 真机截图插件
 
-`device-capture` 复用 `device_debug` 的 Render Session。先安装 DevEco Studio 及对应 SDK，再在
+`device-gallery` 复用 `device_debug` 的 Render Session。先安装 DevEco Studio 及对应 SDK，再在
 `debug_tools/debug_tool.yaml` 中配置本机工具链和模拟器目录：
 
-```yaml
-platform:
-  environment:
-    deveco_studio_home: D:/DevEco
-    workspace_root: D:/Workspace
-    sdk_home: ${environment.deveco_studio_home}/sdk
-    hdc: ${environment.sdk_home}/default/openharmony/toolchains/hdc.exe
-  device_capture:
-    hdc: ${environment.hdc}
-    deveco_sdk_home: ${environment.sdk_home}
-    java_home: ${environment.java_home}
-    hvigor: ${environment.hvigor}
-    render_timeout_seconds: 30
-    capture_attempts: 6
-    auto_start_emulator: false
-```
+完整字段及路径变量以 [`debug_tool.yaml.example`](../debug_tool.yaml.example) 为准，
+避免从不完整的片段复制配置。内置工程固定为 `debug_tools/a2ui_render`；面板选择当次在线目标和截图模式，
+不保存设备序列号。真机要求 signed HAP，模拟器可用 unsigned HAP。
 
-内置工程位于 `debug_tools/a2ui_render`，插件面板仅配置本次执行的 `targetId`。
-截图前等待默认 1 秒，通过 `debug_tools/debug_tool.yaml` 中
-`platform.device_capture.capture_delay_seconds` 设置 0～30 秒，0 表示关闭额外等待，修改后重启调试后端。
-页面不提供时延配置，旧执行记录中的 `captureDelaySeconds` 仅兼容读取，不覆盖本机 YAML。
-每个样本收到就绪终态、确认应用
-前台后再等待，截图重试也执行该等待；取消时立即中断。实际时延保存至截图元数据和汇总事实。
-只重生成画廊仍复用已有图片；调整时延后应再次运行真机截图，再次运行真机画廊。插件自动选择最新 HAP：
-真机和未知目标要求 signed，模拟器可使用 unsigned。App 的 `A2UI_RUN` 终态决定成功、警告或失败，
-卡片裁切严格使用 App 返回的 `cropPx`。
+- **桌面模式（新建配置默认）**：先在设备页点击“编译并安装项目”，手动添加2x2和2x4各一张，
+  放在同页并保持解锁、无遮挡。后处理只更新已有实例，不编译安装、翻页或加桌。
+- **应用预览模式**：一次 Render Session 构建安装一次，动态传输样本，等待 `A2UI_RUN` 终态及前台确认，
+  按 App 返回的 `cropPx` 裁切。该模式与桌面截图的证据分别保存。
+
+额外截图等待由本机 YAML 的 `platform.device_capture.capture_delay_seconds` 配置，默认1秒、范围0～30秒；
+修改后重启后端。桌面模式还要求连续稳定帧和最终复核，具体见
+[桌面截图规范](../调试平台运行规范.md#桌面卡片截图)。页面不提供时延配置，旧执行的
+`captureDelaySeconds` 不覆盖本机 YAML。每次显式重跑画廊都会重新截图；调整等待或更新内容后直接重跑画廊。
 
 启动前可先验证工具和设备：
 
@@ -93,18 +80,18 @@ platform:
 ## 业务插件依赖与离线画廊
 
 - `data-analysis`：统一分析全部请求 Trace 与最终产物，输出逐请求、逐样本和数据集统计；口径见其 README。
-- `browser-capture`、`device-capture`：只截图并保留证据，不生成 HTML；真机目标配置属于 `device-capture`。
-- `browser-gallery`、`device-gallery`：直接依赖对应截图插件和 `data-analysis`，共用离线模板。
-- `quality-score`：依赖 `browser-capture` 和 `data-analysis`；外部导入评分不启用这两项依赖。
+- `browser-gallery`、`device-gallery`：直接依赖 `data-analysis`，内部采集截图并保留证据，再生成离线画廊；真机参数属于 `device-gallery`。
+- `browser-capture`、`device-capture`：仅保留历史兼容，不再出现在可选清单。
+- `quality-score`：依赖 `browser-gallery` 和 `data-analysis`；外部导入评分不启用这两项依赖。
 - `component-recall`、`validation-failure-gallery`：依赖分析插件，本期保留其专属分析及中间产物截图。
 
-重生成画廊复用成功、部分完成或跳过的前置结果；失败、中断或尚未执行的必要依赖自动递归补跑，共享依赖
+重生成画廊重新截图，并复用成功、部分完成或跳过的分析结果；失败、中断或尚未执行的必要依赖自动递归补跑，共享依赖
 只跑一次。依赖补跑沿用最近终态配置，本次依赖配置字段覆盖历史值并重新校验。显式目标提供新配置时整体
-采用新配置，未提供时沿用历史配置，防止历史互斥选项混入。更新已成功的数据仍须显式重跑前置
-插件，再重跑画廊；旧历史不修改。
+采用新配置，未提供时沿用历史配置，防止历史互斥选项混入。更新已成功的分析数据仍须显式重跑分析
+插件；画廊显式运行始终重新截图，旧历史不修改。
 两种画廊均支持筛选联动指标、排序、列数、放大和精简布局；只内嵌自身路线图片，离线打开无需服务。
 内置插件可声明 `upstream_results` 关键字参数接收直接依赖规范化结果，checkpoint 按参数名称识别。
-示例插件无需依赖分析插件。旧结果继续只读兼容，新截图和 HTML 位于各自历史执行目录。
+示例插件无需依赖分析插件。旧结果继续只读兼容，新截图、证据和 HTML 位于同一画廊历史执行目录。
 
 ## v2 清单
 

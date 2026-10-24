@@ -19,7 +19,7 @@ from ..postprocess_plugins.device_capture import DeviceCaptureManager
 from ..postprocess_plugins.device_capture import run_builtin as run_device_capture_plugin
 from ..postprocess_plugins.gallery import BatchGalleryManager
 from ..postprocess_plugins.gallery.capture import run_capture as run_browser_capture_plugin
-from ..postprocess_plugins.gallery.report import run_gallery as run_gallery_report
+from ..postprocess_plugins.gallery.report import run_capture_gallery
 from ..postprocess_plugins.validation_failure_gallery import (
     ValidationFailureGalleryManager,
 )
@@ -93,13 +93,13 @@ class BatchTaskManager:
             plugins_root,
             builtin_runners={
                 "browser-capture": partial(run_browser_capture_plugin, self.gallery_manager),
-                "browser-gallery": partial(run_gallery_report, self.gallery_manager, "browser"),
+                "browser-gallery": partial(run_capture_gallery, self.gallery_manager, "browser"),
                 "validation-failure-gallery": partial(
                     run_validation_failure_gallery_plugin,
                     self.validation_failure_gallery_manager,
                 ),
                 "device-gallery": partial(
-                    run_gallery_report, self.device_capture_manager, "device"
+                    run_capture_gallery, self.device_capture_manager, "device"
                 ),
                 "device-capture": partial(
                     run_device_capture_plugin,
@@ -462,12 +462,17 @@ class BatchTaskManager:
         valid_id = re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", sample_id)
         if valid_id is None or kind not in {"card", "full"}:
             raise KeyError(sample_id)
-        for plugin_id in ("device-capture", "device-gallery"):
-            for suffix in ("png", "jpeg"):
-                relative = f"{kind}/{sample_id}.{suffix}"
-                path = self._latest_plugin_file(run_id, plugin_id, relative)
-                if path is not None:
-                    return path
+        for execution in self.postprocess_manager.executions(run_id):
+            execution_id = str(execution.get("executionId") or "")
+            for plugin_id in ("device-gallery", "device-capture"):
+                for suffix in ("png", "jpeg"):
+                    relative = f"{kind}/{sample_id}.{suffix}"
+                    try:
+                        return self.postprocess_manager.asset_path(
+                            run_id, execution_id, plugin_id, relative
+                        )
+                    except KeyError:
+                        continue
         return self.device_capture_manager.image_path(run_id, sample_id, kind)
 
     def device_gallery_path(self, run_id: str) -> Path:
@@ -475,9 +480,9 @@ class BatchTaskManager:
         return path if path is not None else self.device_capture_manager.gallery_path(run_id)
 
     def sample_device_capture(self, run_id: str, sample_id: str) -> dict[str, Any]:
-        for plugin_id in ("device-capture", "device-gallery"):
-            for execution in self.postprocess_manager.executions(run_id):
-                execution_id = str(execution.get("executionId") or "")
+        for execution in self.postprocess_manager.executions(run_id):
+            execution_id = str(execution.get("executionId") or "")
+            for plugin_id in ("device-gallery", "device-capture"):
                 try:
                     result = self.postprocess_manager.sample_result(
                         run_id, execution_id, plugin_id, sample_id

@@ -152,5 +152,5 @@ TextInput/DataModel 编辑；检查桌面与窄屏布局，并确认控制台没
 `debug_tools/a2ui_render/entry/src/main/resources/base/media/`，不修改路径或文件名大小写。
 这是浏览器和真机唯一共用的图片副本，Python 与两处 Vite 直接读取，不从 `render` 回退。
 脚本不删除清单外的应用图标和历史浏览器素材；`--check` 比较 SHA-256，缺失或不同返回非零。
-当前清单去重后为 163 张，仅检查共享目标一次。主题图片与能力素材共用路径边界和摘要检查。背景和字体由 `card_renderer/assets/` 本地维护。
+素材数量以当前登记清单和脚本输出为准，仅检查共享目标一次。主题图片与能力素材共用路径边界和摘要检查。背景和字体由 `card_renderer/assets/` 本地维护。
 资源不复制到 dist；真机资源变化使构建缓存失效，重新截图时构建 HAP。

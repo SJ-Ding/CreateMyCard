@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkbenchProvider } from '../../../../platform/src/context';
 import { RendererRoute } from '../../../../platform/src/routes/RendererRoute';
@@ -72,5 +72,26 @@ describe('RendererRoute Compact DSL history', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       `/debug/artifact?url=${encodeURIComponent(ARTIFACT_URL)}&digest=sha256%3Atest`,
     );
+  });
+  it('手工导入完整产物后同步右侧信息，编辑器保留完整输入', async () => {
+    const genui = [
+      { version: 'v0.9', createSurface: { surfaceId: 'import' } },
+      { version: 'v0.9', updateComponents: { surfaceId: 'import', root: 'root', components: [
+        { id: 'root', component: 'Text', content: '新导入卡片' },
+      ] } },
+    ].map(row => JSON.stringify(row)).join('\n');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ genui, runId: 'renderer' }) }));
+    render(<WorkbenchProvider><RendererRoute /></WorkbenchProvider>);
+    const editor = screen.getByRole('textbox', { name: 'DSL 输入' });
+    await waitFor(() => expect(editor).toHaveValue(genui));
+    const imported = JSON.stringify({ genui, cardSpec: { title: '导入标题', suggestSize: '2x2', dataBindings: [] },
+      meta: { capabilityRegistryVersion: 'original-version' } });
+    fireEvent.change(editor, { target: { value: imported } });
+    fireEvent.click(screen.getByRole('tab', { name: '产物信息' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'cardSpec' }));
+    await waitFor(() => expect(screen.getByText(/导入标题/, { selector: 'pre' })).toBeInTheDocument());
+    expect(editor).toHaveValue(imported);
+    await screen.findByText('新导入卡片');
+    expect(editor).toHaveValue(imported);
   });
 });

@@ -53,6 +53,10 @@ def register_renderer_conversion_routes(app: FastAPI) -> None:
 
     ensure_cloud_import_path()
 
+    from debug_tools.card_renderer.mock_catalog import register_mock_catalog_routes
+
+    register_mock_catalog_routes(app)
+
     from services.compact_dsl_a2ui_converter import (
         CompactDslConversionError,
         ComponentRow,

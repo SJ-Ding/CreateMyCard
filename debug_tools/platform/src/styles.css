@@ -177,8 +177,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 /* The interface package switches to a two-row work area on narrow screens.
    Keep that scroll inside the route instead of letting the fixed shell grow. */
 @media (max-width: 900px) {
-  .route-content > .renderer-route { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(220px, 0.7fr); overflow-y: auto; }
-  .renderer-route__inspector { min-height: 220px; }
+  .route-content > .renderer-route { grid-template-columns: 1fr; grid-template-rows: 780px minmax(420px, 65dvh); overflow-y: auto; align-content: start; }
+  .renderer-route__canvas > .card-renderer { grid-template-rows: 300px 480px; }
+  .renderer-route__inspector { min-height: 420px; }
   .route-content > .interface-debugger .interface-grid {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
@@ -946,3 +947,9 @@ body.postprocess-dashboard-active #root { height: auto; min-height: 100vh; }
   .postprocess-sample-table-scroll { max-width: calc(100vw - 20px); }
   .postprocess-sample-inspector > header { flex-direction: column; }
 }
+
+.postprocess-config-view { margin: 12px 0; padding: 12px 16px; border: 1px solid #dfe6ef; border-radius: 10px; background: #fff; }
+.postprocess-config-view summary { cursor: pointer; font-weight: 600; }
+.postprocess-config-view dl { display: flex; flex-wrap: wrap; gap: 12px 32px; }
+.postprocess-config-view dt, .postprocess-config-view p { color: #667085; font-size: 12px; }
+.postprocess-config-view dd { margin: 4px 0; overflow-wrap: anywhere; }

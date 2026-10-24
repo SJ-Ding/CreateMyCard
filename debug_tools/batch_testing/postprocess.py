@@ -128,6 +128,8 @@ class PostprocessManager:
                 manifest = self._validate_manifest(self._read_json(path), path.parent)
             except (OSError, ValueError, json.JSONDecodeError):
                 continue
+            if manifest.get("id") in {"browser-capture", "device-capture"}:
+                continue
             manifests.append(self._public_manifest(manifest))
         return manifests
 

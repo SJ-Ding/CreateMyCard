@@ -29,6 +29,7 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
   const [plugins, setPlugins] = useState<PostprocessPlugin[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [configs, setConfigs] = useState<Record<string, Record<string, unknown>>>({});
+  const [restoredRunId, setRestoredRunId] = useState('');
   const [busy, setBusy] = useState(false);
   const [rerunningPluginIds, setRerunningPluginIds] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -43,13 +44,15 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
     if (preferredTargetId && value.targets.some((target) => target.id === preferredTargetId)) {
       setConfigs((current) => ({
         ...current,
-        'device-capture': { ...current['device-capture'], targetId: preferredTargetId },
+        'device-gallery': { ...current['device-gallery'], targetId: preferredTargetId },
       }));
     }
   };
 
   useEffect(() => {
+    let stopped = false;
     listPostprocessPlugins().then((items) => {
+      if (stopped) return;
       setPlugins(items);
       const defaults: Record<string, Record<string, unknown>> = {};
       items.forEach((item) => {
@@ -60,7 +63,8 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
         });
       });
       setConfigs(defaults);
-    }).catch((reason) => setError(String(reason)));
+    }).catch((reason) => { if (!stopped) setError(String(reason)); });
+    return () => { stopped = true; };
   }, []);
   useEffect(() => {
     if (!open) return;
@@ -136,9 +140,22 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
     });
     return latest;
   }, [executions]);
+  useEffect(() => {
+    if (!plugins.length || restoredRunId === runId) return;
+    setConfigs((current) => {
+      const next = { ...current };
+      latestByPlugin.forEach(({ execution, result }, id) => {
+        const legacyConfig = id === 'device-gallery'
+          ? execution.plugins.find((item) => item.id === 'device-capture')?.config : undefined;
+        if (result.config || legacyConfig) next[id] = { ...legacyConfig, ...result.config };
+      });
+      return next;
+    });
+    setRestoredRunId(runId);
+  }, [plugins, latestByPlugin, restoredRunId, runId]);
   const displayedPluginIds = Array.from(latestByPlugin.keys());
-  const newSelected = selected.filter((pluginId) => pluginId !== 'quality-score'
-    && !historyByPlugin.has(pluginId) && !activePluginIds.has(pluginId));
+  const runnableSelected = selected.filter((pluginId) => pluginId !== 'quality-score'
+    && !activePluginIds.has(pluginId));
 
   useEffect(() => {
     if (!waitingExecution) return;
@@ -195,7 +212,7 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
   const run = async () => {
     setBusy(true); setError('');
     try {
-      await startPostprocess(runId, newSelected, configs);
+      await startPostprocess(runId, runnableSelected, configs, true);
       await onStarted();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -254,7 +271,7 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
                 />
                 <span><b>{plugin.name}</b><small>{plugin.description ?? plugin.id}</small>
                   {dependencies.length > 0 && <em>依赖：{dependencies.map((id) => pluginById.get(id)?.name ?? id).join(' → ')}</em>}
-                  {plugin.id === 'device-capture' && checked && <span className="postprocess-device-profile">
+                  {plugin.id === 'device-gallery' && checked && <span className="postprocess-device-profile">
                     <select aria-label="真机截图模式" value={String(configs[plugin.id]?.captureMode ?? 'preview')}
                       onClick={(event) => event.stopPropagation()}
                       onChange={(event) => {
@@ -295,7 +312,7 @@ export function PostprocessPanel({ runId, runStatus, selectedSampleId, execution
               </label>;
             })}
           </section>
-          <footer className="postprocess-dialog-actions"><span>{newSelected.length ? active ? `将按依赖执行 ${newSelected.length} 个新增插件` : `将并行执行 ${newSelected.length} 个新增插件` : selected.length ? '已选插件均已提交或已运行，可单独再次运行' : '尚未选择插件'}</span><button type="button" disabled={busy || !newSelected.length || (newSelected.includes('device-capture') && !configs['device-capture']?.targetId)} onClick={run}>{busy ? '正在提交…' : waitingExecution ? '更新自动执行配置' : runStatus === 'completed' ? active ? '继续运行后处理' : '开始后处理' : '完成后自动执行'}</button></footer>
+          <footer className="postprocess-dialog-actions"><span>{runnableSelected.length ? active ? `将按依赖执行 ${runnableSelected.length} 个插件` : `将并行执行 ${runnableSelected.length} 个插件` : selected.length ? '已选插件正在排队或运行' : '尚未选择插件'}</span><button type="button" disabled={busy || !runnableSelected.length || (runnableSelected.includes('device-gallery') && !configs['device-gallery']?.targetId)} onClick={run}>{busy ? '正在提交…' : waitingExecution ? '更新自动执行配置' : runStatus === 'completed' ? active ? '继续运行后处理' : '开始后处理' : '完成后自动执行'}</button></footer>
           <section className="postprocess-inline-results">
             <header><strong>执行结果</strong><small>自动展示运行中插件与每个插件的最新一次结果</small></header>
             {!displayedPluginIds.length && <div className="batch-empty">尚无后处理执行记录</div>}

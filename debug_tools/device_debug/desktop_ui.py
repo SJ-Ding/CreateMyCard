@@ -15,8 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .commands import DeviceError
 
+APP_ENTRY_LABEL = "AI卡片调试"
 SAME_PAGE_MESSAGE = (
-    "请将“AI卡片调试”应用入口图标、2x2 和 2x4 卡片放在同一个桌面页面，"
+    f"请将“{APP_ENTRY_LABEL}”应用入口图标、2x2 和 2x4 卡片放在同一个桌面页面，"
     "停留在该页面并关闭卡片菜单后重试；截图流程不会自动翻页"
 )
 LOGGER = logging.getLogger(__name__)
@@ -46,6 +47,13 @@ class Rect:
         horizontal = self.left <= other.left and other.left + other.width <= self.left + self.width
         vertical = self.top <= other.top and other.top + other.height <= self.top + self.height
         return horizontal and vertical
+
+    def within(self, expected: Rect, tolerance: int = 2) -> bool:
+        """尺寸完全一致，且左上角位置不超过容差。"""
+        same_size = self.width == expected.width and self.height == expected.height
+        near_left = abs(self.left - expected.left) <= tolerance
+        near_top = abs(self.top - expected.top) <= tolerance
+        return same_size and near_left and near_top
 
     def overlaps(self, other: Rect) -> bool:
         horizontal = self.left < other.left + other.width and other.left < self.left + self.width
@@ -122,6 +130,7 @@ class DesktopDriver:
         self.screen = screen
         self.card: Rect | None = None
         self._inline_layout = True
+        self.app_entry_on_page: bool | None = None
 
     async def hdc(self, arguments: list[str]) -> str:
         output = await self.session.devices.hdc(
@@ -185,10 +194,40 @@ class DesktopDriver:
             raise DesktopEnvironmentError("尚未选择已加桌卡片")
         return Selector(attributes={"description": f"A2UI_FORM:{instance.get('formId')}"})
 
+    def check_app_entry(self, workspace: Node, page_bounds: Rect) -> bool | None:
+        """尝试识别应用入口；该结果仅用于诊断，不参与桌面流程门禁。"""
+        matches = []
+        for node in workspace.flatten():
+            text = node.attributes.get("text")
+            original_text = node.attributes.get("originalText")
+            if text != APP_ENTRY_LABEL and original_text != APP_ENTRY_LABEL:
+                continue
+            matches.append(node)
+        if not matches:
+            LOGGER.info("应用入口辅助校验：未找到“%s”，不阻塞桌面截图", APP_ENTRY_LABEL)
+            return None
+        try:
+            valid = len(matches) == 1
+            if valid:
+                valid = matches[0].attributes.get("visible") != "false"
+            if valid:
+                valid = page_bounds.contains(matches[0].rect())
+        except DesktopEnvironmentError as exc:
+            LOGGER.info("应用入口辅助校验失败，不阻塞桌面截图：%s", exc)
+            return False
+        LOGGER.info(
+            "应用入口辅助校验：找到 %d 个“%s”节点，同页可见=%s，不参与硬性门禁",
+            len(matches),
+            APP_ENTRY_LABEL,
+            valid,
+        )
+        return valid
+
     def same_page_workspace(self, root: Node) -> Node:
         workspace = select(root, Selector(attributes={"type": "Grid"}))
-        info = self.session.project.info
-        selectors = [Selector(attributes={"id": f"AppIconCommonView_{info.bundle}.{info.ability}"})]
+        page_bounds = workspace.rect()
+        self.app_entry_on_page = self.check_app_entry(workspace, page_bounds)
+        selectors = []
         for size in ("2x2", "2x4"):
             form = self.session.instances.get(size)
             if form is None:
@@ -247,7 +286,7 @@ class DesktopDriver:
                 raise DesktopEnvironmentError("请关闭桌面卡片菜单或选择器后再运行截图")
         workspace = self.same_page_workspace(root)
         target = select(workspace, self.form_selector())
-        if self.card is None or self.card != target.rect():
+        if self.card is None or not target.rect().within(self.card):
             raise DesktopEnvironmentError("卡片节点与实际边界不一致")
         if marker is not None:
             select(target, Selector(attributes={"description": marker}))

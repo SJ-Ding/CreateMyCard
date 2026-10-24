@@ -59,5 +59,5 @@ hdc hilog -x -T A2UIRunner -e manual-001 -v wrap
 在仓库根目录运行 `.\.venv\Scripts\python.exe debug_tools/scripts/sync_assets.py --sync`，
 再运行相同脚本的 `--check`，核对共享文件的 SHA-256。浏览器直接通过资源路由读取本工程
 同一份图片，不再依赖 `render` 目录，也不另存浏览器副本。
-登记的 141 张素材原样复制，保留原始路径和大小写，不删除清单外的工程图标。
+按当前登记清单原样复制素材，保留原始路径和大小写，不删除清单外的工程图标。
 更新资源后重新执行截图会重新构建并安装 HAP；历史截图不会自动更新。

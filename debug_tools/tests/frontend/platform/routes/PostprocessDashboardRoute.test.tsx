@@ -145,6 +145,39 @@ describe('PostprocessDashboardRoute', () => {
     expect(await screen.findByText('新评分结果')).toBeInTheDocument();
   });
 
+  it.each([false, true])('displays selected historical parameters and reruns them (legacy=%s)', async (legacy) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return response({ executionId: 'new_device' });
+      if (input === '/debug/batch/runs/run_1') return response({ runId: 'run_1', status: 'completed',
+        postprocessExecutions: [
+          { executionId: 'newer', plugins: [{ id: 'device-gallery', config: { targetId: 'other', captureMode: 'desktop' } }] },
+          { executionId: 'old', plugins: legacy
+            ? [{ id: 'device-gallery', config: {} }, { id: 'device-capture', config: { targetId: 'device_one', captureMode: 'preview' } }]
+            : [{ id: 'device-gallery', config: { targetId: 'device_one', captureMode: 'preview' } }] },
+        ],
+      });
+      if (input.endsWith('/dashboard')) return response({
+        plugin: { id: 'device-gallery', name: '真机截图画廊' }, presentation: {}, samples: [], datasetResult: {}, totalSamples: 0,
+      });
+      if (input.includes('/samples?')) return response({ items: [], total: 0 });
+      throw new Error(`unexpected request: ${input}`);
+    }));
+    render(<MemoryRouter initialEntries={['/batch/runs/run_1/postprocess/old/plugins/device-gallery']}><Routes>
+      <Route path="/batch/runs/run_1/postprocess/new_device/plugins/device-gallery" element={<h1>新画廊</h1>} />
+      <Route path="/batch/runs/:runId/postprocess/:executionId/plugins/:pluginId" element={<PostprocessDashboardRoute />} />
+    </Routes></MemoryRouter>);
+    await screen.findByRole('heading', { name: '真机截图画廊' });
+    expect(screen.getByText('device_one')).toBeInTheDocument();
+    expect(screen.getByText('应用预览')).toBeInTheDocument();
+    expect(screen.queryByText('other')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '↻ 再次运行' }));
+    expect(await screen.findByText('新画廊')).toBeInTheDocument();
+    const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+      pluginIds: ['device-gallery'], configs: { 'device-gallery': { targetId: 'device_one', captureMode: 'preview' } }, rerun: true,
+    });
+  });
+
   it('keeps generic plugin rerun behavior and does not attach quality links', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
       if (init?.method === 'POST') return response({ executionId: 'new_generic' });

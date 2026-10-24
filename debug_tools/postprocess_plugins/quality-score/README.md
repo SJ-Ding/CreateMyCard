@@ -131,38 +131,3 @@ npm run build
 
 浏览器 UI 测试使用固定 API 输入；Python 回归覆盖真实导入接口、宿主执行及评分结果。
 前端部署时同步整套 `dist/index.html` 和 `dist/assets/` 构建文件。
-
-## 本次修改文件
-
-下列路径除文档和测试外相对仓库根目录的 `debug_tools/`。评分参数保持不变。
-
-| 文件 | 用途 |
-|---|---|
-| [`调试平台运行规范.md`](../../调试平台运行规范.md#质量评分与跨批次比较) | 双输入、证据关联和单条比较契约 |
-| `batch_testing/quality_import.py` | 安全导入、清单哈希校验和独立运行目录 |
-| `batch_testing/api.py` | 导入接口、单条对比参数 |
-| `batch_testing/postprocess.py` | 导入来源跳过画廊，保留原排队和依赖行为 |
-| `batch_testing/quality.py` | 单样本配对、截图链接、检测范围与分数上下界比较 |
-| `platform/src/App.tsx` | 注册导入页 |
-| `platform/src/batchApi.ts` | 导入及单条对比类型和请求 |
-| `platform/src/routes/QualityRoute.tsx` | 双来源入口、导入来源说明 |
-| `platform/src/routes/QualityImportRoute.tsx` | 单条上传、目录清单导入 |
-| `platform/src/routes/QualityCompareRoute.tsx` | 单条选择、左右图片与分差；原批次视图保留 |
-| `postprocess_plugins/quality-score/plugin.json` | 双输入名称与截图字段 |
-| `postprocess_plugins/quality-score/plugin.py` | 两入口共用归一化、评分和产物 |
-| `postprocess_plugins/quality-score/external.py` | 离线检测适配与证据绑定 |
-| `postprocess_plugins/quality-score/offline_checks/core.py` | 复用消息解析、结构引用检查和 OCR |
-| `postprocess_plugins/quality-score/offline_checks/content_checks.py` | 复用内容、绑定与需求线索检查 |
-| `postprocess_plugins/quality-score/requirements-offline.txt` | 可选本地 OCR 依赖 |
-| `postprocess_plugins/quality-score/EVALUATION.md` | 新输入的覆盖边界与对比口径；数值参数不变 |
-| `postprocess_plugins/quality-score/README.md` | 使用、文件清单和验证方式 |
-| `postprocess_plugins/quality-score/score_model.py` | 精简拨号信息项文案，扣分逻辑不变 |
-| `platform/src/routes/QualityEvaluationRoute.tsx` | 精简当前方案与历史快照说明 |
-| `tests/frontend/platform/routes/QualityEvaluationRoute.test.tsx` | 当前方案与历史快照说明回归 |
-| `debug_tools/tests/python/test_debug_quality_score.py`（仓库根目录） | 摘要与质量状态一致性回归 |
-| `tests/frontend/platform/routes/QualityImportRoute.test.tsx` | 导入页面和清单回归 |
-| `tests/frontend/platform/routes/QualityCompareRoute.test.tsx` | 单条与整批切换回归 |
-| `debug_tools/tests/python/test_debug_quality_import.py`（仓库根目录） | 导入、安全边界、评分宿主、单条配对回归 |
-| `tests/browser/quality_inputs.test.mjs` | 真实浏览器上传、无自动评分、图片加载和左右布局回归；API 使用测试夹具 |
-| `tests/browser/quality_smoke.test.mjs` | 使用当前 A2UI 输入验证 Web 渲染与测量链路 |
-| `dist/` | 从源码重新生成的前端构建产物 |

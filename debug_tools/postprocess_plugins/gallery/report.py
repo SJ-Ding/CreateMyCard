@@ -1,4 +1,4 @@
-"""画廊只消费截图和分析结果；不调用渲染器或重新分析 Trace。"""
+"""截图与分析结果组装，以及合并截图采集的画廊入口。"""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import hashlib
 import html
 import json
 import re
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -112,6 +113,7 @@ async def run_gallery(
     _config: dict[str, Any],
     *,
     upstream_results: list[dict[str, Any]],
+    capture_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     run_dir = (manager.output_root / run_id).resolve()
     if not run_dir.is_relative_to(manager.output_root.resolve()):
@@ -126,6 +128,9 @@ async def run_gallery(
                 sources[sample_id] = sample
             elif stage.get("id") == "data-analysis":
                 analyses[sample_id] = artifact_data(sample, "analysis")
+    if capture_result is not None:
+        for sample in capture_result.get("sampleResults") or []:
+            sources[str(sample.get("sampleId") or "")] = sample
     cases = []
     results = []
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -146,6 +151,12 @@ async def run_gallery(
             if artifact.get("key") != f"{kind}-capture":
                 continue
             path = _asset_path(run_dir, run_id, artifact, f"{kind}-capture")
+            if capture_result is not None:
+                relative = artifact.get("path")
+                if isinstance(relative, str):
+                    candidate = (output_dir / relative).resolve()
+                    if candidate.is_relative_to(output_dir.resolve()) and candidate.is_file():
+                        path = candidate
             if path is not None:
                 content = path.read_bytes()
                 image = "data:image/png;base64," + base64.b64encode(content).decode("ascii")
@@ -187,15 +198,19 @@ async def run_gallery(
         results.append(
             {
                 "sampleId": sample_id,
-                "status": "success" if image else "skipped",
+                "status": captured.get("status", "skipped") if capture_result is not None
+                else "success" if image else "skipped",
                 "summary": "截图与分析已组装" if image else "无截图，画廊保留原因占位",
                 "facts": {
+                    **(captured.get("facts") or {}),
                     "captureStatus": captured.get("status", "skipped"),
                     "captureMode": facts.get("captureMode", "preview")
                     if kind == "device"
                     else "browser",
                 },
-                "artifacts": artifacts,
+                "artifacts": (
+                    captured.get("artifacts", []) if capture_result is not None else artifacts
+                ),
             }
         )
     title = "浏览器渲染画廊" if kind == "browser" else "真机截图画廊"
@@ -206,14 +221,41 @@ async def run_gallery(
     temporary.write_text(document, encoding="utf-8")
     temporary.replace(output_dir / file_name)
     return {
-        "status": "success",
+        "status": (
+            capture_result.get("status", "success") if capture_result is not None else "success"
+        ),
         "sampleResults": results,
         "datasetResult": {
             "status": "success",
             "summary": f"{title}已生成，共 {len(cases)} 个样本",
             "facts": {"sampleCount": len(cases)},
             "artifacts": [
-                {"key": f"{kind}-gallery", "path": file_name, "label": f"打开{title}"}
+                {"key": f"{kind}-gallery", "path": file_name, "label": f"打开{title}"},
+                *((capture_result or {}).get("datasetResult", {}).get("artifacts") or []),
             ],
         },
     }
+
+
+async def run_capture_gallery(
+    manager: Any,
+    kind: str,
+    run_id: str,
+    output_dir: Path,
+    config: dict[str, Any],
+    checkpoint: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+    *,
+    upstream_results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """每次画廊执行采集新截图，证据和离线报告保存到同一插件目录。"""
+    from ..device_capture import run_builtin
+    from .capture import run_capture
+
+    if kind == "device":
+        captured = await run_builtin(manager, run_id, output_dir, config, checkpoint=checkpoint)
+    else:
+        captured = await run_capture(manager, run_id, output_dir, config)
+    return await run_gallery(
+        manager, kind, run_id, output_dir, config,
+        upstream_results=upstream_results, capture_result=captured,
+    )

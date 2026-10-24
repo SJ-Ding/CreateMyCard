@@ -929,7 +929,7 @@ async def test_postprocessing_only_starts_after_manual_request(tmp_path: Path) -
     postprocess_result = manager.postprocess_manager.enqueue(
         first_run_id,
         ["browser-gallery", "device-gallery"],
-        {"device-capture": {"targetId": "target-one"}},
+        {"device-gallery": {"targetId": "target-one", "captureMode": "preview"}},
     )
     await manager.postprocess_manager.queue.join()
 
@@ -1012,7 +1012,7 @@ def test_task_api_exposes_datasets_tasks_copy_and_scheduler(tmp_path: Path) -> N
         f"/debug/batch/runs/{run_id}/postprocess",
         json={
             "pluginIds": ["browser-gallery", "device-gallery"],
-            "configs": {"device-capture": {"targetId": "target-one"}},
+            "configs": {"device-gallery": {"targetId": "target-one", "captureMode": "preview"}},
         },
     )
     old_gallery = client.post(f"/debug/batch/runs/{run_id}/gallery")

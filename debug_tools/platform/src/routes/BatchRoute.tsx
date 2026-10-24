@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CardRenderer, resolveAppVersion, resolveCardSize } from '@widget-debug/card-renderer';
+import { openRendererSnapshot } from '../rendererSnapshot';
 import {
   cancelBatchRun,
   continueBatchRun,
@@ -11,6 +12,7 @@ import {
   type BatchAttempt,
   type BatchRun,
   type BatchSampleDetail,
+  type BatchSampleSummary,
   type BatchTask,
 } from '../batchApi';
 import { DEFAULT_ASSET_BASE_URL } from '../config';
@@ -33,6 +35,17 @@ function statusLabel(status: string): string {
     stopping: '停止中', completed: '已完成', success: '成功', degraded: '降级',
     failed: '失败', unsupported: '不支持', cancelled: '已停止', interrupted: '已中断',
   } as Record<string, string>)[status] ?? status;
+}
+
+function isCollectingTrace(sample: BatchSampleSummary, runStatus: string): boolean {
+  return !ACTIVE_STATUSES.has(sample.status)
+    && sample.traceStatus === 'pending' && ACTIVE_STATUSES.has(runStatus);
+}
+
+function sampleStatusLabel(sample: BatchSampleSummary, runStatus: string): string {
+  if (sample.status === 'running' && sample.attemptCount > 1) return '重试中';
+  const label = statusLabel(sample.status);
+  return isCollectingTrace(sample, runStatus) ? `${label} | 产物收集中` : label;
 }
 
 function serviceStatusLabel(status?: string): string {
@@ -118,10 +131,13 @@ export function BatchRoute() {
   useEffect(() => {
     if (!run || !selectedSampleId) { setDetail(null); return; }
     const sample = run.samples?.find((item) => item.id === selectedSampleId);
-    if (!sample || ACTIVE_STATUSES.has(sample.status) || sample.status === 'queued') return;
+    if (!sample || ACTIVE_STATUSES.has(sample.status)) { setDetail(null); return; }
+    if (isCollectingTrace(sample, run.status)) { setDetail(null); return; }
+    let cancelled = false;
     getBatchSample(run.runId, selectedSampleId)
-      .then(setDetail)
+      .then((nextDetail) => { if (!cancelled) setDetail(nextDetail); })
       .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
+    return () => { cancelled = true; };
   }, [run, selectedSampleId]);
 
   const visibleSamples = useMemo(() => (run?.samples ?? []).filter((sample) => {
@@ -266,12 +282,12 @@ export function BatchRoute() {
             </div>
             <div className="batch-table-scroll">
               <table>
-                <thead><tr><th>样本</th><th>最终状态</th><th>首稿</th><th>耗时</th><th>批跑尝试</th><th>Trace</th></tr></thead>
+                <thead><tr><th>样本</th><th>执行状态</th><th>首稿</th><th>耗时</th><th>批跑尝试</th><th>Trace</th></tr></thead>
                 <tbody>{visibleSamples.map((sample) => <tr key={sample.id}
                   className={selectedSampleId === sample.id ? 'is-selected' : ''}
                   onClick={() => setSelectedSampleId(sample.id)}>
                   <td><strong>{sample.id}</strong><small>{sample.title}</small></td>
-                  <td><span className={`batch-status ${sample.status}`}>{statusLabel(sample.status)}</span>
+                  <td><span className={`batch-status ${sample.status}`}>{sampleStatusLabel(sample, currentStatus)}</span>
                     {sample.errorCode && <small>{sample.errorCode}</small>}
                     {!!sample.generationMetrics?.missingInformationWarnings && <small className="batch-missing-warning">
                       信息缺失告警 {sample.generationMetrics.missingInformationWarnings} 项
@@ -282,7 +298,7 @@ export function BatchRoute() {
                   </span></td>
                   <td>{sample.elapsedMs ? `${sample.elapsedMs}ms` : '—'}</td>
                   <td>{sample.attemptCount}</td>
-                  <td><span className={`batch-trace ${sample.traceStatus}`}>{sample.traceStatus}</span>
+                  <td><span className={`batch-trace ${sample.traceStatus}`}>{sample.traceStatus === 'pending' ? '等待收集' : sample.traceStatus}</span>
                     <small>{sample.traceRecordCount} 条</small>
                   </td>
                 </tr>)}</tbody>
@@ -291,7 +307,7 @@ export function BatchRoute() {
             </div>
           </div>
           <div className="batch-detail-panel"><div className="batch-detail-tabs">{['preview', 'request', 'response', 'artifact'].map((tab) => <button type="button" key={tab} className={detailTab === tab ? 'is-active' : ''} onClick={() => setDetailTab(tab)}>{({ preview: '预览', request: '请求', response: '响应', artifact: '产物' } as Record<string, string>)[tab]}</button>)}{run && detail && <Link className="batch-trace-button" to={`/batch/runs/${encodeURIComponent(run.runId)}/samples/${encodeURIComponent(detail.summary.id)}/trace`} target="_blank" rel="noopener noreferrer">Trace</Link>}</div>
-            <div className="batch-detail-body">{!detail && <div className="batch-empty">选择已完成的样本查看详情</div>}{detail && detailTab === 'preview' && <div className={`batch-render-comparison ${detail.deviceCapture?.cardUrl ? 'has-device' : ''}`}><section>{activeAttempt?.genui ? <CardRenderer key={`${run?.runId}-${selectedSampleId}`} initialValue={activeAttempt.genui} assetBaseUrl={DEFAULT_ASSET_BASE_URL} cardSize={activeCardSize} appVersion={resolveAppVersion(activeAttempt.blocks, activeAttempt.request)} previewOnly zoom={previewZoom} onZoomChange={setPreviewZoom} /> : <div className="batch-empty">{previewUnavailableReason(detail, run)}</div>}</section>{detail.deviceCapture?.cardUrl && <section><strong>真机渲染</strong><div className="device-capture-preview"><img src={detail.deviceCapture.cardUrl} alt={`${detail.summary.title ?? detail.summary.id} 真机渲染截图`} /><a href={detail.deviceCapture.fullUrl} target="_blank" rel="noopener noreferrer">查看全屏原图 ↗</a></div></section>}{!detail.deviceCapture?.cardUrl && detail.deviceCapture?.status !== 'not_requested' && <section><strong>真机渲染</strong><div className="batch-empty">{detail.deviceCapture?.error || '真机截图尚不可用'}</div></section>}</div>}{detail && detailTab === 'request' && <pre>{jsonText(activeAttempt?.request)}</pre>}{detail && detailTab === 'response' && <pre>{jsonText(activeAttempt?.response)}</pre>}{detail && detailTab === 'artifact' && <pre>{jsonText(activeAttempt?.blocks)}</pre>}</div>
+            <div className="batch-detail-body">{!detail && <div className="batch-empty">{selectedSampleId ? '正在等待执行完成或收集产物与 Trace，完成后自动刷新…' : '选择样本查看详情'}</div>}{detail && detailTab === 'preview' && <div className={`batch-render-comparison ${detail.deviceCapture?.cardUrl ? 'has-device' : ''}`}><section>{activeAttempt?.genui ? <CardRenderer key={`${run?.runId}-${selectedSampleId}`} initialValue={activeAttempt.genui} assetBaseUrl={DEFAULT_ASSET_BASE_URL} cardSize={activeCardSize} appVersion={resolveAppVersion(activeAttempt.blocks, activeAttempt.request)} onOpenPreview={view => openRendererSnapshot({ source: view.source, artifact: activeAttempt.blocks, request: activeAttempt.request, view })} previewOnly zoom={previewZoom} onZoomChange={setPreviewZoom} /> : <div className="batch-empty">{previewUnavailableReason(detail, run)}</div>}</section>{detail.deviceCapture?.cardUrl && <section><strong>真机渲染</strong><div className="device-capture-preview"><img src={detail.deviceCapture.cardUrl} alt={`${detail.summary.title ?? detail.summary.id} 真机渲染截图`} /><a href={detail.deviceCapture.fullUrl} target="_blank" rel="noopener noreferrer">查看全屏原图 ↗</a></div></section>}{!detail.deviceCapture?.cardUrl && detail.deviceCapture?.status !== 'not_requested' && <section><strong>真机渲染</strong><div className="batch-empty">{detail.deviceCapture?.error || '真机截图尚不可用'}</div></section>}</div>}{detail && detailTab === 'request' && <pre>{jsonText(activeAttempt?.request)}</pre>}{detail && detailTab === 'response' && <pre>{jsonText(activeAttempt?.response)}</pre>}{detail && detailTab === 'artifact' && <pre>{jsonText(activeAttempt?.blocks)}</pre>}</div>
           </div>
         </section>
       </main>

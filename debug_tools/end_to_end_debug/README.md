@@ -48,26 +48,17 @@ Agent 会话；切换期间正在执行的请求会继续运行。刷新或关�
 
 ## 配置
 
-Main Agent 的主要配置位于 `../debug_tool.yaml` 的 `main_agent`：
+统一配置位于本机 `debug_tools/debug_tool.yaml`：
 
-- `default_profile` 和 `profiles`：默认 Skill 及页面展示信息；
-- `ui.quick_prompts`：页面快捷需求；
-- `model`：Main Agent 的模型路由、重试、并发和超时；
-- `platform.server`：调试后端固定参数；
-- `defaults`：页面公共请求参数默认值；
-- `batch_testing`、`platform.device_capture`：由批量测试与后处理使用，分别见对应子包文档。
+- `main_agent`：Skill 根目录、profile、系统提示词和快捷需求。
+- `widget_backend.defaults` / `widget_backend.exposed`：Main Agent 与本地受管微服务共享的模型路由、
+  重试、并发、超时等参数；不再读取旧 `main_agent.model`。
+- `platform.server`：后端固定参数及工具 bundle；须与所选 Skill 的工具声明一致。
+- `defaults`：页面公共请求参数默认值。
 
-模型配置优先级为：
-
-```text
-cloud/config/default_config.yaml
-< debug_tool.yaml
-< widget_service/.env
-< 进程环境变量
-```
-
-实际模型传输由 `WIDGET_SERVICE_OPENAI_MASTER_CLIENT` 选择。API Key 只从服务端环境读取，不返回浏览器，
-也不写入事件轨迹。配置变更后需要重启调试后端。
+共享配置的优先级与编辑方式见[受管配置说明](../batch_testing/README.md#本地受管)。
+批跑临时覆盖仅作用于当次受管微服务执行。模型通道与密钥必须匹配，敏感值不返回浏览器，
+不写入事件轨迹。修改 Main Agent 配置后重启调试后端；已部署微服务自行管理部署配置。
 
 ## 会话协议
 

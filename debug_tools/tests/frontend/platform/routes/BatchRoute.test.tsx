@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -33,6 +33,83 @@ function renderDetail() {
 
 describe('BatchRoute', () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+  it.each(['success', 'failed'])('merges %s with trace collection and refreshes details', async (status) => {
+    let collected = false;
+    const sampleFetch = vi.fn();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === '/debug/batch/tasks/task_1') return response({
+        taskId: 'task_1', name: '收集状态', sampleCount: 1,
+        runs: [{ runId: 'run_001', status: collected ? 'completed' : 'running' }],
+      });
+      if (url === '/debug/batch/runs/run_001') return response({
+        ...run, status: collected ? 'completed' : 'running',
+        samples: [{ ...run.samples[0], status, artifactAvailable: collected,
+          dslAvailable: collected, traceStatus: collected ? 'complete' : 'pending' }],
+      });
+      if (url.endsWith('/samples/Q001')) {
+        sampleFetch();
+        return response({ summary: { id: 'Q001' }, attempts: [] });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    renderDetail();
+    await userEvent.click(await screen.findByText('Q001'));
+    const label = status === 'success' ? '成功' : '失败';
+    expect(screen.getByText(`${label} | 产物收集中`)).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '产物状态' })).not.toBeInTheDocument();
+    expect(screen.getByText('等待收集')).toBeInTheDocument();
+    expect(screen.getByText(/正在等待执行完成或收集产物/)).toBeInTheDocument();
+    expect(sampleFetch).not.toHaveBeenCalled();
+    collected = true;
+    await waitFor(() => expect(screen.queryByText(`${label} | 产物收集中`)).not.toBeInTheDocument());
+    expect(document.querySelector('tbody .batch-status')).toHaveTextContent(label);
+    await waitFor(() => expect(sampleFetch).toHaveBeenCalled());
+    expect(await screen.findByRole('link', { name: 'Trace' })).toBeInTheDocument();
+    expect(screen.queryByText('产物收集中')).not.toBeInTheDocument();
+  });
+
+  it.each(['success', 'failed', 'unsupported', 'cancelled'])(
+    'keeps %s independent of artifact availability after trace collection', async (status) => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+        const url = String(input);
+        if (url === '/debug/batch/tasks/task_1') return response({
+          taskId: 'task_1', name: '无产物', sampleCount: 1,
+          runs: [{ runId: 'run_001', status: 'completed' }],
+        });
+        if (url === '/debug/batch/runs/run_001') return response({
+          ...run, samples: [{ ...run.samples[0], status,
+            artifactAvailable: false, dslAvailable: false, traceStatus: 'missing' }],
+        });
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+      renderDetail();
+      await screen.findByText('Q001');
+      const labels: Record<string, string> = { success: '成功', failed: '失败', unsupported: '不支持', cancelled: '已停止' };
+      expect(document.querySelector('tbody .batch-status')).toHaveTextContent(labels[status]);
+      expect(screen.queryByRole('columnheader', { name: '产物状态' })).not.toBeInTheDocument();
+      expect(screen.queryByText('产物收集中')).not.toBeInTheDocument();
+    },
+  );
+
+  it('shows retrying while a later attempt is running', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === '/debug/batch/tasks/task_1') return response({
+        taskId: 'task_1', name: '重试', sampleCount: 1,
+        runs: [{ runId: 'run_001', status: 'running' }],
+      });
+      if (url === '/debug/batch/runs/run_001') return response({
+        ...run, status: 'running', samples: [{ ...run.samples[0],
+          status: 'running', attemptCount: 2, traceStatus: 'pending' }],
+      });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    renderDetail();
+    expect(await screen.findByText('重试中')).toBeInTheDocument();
+    expect(screen.queryByText(/重试中 \| 产物收集中/)).not.toBeInTheDocument();
+  });
 
   it('shows the collection failure when a successful sample has no preview', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {

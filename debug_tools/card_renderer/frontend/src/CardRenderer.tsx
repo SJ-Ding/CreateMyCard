@@ -3,6 +3,11 @@ import { CardPreview } from './render';
 import { CardSize, ComponentNode, parseInput, RendererDocument } from './parser';
 import { SAMPLE_COMPACT } from './fixtures';
 import './styles.css';
+import { InspectionCanvas, useRendererDebug } from './RendererDebug';
+
+export type PreviewSettings = {
+  source: string; cardSize: CardSize; appVersion?: string; width: number; height: number; zoom: number;
+};
 
 export interface CardRendererProps {
   /** JSONL/JSON/compact DSL source supplied by the host; manual edits remain local. */
@@ -26,6 +31,10 @@ export interface CardRendererProps {
   /** Called when the preview zoom changes. */
   onZoomChange?: (zoom: number) => void;
   className?: string;
+  debugTools?: boolean;
+  initialView?: Partial<PreviewSettings>;
+  onOpenPreview?: (settings: PreviewSettings) => Promise<void>;
+  onSourceChange?: (source: string) => void;
 }
 
 const DEFAULT_SOURCE = SAMPLE_COMPACT;
@@ -34,22 +43,32 @@ function sourceValue(value: string | undefined): string {
   return typeof value === 'string' ? value : DEFAULT_SOURCE;
 }
 
-export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', conversionUrl = '/debug/renderer/convert', cardSize: hostCardSize = 'auto', appVersion: hostAppVersion, onArtifact, onAction, previewOnly = false, zoom: controlledZoom, onZoomChange, className = '' }: CardRendererProps) {
+export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', conversionUrl = '/debug/renderer/convert', cardSize: hostCardSize = 'auto', appVersion: hostAppVersion, onArtifact, onAction, previewOnly = false, zoom: controlledZoom, onZoomChange, className = '', debugTools = false, initialView, onOpenPreview, onSourceChange }: CardRendererProps) {
   const [source, setSource] = useState(() => sourceValue(initialValue));
   const [cardSize, setCardSize] = useState<CardSize>(hostCardSize);
   const [appVersion, setAppVersion] = useState(hostAppVersion ?? '');
-  const [internalZoom, setInternalZoom] = useState(220);
+  const [internalZoom, setInternalZoom] = useState(initialView?.zoom ?? 220);
   const [autoRender, setAutoRender] = useState(true);
   const [document, setDocument] = useState<RendererDocument | null>(null);
   const [containerWidth, setContainerWidth] = useState(150);
   const [containerHeight, setContainerHeight] = useState(150);
   const [error, setError] = useState('');
-  const [interaction, setInteraction] = useState('');
+  const [openError, setOpenError] = useState('');
   const [converting, setConverting] = useState(false);
   const conversionRequest = useRef<AbortController | null>(null);
   const renderTimer = useRef<number | undefined>(undefined);
   const zoom = controlledZoom ?? internalZoom;
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const debug = useRendererDebug();
+  const setDebugDocument = debugTools ? debug?.setDocument : undefined;
+  const setDebugSource = debugTools ? debug?.setSource : undefined;
+  const setPreviewVersion = debugTools ? debug?.setPreviewVersion : undefined;
+  const restoredView = useRef(false);
+  useEffect(() => { setDebugDocument?.(document); }, [document, setDebugDocument]);
+  useEffect(() => { setDebugSource?.(source); }, [source, setDebugSource]);
+  useEffect(() => { onSourceChange?.(source); }, [source, onSourceChange]);
+  useEffect(() => { setPreviewVersion?.(appVersion); }, [appVersion, setPreviewVersion]);
+  useEffect(() => () => setDebugDocument?.(null), [setDebugDocument]);
 
   const cancelConversion = () => {
     conversionRequest.current?.abort();
@@ -96,7 +115,7 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', conve
     // cannot display an unrelated call's document.
     setDocument(null);
     setError('');
-    setInteraction('');
+    setOpenError('');
   }, [initialValue]);
 
   useEffect(() => {
@@ -133,8 +152,9 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', conve
       }
       const displayed = replaceSource ? { ...parsed, mode: 'A2UI' as const } : parsed;
       setDocument(displayed);
-      setContainerWidth(parsed.surface.width);
-      setContainerHeight(parsed.surface.height);
+      setContainerWidth(!restoredView.current && initialView?.width ? initialView.width : parsed.surface.width);
+      setContainerHeight(!restoredView.current && initialView?.height ? initialView.height : parsed.surface.height);
+      restoredView.current = true;
       setError('');
       onArtifact?.(displayed);
     } catch (reason) {
@@ -190,17 +210,23 @@ export function CardRenderer({ initialValue, assetBaseUrl = '/resources/', conve
     <div className="card-renderer__preview">
       <div className="card-renderer__preview-toolbar">
         <span>{previewDocument ? `${previewDocument.mode} · ${containerWidth} × ${containerHeight}` : '预览'}</span>
+        {onOpenPreview && <button type="button" disabled={!previewDocument} onClick={() => {
+          setOpenError('');
+          void onOpenPreview({ source, cardSize, appVersion: appVersion || undefined,
+            width: containerWidth, height: containerHeight, zoom }).catch(reason => setOpenError(String(reason)));
+        }}>在卡片渲染中打开 ↗</button>}
         <div className="card-renderer__preview-controls">
+          {debugTools && debug && <label><input type="checkbox" checked={debug.enabled}
+            onChange={event => debug.setEnabled(event.target.checked)} />检查组件</label>}
           <label>容器宽度<input type="number" min="1" step="1" value={containerWidth} disabled={!document} onChange={(event) => changeContainerSize('width', event.target.value)} /></label>
           <label>容器高度<input type="number" min="1" step="1" value={containerHeight} disabled={!document} onChange={(event) => changeContainerSize('height', event.target.value)} /></label>
           <label>缩放<input type="range" min="50" max="360" value={zoom} onChange={(event) => changeZoom(Number(event.target.value))} /><span>{zoom}%</span></label>
         </div>
       </div>
-      <div className="card-renderer__stage" ref={stageRef} aria-label="卡片缩放画布"><div className="card-renderer__matte" style={{ transform: `scale(${zoom / 100})` }}>{previewDocument ? <CardPreview document={previewDocument} assetBaseUrl={assetBaseUrl} onAction={(action, component) => {
-        setInteraction(JSON.stringify({ action, componentId: component.id }, null, 2));
-        onAction?.(action, component);
-      }} /> : <div className="card-renderer__empty">暂无卡片</div>}</div></div>
-      {interaction && <div className="card-renderer__interaction" role="status"><div><strong>点击事件</strong><button type="button" onClick={() => setInteraction('')}>清除</button></div><pre>{interaction}</pre><p>仅展示解析后的事件参数，不执行外部跳转。</p></div>}
+      <div className="card-renderer__stage" ref={stageRef} aria-label="卡片缩放画布"><div className="card-renderer__matte" style={{ transform: `scale(${zoom / 100})` }}>{previewDocument ? <InspectionCanvas><CardPreview document={previewDocument} assetBaseUrl={assetBaseUrl}
+        dataUpdates={debugTools ? debug?.updates : undefined} onAction={onAction} /></InspectionCanvas>
+        : <div className="card-renderer__empty">暂无卡片</div>}</div></div>
+      {openError && <p role="alert">{openError}；请再次点击打开按钮重试。</p>}
     </div>
   </section>;
 }

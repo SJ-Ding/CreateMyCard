@@ -14,7 +14,11 @@ from debug_tools.batch_testing.postprocess import PostprocessManager
 from debug_tools.batch_testing.task_manager import BatchTaskManager
 from debug_tools.postprocess_plugins.gallery.capture import run_capture
 from debug_tools.postprocess_plugins.gallery.plugin import BatchGalleryManager
-from debug_tools.postprocess_plugins.gallery.report import _asset_path, build_document, run_gallery
+from debug_tools.postprocess_plugins.gallery.report import (
+    _asset_path,
+    build_document,
+    run_capture_gallery,
+)
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -30,7 +34,7 @@ def _write(path: Path, value: object):
 @pytest.mark.parametrize(
     "kind,mode", [("browser", "preview"), ("device", "preview"), ("device", "desktop")]
 )
-async def test_gallery_consumes_direct_dependencies_and_reuses_history(tmp_path, kind, mode):
+async def test_gallery_captures_again_and_preserves_history(tmp_path, monkeypatch, kind, mode):
     run_dir = tmp_path / "run"
     _write(
         run_dir / "summary.json",
@@ -75,9 +79,16 @@ async def test_gallery_consumes_direct_dependencies_and_reuses_history(tmp_path,
     )
     calls = []
 
-    async def capture(_run, output, _config):
+    async def capture(_host, _run, output, _config, **_kwargs):
         calls.append(kind)
-        (output / "card").mkdir()
+        checkpoint = _kwargs.get("checkpoint")
+        if checkpoint is not None:
+            await checkpoint({
+                "status": "partial", "sampleResults": [],
+                "datasetResult": {"status": "skipped", "artifacts": []},
+                "progress": {"phase": "samples", "completed": 0, "total": 2},
+            })
+        (output / "card").mkdir(exist_ok=True)
         (output / "card/Q001.png").write_bytes(b"unique screenshot")
         metadata = {"captureMode": mode}
         if mode == "desktop":
@@ -115,15 +126,19 @@ async def test_gallery_consumes_direct_dependencies_and_reuses_history(tmp_path,
     class Host:
         output_root = tmp_path
 
+    module = "debug_tools.postprocess_plugins.gallery.capture" if kind == "browser" else (
+        "debug_tools.postprocess_plugins.device_capture"
+    )
+    function_name = "run_capture" if kind == "browser" else "run_builtin"
+    monkeypatch.setattr(f"{module}.{function_name}", capture)
     manager = PostprocessManager(
         tmp_path,
         PLUGINS,
         builtin_runners={
-            f"{kind}-capture": capture,
-            f"{kind}-gallery": partial(run_gallery, Host(), kind),
+            f"{kind}-gallery": partial(run_capture_gallery, Host(), kind),
         },
     )
-    configs = {"device-capture": {"targetId": "fake-device", "captureMode": mode}}
+    configs = {"device-gallery": {"targetId": "fake-device", "captureMode": mode}}
     await manager.start()
     try:
         first = manager.enqueue("run", [f"{kind}-gallery"], configs)
@@ -132,6 +147,8 @@ async def test_gallery_consumes_direct_dependencies_and_reuses_history(tmp_path,
         assert isinstance(execution_id, str)
         state = manager.get_execution("run", execution_id)
         assert state.get("status") in {"completed", "partial"}
+        for plugin in state.get("plugins", []):
+            assert plugin.get("status") != "failed", plugin
         samples = manager.sample_result("run", execution_id, "data-analysis", "Q001")
         assert samples.get("facts", {}).get("paddedCount") == 1
         path = manager.asset_path("run", execution_id, f"{kind}-gallery", "gallery.html")
@@ -144,7 +161,11 @@ async def test_gallery_consumes_direct_dependencies_and_reuses_history(tmp_path,
         original = document
         second = manager.enqueue("run", [f"{kind}-gallery"], configs, rerun=True)
         await manager.queue.join()
-        assert calls == ([kind, kind] if mode == "desktop" else [kind])
+        second_id = second.get("executionId")
+        assert isinstance(second_id, str)
+        second_state = manager.get_execution("run", second_id)
+        assert second_state.get("status") in {"completed", "partial"}, second_state
+        assert calls == [kind, kind]
         assert path.read_text(encoding="utf-8") == original
         assert second.get("executionId") != execution_id
         host = object.__new__(BatchTaskManager)
@@ -155,7 +176,7 @@ async def test_gallery_consumes_direct_dependencies_and_reuses_history(tmp_path,
             )
             item = host.sample_device_capture("run", "Q001")
             assert item.get("status") == "success"
-            assert "/assets/device-capture/card/Q001.png" in item.get("cardUrl", "")
+            assert "/assets/device-gallery/card/Q001.png" in item.get("cardUrl", "")
             assert host.device_gallery_path("run").is_file()
         else:
             assert host.gallery_path("run").is_file()
@@ -245,3 +266,25 @@ def test_legacy_full_capture_route_preserves_actual_image_type(tmp_path, suffix,
         response = client.get("/debug/batch/runs/run/device-captures/Q001/full")
     assert response.status_code == 200
     assert response.headers.get("content-type") == media_type
+
+
+def test_capture_plugins_are_merged_into_public_galleries(tmp_path):
+    manager = PostprocessManager(tmp_path, PLUGINS)
+    visible = {}
+    for manifest in manager.plugins():
+        visible[manifest.get("id")] = manifest
+    assert "browser-capture" not in visible
+    assert "device-capture" not in visible
+    for kind in ("browser", "device"):
+        manifest = visible.get(f"{kind}-gallery")
+        assert manifest is not None
+        assert manifest.get("dependence") == ["data-analysis"]
+        keys = []
+        for output in manifest.get("outputs", []):
+            keys.append(output.get("key"))
+        assert f"{kind}-capture" in keys
+        assert f"{kind}-gallery" in keys
+        assert "capture-summary" in keys
+    device = visible.get("device-gallery")
+    assert device is not None
+    assert device.get("configSchema", {}).get("required") == ["targetId"]

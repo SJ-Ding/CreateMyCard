@@ -92,7 +92,7 @@ def _pending(reason: str, boundary: str = BOUNDARY) -> dict[str, Any]:
 
 def _evidence(context: dict[str, Any]) -> dict[str, Any] | None:
     for stage in context.get("upstreamResults", []):
-        if stage.get("pluginId") != "browser-capture":
+        if stage.get("pluginId") not in {"browser-gallery", "browser-capture"}:
             continue
         result = stage.get("result") or {}
         for artifact in result.get("artifacts", []):

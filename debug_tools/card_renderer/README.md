@@ -22,7 +22,7 @@ Compact DSL 和 Design Compact DSL 的基础组件、高阶组件、设计 token
 Compact 预览需要 Python 调试后端，frontend/full 模式均可用；两种 Vite 开发入口均代理转换接口。
 已有 A2UI 或 Graph JSONL 在浏览器直接解析，不请求转换后端。
 
-相对图片资源以 `/resources/` 为默认根目录，由 frontend/full 两种 Python 应用通过受目录约束的只读路由提供；Vite 开发服务提供等价本地中间件。浏览器字体通过 `/fonts/harmonyos/` 复用根 `render` 的 HarmonyOS Sans 与 HarmonyOS Sans SC 资源，保持字宽、字重和换行效果一致。外部图片由浏览器直接读取，失败时显示占位，不提供开放式服务端图片代理。点击动作只回传解析结果，不执行 Intent、Deeplink 或 URL 跳转。
+相对图片资源以 `/resources/` 为默认根目录，由 frontend/full 两种 Python 应用通过受目录约束的只读路由提供；Vite 开发服务提供等价本地中间件。浏览器字体通过 `/fonts/harmonyos/` 读取 `card_renderer/assets/fonts/harmonyos/` 中的 HarmonyOS Sans 与 HarmonyOS Sans SC 资源，保持字宽、字重和换行效果一致。外部图片由浏览器直接读取，失败时显示占位，不提供开放式服务端图片代理。点击动作只回传解析结果，不执行 Intent、Deeplink 或 URL 跳转。
 
 ## 导出
 
@@ -49,12 +49,15 @@ import {
 
 ## 独立运行
 
-```bash
-npm install
-npm run dev
-npm run typecheck
-npm run build
+先从仓库根启动 Python 后端（`uv run debug_tools --mode frontend`），再从仓库根执行：
+
+```powershell
+cd debug_tools
+npm ci
+npm --workspace @widget-debug/card-renderer run dev
 ```
 
-生产环境可将 `frontend/static` 的构建产物交给统一 FastAPI `/debug/` 静态入口；图片根目录通过 `assetBaseUrl` 配置，避免依赖迁移后的相对路径。
-
+打开终端提示的 Vite 地址，路径为 `/debug/`。独立入口也需要 Python 提供 Compact 转换接口。
+统一工作台在 `debug_tools/` 执行 `npm run build`，构建到 `debug_tools/dist/`；
+渲染器单包 build 的 `frontend/static/` 是独立预览产物，不作为完整工作台的部署替代。
+检查命令见 [tests/README.md](../tests/README.md)。

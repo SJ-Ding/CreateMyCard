@@ -1,4 +1,7 @@
 export { CardRenderer } from './CardRenderer';
+export { RendererDebugProvider, RendererDebugPanel } from './RendererDebug';
+export type { PreviewSettings } from './CardRenderer';
+export { artifactObject } from './mock-data';
 export { CardPreview, RenderNode, colorValue, edgeValue, gradientValue, sizeValue } from './render';
 export {
   COLOR_TOKENS,

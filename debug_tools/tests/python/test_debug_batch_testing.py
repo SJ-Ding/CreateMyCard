@@ -683,3 +683,54 @@ async def test_slow_download_does_not_delay_generation_status(tmp_path, monkeypa
     finally:
         release.set()
         await task
+
+
+@pytest.mark.asyncio
+async def test_retry_marks_current_trace_pending(tmp_path, monkeypatch):
+    dataset_root = tmp_path / "datasets"
+    _write_dataset(dataset_root, "Q001")
+    collecting_retry = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+    imports = 0
+
+    async def invoke(*_args):
+        nonlocal calls
+        calls += 1
+        return {"status": "failed", "errorCode": "TEMPORARY"}
+
+    async def import_trace(*_args):
+        nonlocal imports
+        imports += 1
+        if imports == 2:
+            collecting_retry.set()
+            await release.wait()
+        return {"status": "complete", "recordCount": 5}
+
+    manager = BatchRunManager(
+        dataset_root, tmp_path / "output", tmp_path / "traces",
+        tmp_path / "cloud", invoke=invoke,
+    )
+    monkeypatch.setattr(manager, "_import_trace", import_trace)
+    started = manager.start_run(["Q001"], "ws://localhost/tools", 1, 1)
+    run_id = started.get("runId")
+    assert isinstance(run_id, str)
+    task = manager.tasks.get(run_id)
+    assert task is not None
+    try:
+        await asyncio.wait_for(collecting_retry.wait(), 3)
+        snapshot = manager.get_run(run_id)
+        samples = snapshot.get("samples")
+        assert isinstance(samples, list)
+        sample = samples[0]
+        assert sample.get("status") == "failed"
+        assert sample.get("attemptCount") == 2
+        assert sample.get("traceStatus") == "pending"
+        assert sample.get("traceRecordCount") == 0
+    finally:
+        release.set()
+        await task
+    assert calls == 2
+    samples = manager.get_run(run_id).get("samples")
+    assert isinstance(samples, list)
+    assert samples[0].get("traceStatus") == "complete"

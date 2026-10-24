@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { PostprocessExecution } from '../../../../platform/src/batchApi';
 import { MemoryRouter } from 'react-router-dom';
@@ -26,7 +27,7 @@ describe('PostprocessPanel', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
       if (url === '/debug/batch/postprocess/plugins') return response({ items: [
         { apiVersion: 'batch-postprocess-v2', id: 'browser-gallery', name: '浏览器渲染画廊', version: '2.0.0', configSchema: { type: 'object' } },
-        { apiVersion: 'batch-postprocess-v2', id: 'device-capture', name: '真机截图', version: '2.0.0', dependence: ['browser-gallery'], configSchema: { type: 'object' } },
+        { apiVersion: 'batch-postprocess-v2', id: 'device-gallery', name: '真机截图画廊', version: '2.0.0', dependence: ['browser-gallery'], configSchema: { type: 'object' } },
       ] });
       if (url === '/debug/device/targets') return response({ targets: [{
         id: 'device_one', name: 'Pura Test', serial: 'USB123', kind: 'physical',
@@ -45,7 +46,7 @@ describe('PostprocessPanel', () => {
     const original = vi.mocked(fetch).getMockImplementation()!;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       if (input === '/debug/batch/postprocess/plugins') return response({ items: [{
-        id: 'device-capture', name: '真机截图', configSchema: { type: 'object', properties: {
+        id: 'device-gallery', name: '真机截图画廊', configSchema: { type: 'object', properties: {
           captureMode: { type: 'string', default: 'desktop', enum: ['desktop', 'preview'] },
         } },
       }] });
@@ -55,7 +56,7 @@ describe('PostprocessPanel', () => {
     render(<PostprocessPanel runId="run_1" runStatus="completed" selectedSampleId=""
       executions={[]} onStarted={onStarted} />);
     fireEvent.click(screen.getByRole('button', { name: '后处理插件' }));
-    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
     expect(screen.getByLabelText('真机截图模式')).toHaveValue('desktop');
     expect(screen.getByText(/必须将应用入口和两张卡片放在同一个桌面页面/)).toBeInTheDocument();
     expect(screen.getByText(/流程不会自动翻页/)).toBeInTheDocument();
@@ -64,7 +65,7 @@ describe('PostprocessPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
     const request = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST');
-    expect(JSON.parse(String(request?.[1]?.body)).configs['device-capture']).toEqual({
+    expect(JSON.parse(String(request?.[1]?.body)).configs['device-gallery']).toEqual({
       targetId: 'device_one', captureMode: mode,
     });
   });
@@ -83,7 +84,7 @@ describe('PostprocessPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '后处理插件' }));
     expect(screen.getByRole('dialog', { name: '后处理插件' })).toBeInTheDocument();
 
-    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
     expect(screen.getByRole('checkbox', { name: '浏览器渲染画廊' })).toBeChecked();
     fireEvent.change(screen.getByLabelText('真机截图在线设备'), { target: { value: 'device_one' } });
     fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
@@ -93,40 +94,35 @@ describe('PostprocessPanel', () => {
       String(url).endsWith('/postprocess') && init?.method === 'POST'
     ));
     const body = JSON.parse(String(request?.[1]?.body));
-    expect(body.pluginIds).toEqual(['browser-gallery', 'device-capture']);
-    expect(body.rerun).toBe(false);
+    expect(body.pluginIds).toEqual(['browser-gallery', 'device-gallery']);
+    expect(body.rerun).toBe(true);
   });
 
-  it('selecting a device gallery adds capture and analysis and submits the device config', async () => {
+  it('selecting a device gallery configures capture directly without a separate plugin', async () => {
     const onStarted = vi.fn(async () => undefined);
+    const original = vi.mocked(fetch).getMockImplementation()!;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
-      const url = String(input);
-      if (url === '/debug/batch/postprocess/plugins') return response({ items: [
+      if (input === '/debug/batch/postprocess/plugins') return response({ items: [
         { id: 'data-analysis', name: '数据分析', configSchema: { type: 'object' } },
-        { id: 'device-capture', name: '真机截图', configSchema: { type: 'object' } },
         { id: 'device-gallery', name: '真机截图画廊', configSchema: { type: 'object' },
-          dependence: ['device-capture', 'data-analysis'] },
+          dependence: ['data-analysis'] },
       ] });
-      if (url === '/debug/device/targets') return response({ targets: [
-        { id: 'device_one', name: '设备', kind: 'physical' },
-      ], emulators: [] });
-      if (init?.method === 'POST') return response({ executionId: 'exec', status: 'queued' });
-      throw new Error(url);
+      return original(input, init);
     });
     render(<MemoryRouter><PostprocessPanel runId="run_1" runStatus="completed"
       selectedSampleId="" executions={[]} onStarted={onStarted} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: '后处理插件' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
-    expect(screen.getByRole('checkbox', { name: '真机截图' })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: '真机截图' })).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: '数据分析' })).toBeChecked();
     expect(screen.getByRole('button', { name: '开始后处理' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('真机截图在线设备'), { target: { value: 'device_one' } });
     fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
     const request = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST');
-    const body = JSON.parse(String(request?.[1]?.body));
-    expect(body.pluginIds).toEqual(['device-capture', 'data-analysis', 'device-gallery']);
-    expect(body.configs['device-capture']).toEqual({ targetId: 'device_one' });
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      pluginIds: ['data-analysis', 'device-gallery'], configs: { 'device-gallery': { targetId: 'device_one' } },
+    });
   });
 
   it('allows scheduling plugins before the batch run completes', async () => {
@@ -155,13 +151,13 @@ describe('PostprocessPanel', () => {
     render(<MemoryRouter><PostprocessPanel runId="run_1" runStatus="completed"
       selectedSampleId="" executions={[]} onStarted={onStarted} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: '后处理插件' }));
-    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
     fireEvent.change(screen.getByLabelText('真机截图在线设备'), { target: { value: 'device_one' } });
     expect(screen.queryByRole('spinbutton', { name: '截图前等待（秒）' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
     const request = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST');
-    expect(JSON.parse(String(request?.[1]?.body)).configs['device-capture']).toEqual({
+    expect(JSON.parse(String(request?.[1]?.body)).configs['device-gallery']).toEqual({
       targetId: 'device_one',
     });
   });
@@ -171,7 +167,7 @@ describe('PostprocessPanel', () => {
     vi.mocked(fetch).mockImplementation(async (input: string | URL | Request) => {
       const url = String(input);
       if (url === '/debug/batch/postprocess/plugins') return response({ items: [{
-        apiVersion: 'batch-postprocess-v2', id: 'device-capture', name: '真机截图',
+        apiVersion: 'batch-postprocess-v2', id: 'device-gallery', name: '真机截图画廊',
         version: '2.0.0', configSchema: { type: 'object' },
       }] });
       if (url === '/debug/device/targets') return response({
@@ -195,7 +191,7 @@ describe('PostprocessPanel', () => {
     render(<MemoryRouter><PostprocessPanel runId="run_1" runStatus="completed"
       selectedSampleId="Q001" executions={[]} onStarted={vi.fn()} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: '后处理插件' }));
-    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
     fireEvent.click(screen.getByRole('button', { name: '启动本地模拟器 · Pura X' }));
     await waitFor(() => expect(screen.getByLabelText('真机截图在线设备'))
       .toHaveValue('emulator-target'), { timeout: 2500 });
@@ -222,7 +218,7 @@ describe('PostprocessPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /后处理插件/ }));
     const gallery = await screen.findByRole('checkbox', { name: '浏览器渲染画廊' });
     expect(gallery).toBeChecked();
-    fireEvent.click(screen.getByRole('checkbox', { name: '真机截图' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '真机截图画廊' }));
     fireEvent.change(screen.getByLabelText('真机截图在线设备'), { target: { value: 'device_one' } });
     fireEvent.click(screen.getByRole('button', { name: '更新自动执行配置' }));
 
@@ -232,10 +228,10 @@ describe('PostprocessPanel', () => {
       String(url).endsWith('/postprocess') && init?.method === 'POST'
     ));
     const body = JSON.parse(String(request?.[1]?.body));
-    expect(body.pluginIds).toEqual(['browser-gallery', 'device-capture']);
+    expect(body.pluginIds).toEqual(['browser-gallery', 'device-gallery']);
   });
 
-  it('submits only new plugins and reruns completed plugins explicitly', async () => {
+  it('submits completed selections as a new execution and keeps individual rerun', async () => {
     const onStarted = vi.fn(async () => undefined);
     render(<MemoryRouter><PostprocessPanel
       runId="run_1"
@@ -256,9 +252,9 @@ describe('PostprocessPanel', () => {
     /></MemoryRouter>);
 
     fireEvent.click(screen.getByRole('button', { name: /后处理插件/ }));
-    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
     fireEvent.change(screen.getByLabelText('真机截图在线设备'), { target: { value: 'device_one' } });
-    expect(screen.getByText('将并行执行 1 个新增插件')).toBeInTheDocument();
+    expect(screen.getByText('将并行执行 2 个插件')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
 
@@ -268,10 +264,28 @@ describe('PostprocessPanel', () => {
       String(url).endsWith('/postprocess') && init?.method === 'POST'
     ));
     expect(JSON.parse(String(requests[0]?.[1]?.body))).toMatchObject({
-      pluginIds: ['device-capture'], rerun: false,
+      pluginIds: ['browser-gallery', 'device-gallery'], rerun: true,
     });
     expect(JSON.parse(String(requests[1]?.[1]?.body))).toMatchObject({
       pluginIds: ['browser-gallery'], rerun: true,
+    });
+  });
+
+  it.each(['success', 'partial', 'failed', 'skipped'])('starts a new execution for a checked plugin with %s history', async (status) => {
+    const onStarted = vi.fn(async () => undefined);
+    render(<StrictMode><MemoryRouter><PostprocessPanel runId="run_1" runStatus="completed" selectedSampleId=""
+      executions={[execution('completed', [{ id: 'device-gallery', status,
+        config: { targetId: 'device_one', captureMode: 'preview' } }])]} onStarted={onStarted} /></MemoryRouter></StrictMode>);
+    fireEvent.click(screen.getByRole('button', { name: /后处理插件/ }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '真机截图画廊' }));
+    expect(screen.getByLabelText('真机截图在线设备')).toHaveValue('device_one');
+    expect(screen.getByRole('button', { name: '开始后处理' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: '开始后处理' }));
+    await waitFor(() => expect(onStarted).toHaveBeenCalled());
+    const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({
+      pluginIds: ['browser-gallery', 'device-gallery'], rerun: true,
+      configs: { 'device-gallery': { targetId: 'device_one', captureMode: 'preview' } },
     });
   });
 
@@ -293,7 +307,7 @@ describe('PostprocessPanel', () => {
     const onStarted = vi.fn(async () => undefined);
     const plugins = [
       { id: 'browser-gallery', name: '浏览器渲染画廊', status: 'success' },
-      { id: 'device-capture', name: '真机截图', status: 'success' },
+      { id: 'device-gallery', name: '真机截图画廊', status: 'success' },
     ];
     const props = { runId: 'run_1', runStatus: 'completed', selectedSampleId: '', onStarted };
     const view = render(<MemoryRouter><PostprocessPanel {...props}
@@ -307,13 +321,13 @@ describe('PostprocessPanel', () => {
       execution('running', [{ ...plugins[0], status: 'running' }, plugins[1]]),
     ]} /></MemoryRouter>);
     expect(resultRow('浏览器渲染画廊').queryByRole('button', { name: '再次运行' })).not.toBeInTheDocument();
-    const otherRetry = resultRow('真机截图').getByRole('button', { name: '再次运行' });
+    const otherRetry = resultRow('真机截图画廊').getByRole('button', { name: '再次运行' });
     expect(otherRetry).toBeEnabled();
     fireEvent.click(otherRetry);
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(2));
     const requests = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
     expect(JSON.parse(String(requests[1]?.[1]?.body))).toMatchObject({
-      pluginIds: ['device-capture'], rerun: true,
+      pluginIds: ['device-gallery'], rerun: true,
     });
   });
 
@@ -330,16 +344,16 @@ describe('PostprocessPanel', () => {
     const onStarted = vi.fn(async () => undefined);
     render(<MemoryRouter><PostprocessPanel runId="run_1" runStatus="completed"
       selectedSampleId="" onStarted={onStarted} executions={[execution('completed', [
-        { id: 'browser-gallery', status: 'success' }, { id: 'device-capture', status: 'success' },
+        { id: 'browser-gallery', status: 'success' }, { id: 'device-gallery', status: 'success' },
       ])]} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /后处理插件/ }));
     await screen.findByRole('checkbox', { name: '浏览器渲染画廊' });
     fireEvent.click(resultRow('浏览器渲染画廊').getByRole('button', { name: '再次运行' }));
     expect(resultRow('浏览器渲染画廊').getByRole('button', { name: '提交中…' })).toBeDisabled();
-    fireEvent.click(resultRow('真机截图').getByRole('button', { name: '再次运行' }));
+    fireEvent.click(resultRow('真机截图画廊').getByRole('button', { name: '再次运行' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
     expect(resultRow('浏览器渲染画廊').getByRole('button', { name: '提交中…' })).toBeDisabled();
-    expect(resultRow('真机截图').getByRole('button', { name: '再次运行' })).toBeEnabled();
+    expect(resultRow('真机截图画廊').getByRole('button', { name: '再次运行' })).toBeEnabled();
     if (!finishFirst) throw new Error('First retry was not submitted');
     finishFirst(response({ executionId: 'exec_first', status: 'queued' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(2));
@@ -356,14 +370,14 @@ describe('PostprocessPanel', () => {
     expect(queued).toBeEnabled();
     fireEvent.click(queued);
     expect(screen.getByRole('button', { name: '继续运行后处理' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('checkbox', { name: '真机截图' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '真机截图画廊' }));
     fireEvent.change(screen.getByLabelText('真机截图在线设备'), { target: { value: 'device_one' } });
-    expect(screen.getByText('将按依赖执行 1 个新增插件')).toBeInTheDocument();
+    expect(screen.getByText('将按依赖执行 1 个插件')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '继续运行后处理' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
     const request = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'POST');
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
-      pluginIds: ['device-capture'], rerun: false,
+      pluginIds: ['device-gallery'], rerun: true,
     });
   });
 

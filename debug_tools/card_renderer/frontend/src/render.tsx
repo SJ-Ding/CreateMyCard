@@ -1,5 +1,6 @@
 import React, {
   Component,
+  useEffect,
   useMemo,
   useState,
   type CSSProperties,
@@ -18,12 +19,14 @@ import {
   type InteractionHost,
 } from '@genui-sdk/renderer';
 import type { ComponentNode, RendererDocument } from './parser';
+import { ActionDialog } from './ActionDialog';
 
 export interface CardPreviewProps {
   document: RendererDocument;
   assetBaseUrl?: string;
   onAction?: (action: unknown, component: ComponentNode) => void;
   className?: string;
+  dataUpdates?: Array<{ path: string; value: unknown }>;
 }
 
 export interface RenderNodeProps extends CardPreviewProps {
@@ -140,11 +143,19 @@ function RenderSurface({
   assetBaseUrl = '/resources/',
   onAction,
   rootId,
+  dataUpdates,
 }: CardPreviewProps & { rootId: string }) {
   const [revision, setRevision] = useState(0);
   const graph = useMemo(
-    () => cloneGraph(document, assetBaseUrl, rootId),
-    [assetBaseUrl, document, rootId],
+    () => {
+      const result = cloneGraph(document, assetBaseUrl, rootId);
+      const surfaceId = result.getActiveSurfaceId() ?? 'debug-card-preview';
+      for (const update of dataUpdates ?? []) {
+        result.applyCommand({ [UPDATE_DATA_MODEL_CMD_KEY]: { surfaceId, ...update } });
+      }
+      return result;
+    },
+    [assetBaseUrl, document, rootId, dataUpdates],
   );
   const interactionHost = useMemo<InteractionHost>(() => ({
     functionCall: ({ call, args, componentId }) => {
@@ -184,7 +195,10 @@ export function CardPreview({
   assetBaseUrl = '/resources/',
   onAction,
   className = '',
+  dataUpdates,
 }: CardPreviewProps) {
+  const [interaction, setInteraction] = useState<{ action: unknown; component: ComponentNode } | null>(null);
+  useEffect(() => setInteraction(null), [document, dataUpdates]);
   const style: CSSProperties = {
     width: document.surface.width,
     height: document.surface.height,
@@ -199,9 +213,14 @@ export function CardPreview({
     <RenderSurface
       document={document}
       assetBaseUrl={assetBaseUrl}
-      onAction={onAction}
+      onAction={(action, component) => {
+        setInteraction({ action, component });
+        onAction?.(action, component);
+      }}
+      dataUpdates={dataUpdates}
       rootId={document.rootId}
     />
+    {interaction && <ActionDialog {...interaction} onClose={() => setInteraction(null)} />}
   </div>;
 }
 
