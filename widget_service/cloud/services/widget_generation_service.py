@@ -1008,6 +1008,7 @@ class WidgetGenerationService:
             nonlocal model_call_phase
             nonlocal source_generated_by_jsx, source_generated_by_template
             nonlocal validated_template_source, latest_processing_result
+            nonlocal prompt, processing_context
             source_generated_by_jsx = False
             source_generated_by_template = False
             original_small_display_roles.clear()
@@ -1103,6 +1104,38 @@ class WidgetGenerationService:
                             "JSX generation failed without fallback"
                         ) from exc
             logger.info(f"{_MODULE} model_source_generation_started operation={policy.operation}")
+            if colorless_source():
+                from services.dynamic_presentation import (
+                    add_presentation_dependencies,
+                    presentation_instruction,
+                )
+
+                prepared = add_presentation_dependencies(
+                    task_spec.model_dump(mode="json", exclude_none=True),
+                    processing_context.card_spec,
+                    effective_data_capabilities,
+                )
+                prepared_schema = prepared.get("dataModelSchema")
+                if not isinstance(prepared_schema, dict):
+                    raise ValueError("Dynamic presentation schema is missing")
+                task_spec.dataModelSchema = prepared_schema
+                processing_context = replace(processing_context, task_spec=prepared)
+                prompt = PromptBuilder().build_design_token(
+                    task_spec,
+                    A2UIProtocolRegistry.read_design_prompt(
+                        policy.model_profile_id, size=task_spec.size,
+                    ),
+                    policy.source_format,
+                    previous_design_token=previous_design_token,
+                    defer_compact_examples=not settings.enable_a2ui_model_mock,
+                )
+                instruction = presentation_instruction(processing_context.card_spec, prepared)
+                system_message = prompt[0]
+                system_content = system_message.get("content")
+                if not isinstance(system_content, str):
+                    raise ValueError("Fusion system prompt content is missing")
+                system_message["content"] = system_content + instruction
+                effective_generation_prompt = prompt
             uses_compact_plan = (
                 policy.processor_kind == DslProcessorKind.DESIGN_COMPACT
                 and policy.operation == "generateWidgetCardCompactDsl"

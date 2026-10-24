@@ -12,7 +12,10 @@ from services.card_validation import (
     validate_compact_dsl,
 )
 from services.card_validation.compact_validation.diagnostics import DiagnosticGroup
-from services.card_validation.compact_validation.repair_guidance import RepairGuidanceContext
+from services.card_validation.compact_validation.repair_guidance import (
+    RepairGuidanceContext,
+    resolve_fix_hint,
+)
 from services.card_validation.display_unit_rules import repair_repeated_display_units
 from services.compact_dsl_a2ui_converter import (
     CompactDslConversionError,
@@ -241,6 +244,24 @@ class DesignCompactProcessor:
                 card_spec=context.card_spec,
                 skip_compact_dsl_validation=context.skip_compact_dsl_validation,
             )
+            if context.colorless_layout:
+                from services.dynamic_presentation import normalize_presentation_source
+
+                presentation_input = source_dsl
+                source_dsl = normalize_presentation_source(
+                    source_dsl, context.card_spec, context.task_spec,
+                )
+                if source_dsl != presentation_input:
+                    trace_step(
+                        "dsl.presentation.normalized", stage="dsl.presentation", status="success",
+                        text_artifacts={
+                            "presentation_input": presentation_input,
+                            "presentation_output": source_dsl,
+                        },
+                        artifact_roles={
+                            "presentation_input": "input", "presentation_output": "output",
+                        },
+                    )
             expansion_started_at = time.perf_counter()
             expanded_source, layout_origins = expand_compact_semantic_layout(
                 source_dsl, size=context.size,
@@ -254,7 +275,7 @@ class DesignCompactProcessor:
                                     "semantic_layout_expanded": expanded_source},
                     json_artifacts={"semantic_layout_origins": layout_origins},
                 )
-        except CompactDslConversionError as exc:
+        except (CompactDslConversionError, CompactDslValidationError) as exc:
             trace_step(
                 "dsl.binding_repair.completed",
                 stage="dsl.bindingRepair",
@@ -263,6 +284,16 @@ class DesignCompactProcessor:
                 details={"message": str(exc)},
             )
             report_ops_metrics(body={"taskFailValidation": 1})
+            if isinstance(exc, CompactDslValidationError):
+                if exc.diagnostics:
+                    records = []
+                    for diagnostic in exc.diagnostics:
+                        hint = resolve_fix_hint(diagnostic, context.repair_context)
+                        records.append(replace(
+                            diagnostic, fix_hint=hint,
+                        ))
+                    exc = CompactDslValidationError.from_records(records)
+                return self._validation_failure(source_dsl, exc.errors, groups=exc.groups)
             return self._validation_failure(source_dsl, (str(exc),))
         trace_step(
             "dsl.binding_repair.completed",

@@ -1,5 +1,19 @@
 # Compact DSL 现有校验规则分类清单 v1
 
+2026-10-23：融合产物增加确定性动态展示，规则归属如下。仅按实际融合来源启用，模板、JSX、旧入口不启用。
+
+| 检查项 | 分类与实际文件 | 归属理由 |
+| --- | --- | --- |
+| 倒计时数字、目标标题及对象唯一关联 | 语义／展示，`semantic/display.py` 的 `require_countdown_presentation`，`COMPACT_DISPLAY_COUNTDOWN_TARGET` | 判断文案和读数是否属于可唯一解释的同一对象；编译器只消费结论，不把判定堆入入口 |
+| 生成的倒计时条件引用与展示值单位 | 语义／展示，`card_validation/display_unit_rules.py`、`display_unit_validator.py` | 条件读取天数不等于显示天数；数值重复读取仍按一次展示检查缺失和重复单位 |
+| 倒计时前后文案及非负读数宽度 | 语义／布局与视觉约束，现有 `semantic/layout/text_width.py` 调用 `compact_composition_context.py` 的有界样值识别 | 沿用同一布局预算，只识别程序生成形式，不执行任意表达式或冻结运行时值 |
+| 条件颜色的两个常量分支对比度 | 语义／布局与视觉约束，`card_validation/contrast_validator.py` | 每支独立核算，保持原渐变、图片、融球与模板复核边界，不因颜色动态化而跳过检查 |
+
+表达式由 `dynamic_presentation.py` 编排、`presentation_expressions.py` 复用正式受限语法解析器构造；
+阈值和状态色来自 `dynamic_presentation.json`。不新增运算符、函数、端侧字段或通用表达式求值器。
+目标关联失败保留结构化语义诊断和原外层错误出口，布局前编译、末尾主题及兜底后注入颜色分别执行。
+
+
 2026-10-21：编辑目标履约属于标准 A2UI 的语义／编辑目标一致性，判定位于
 `card_validation/edit_validation/artifact.py`；模型意图形状、字段权限及可比较性属于
 `widget_edit_contract.py`。提示词加载与修复格式化位于 `widget_edit_prompt.py`，编排仍在

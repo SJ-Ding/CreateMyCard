@@ -7,6 +7,8 @@ import logging
 import re
 from typing import Any
 
+from services.presentation_expressions import conditional_colors
+
 from .base import BaseValidator
 
 _LOGGER = logging.getLogger(__name__)
@@ -237,13 +239,17 @@ class ContrastValidator(BaseValidator):
                 )
                 return
             ratios = []
-            for item in effective_backgrounds:
-                try:
-                    ratios.append(_contrast(foreground, item))
-                except ValueError:
-                    continue
+            for color in conditional_colors(foreground) or (foreground,):
+                branch_ratios = []
+                for item in effective_backgrounds:
+                    try:
+                        branch_ratios.append(_contrast(color, item))
+                    except ValueError:
+                        continue
+                if branch_ratios:
+                    ratios.append(_reported_contrast_ratio(branch_ratios, is_gradient))
             if ratios:
-                ratio = _reported_contrast_ratio(ratios, is_gradient)
+                ratio = min(ratios)
                 if ratio < 4.5:
                     # 渐变 stop 只代表背景采样点，无法证明文本矩形整体不可读。
                     # 渐变场景统一进入渲染复核；纯色背景继续按最低阈值阻塞。

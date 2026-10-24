@@ -17,6 +17,7 @@ from services.card_validation.compact_validation.constants import (
 )
 from services.card_validation.compact_validation.diagnostics import (
     CompactDiagnostic,
+    CompactDslValidationError,
     emit_error,
 )
 from services.card_validation.compact_validation.schema import _schema_node_at_path, _schema_type
@@ -30,6 +31,33 @@ from services.card_validation.compact_validation.text import (
 from services.compact_dsl_a2ui_converter import (
     ComponentRow,
 )
+
+
+def require_countdown_presentation(
+    component_id: str, *, readout_count: int = 1, title_count: int = 1,
+    mixed_readout: bool = False,
+) -> None:
+    """确定性编译前的展示语义条件，不决定表达式形式或改变布局。"""
+    if readout_count == 1 and title_count == 1 and not mixed_readout:
+        return
+    diagnostic = CompactDiagnostic(
+        code="COMPACT_DISPLAY_COUNTDOWN_TARGET",
+        validation_class="semantic",
+        category="display",
+        component_id=component_id,
+        message="倒计时读数或目标标题无法唯一关联。",
+        expected={"readoutCount": 1, "titleCount": 1, "separateOtherMetrics": True},
+        actual={
+            "readoutCount": readout_count, "titleCount": title_count,
+            "mixedReadout": mixed_readout,
+        },
+        legacy_message=(
+            f"component {component_id}: COMPACT_DISPLAY_COUNTDOWN_TARGET: keep one numeric "
+            "countdown readout and one unambiguous target title in its own Region; "
+            "separate other metrics and keep unit 天."
+        ),
+    )
+    raise CompactDslValidationError.from_records([diagnostic])
 
 
 def _collect_raw_boolean_text_errors(

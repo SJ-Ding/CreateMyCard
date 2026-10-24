@@ -67,6 +67,11 @@ class WidgetEditService:
                                   "上一版卡片无法安全读取，原卡片不受影响。", exc.error_code)
         original = loaded.artifact.model_copy(deep=True)
         try:
+            from services.dynamic_presentation import prepare_presentation_edit
+
+            original.genui = prepare_presentation_edit(
+                original.genui, original.cardSpec, original.taskSpec, request.userQuery,
+            )
             validate_edit_source_structure(original.genui)
         except (ValueError, TypeError, RecursionError) as exc:
             trace_record("edit.source.structure.failed", stage="edit.source", status="failed",
@@ -239,6 +244,15 @@ class WidgetEditService:
             data_bindings=list(preflight.effective_bindings), generation_mode="edit",
             source_artifact_digest=digest,
         )
+        from services.dynamic_presentation import (
+            add_presentation_dependencies,
+            has_generated_presentation,
+        )
+
+        if has_generated_presentation(original.genui, original.cardSpec, original.taskSpec):
+            candidate.taskSpec = add_presentation_dependencies(
+                candidate.taskSpec, candidate.cardSpec, preflight.effective_data_capabilities,
+            )
         _retain_source_assets(original, candidate)
         return candidate
 

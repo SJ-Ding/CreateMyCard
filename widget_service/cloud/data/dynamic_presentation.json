@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "batteryLowExclusive": 10,
+  "countdownNearInclusive": 7,
+  "lightAlertColor": "#FFB3261E",
+  "darkAlertColor": "#FFFF6B6B"
+}

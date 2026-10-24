@@ -38,6 +38,13 @@
     },
     {
       "module": "semantic/display.py",
+      "function": "require_countdown_presentation",
+      "code": "COMPACT_DISPLAY_COUNTDOWN_TARGET",
+      "class": "semantic",
+      "category": "display"
+    },
+    {
+      "module": "semantic/display.py",
       "function": "_collect_raw_boolean_text_errors",
       "code": "COMPACT_DISPLAY_RAW_BOOLEAN",
       "class": "semantic",

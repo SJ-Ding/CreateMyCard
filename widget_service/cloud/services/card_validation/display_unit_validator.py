@@ -6,6 +6,7 @@ from .base import BaseValidator, expression_references
 from .context import ValidationContext
 from .display_unit_rules import (
     collect_bound_display_unit_rules,
+    display_unit_references,
     matching_unit_literal_count,
     static_text_contains_rule,
     static_text_exactly_matches_rule,
@@ -38,7 +39,7 @@ class DisplayUnitValidator(BaseValidator):
                 continue
             matched_rules = [
                 unit_rule_for_path(path, unit_rules)
-                for path in expression_references(content)
+                for path in display_unit_references(content)
             ]
             matched_rules = [rule for rule in matched_rules if rule is not None]
             if len(matched_rules) != 1:

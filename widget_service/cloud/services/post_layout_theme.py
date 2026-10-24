@@ -189,8 +189,13 @@ def user_color_overrides(query: str) -> dict:
     names = load_theme_registry().get("userColorOverrides", {}).get("namedColors", {})
     token = "(?:#[0-9A-Fa-f]{8}|#[0-9A-Fa-f]{6}|" + "|".join(names) + ")"
     result = {}
-    for role, target in (("text", "文字|字体|字色|字"), ("background", "背景|底色")):
-        pattern = rf"(?:{target})\s*(?:用|是|为|改成|改为|使用|要|：|:)?\s*({token})"
+    for role, target in (
+        ("text", "文字(?:颜色)?|字体(?:颜色)?|字色|字"), ("background", "背景|底色"),
+    ):
+        pattern = (
+            rf"(?:{target})\s*(?:全部|统一|都)?\s*"
+            rf"(?:用|是|为|改成|改为|使用|采用|设为|设置为|要|：|:)?\s*({token})"
+        )
         reverse = rf"({token})\s*(?:的)?(?:{target})"
         match = re.search(pattern, query) or re.search(reverse, query)
         if not match:
@@ -443,6 +448,10 @@ async def select_theme(
     fallback = fallback_theme(family)
     fallback_id = fallback.get("id")
     overrides = user_color_overrides(task.get("userQuery", ""))
+    from services.dynamic_presentation import uniform_text_request
+
+    if not uniform_text_request(task.get("userQuery", "")):
+        overrides.pop("text", None)
     rejected = {}
     native_subjectless = get_settings().enable_subjectless_wide_theme and task.get("size") == "2x4"
     for photo in registered_themes("photos"):
@@ -670,6 +679,20 @@ async def theme_artifact(
         span.outcome("recovered" if audit.get("selectorError") else "success")
     themed = artifact.model_copy(deep=True)
     themed.genui = result
+    from services.dynamic_presentation import (
+        apply_presentation_colors,
+        presentation_excluded_roots,
+        presentation_rules,
+    )
+
+    uniform_text = "text" in audit.get("userColors", {})
+    presentation_card = getattr(artifact, "cardSpec", {})
+    excluded_roots = ()
+    if presentation_rules(presentation_card, task):
+        excluded_roots = presentation_excluded_roots(final_layout)
+    themed.genui = apply_presentation_colors(
+        themed.genui, presentation_card, task, uniform=uniform_text, excluded_roots=excluded_roots,
+    )
     theme = audit.get("theme", {})
     expanded = theme.get("composition") == "square-left"
     if expanded:
@@ -698,6 +721,10 @@ async def theme_artifact(
         themed = artifact.model_copy(deep=True)
         fallback = fallback_theme(default_palette_family(task))
         themed.genui = apply_theme(source, fallback, task, audit.get("userColors", {}))
+        themed.genui = apply_presentation_colors(
+            themed.genui, presentation_card, task,
+            uniform=uniform_text, excluded_roots=excluded_roots,
+        )
         fallback_errors = _validate_theme(themed, validator, profile, fallback=True)
         if fallback_errors:
             raise ValueError("Final gradient validation failed: " + str(fallback_errors))

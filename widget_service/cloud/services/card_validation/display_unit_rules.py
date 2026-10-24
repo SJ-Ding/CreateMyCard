@@ -9,6 +9,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from services.presentation_expressions import recognize_countdown
+
 from .base import expression_body, expression_references
 
 _STRING_LITERAL_RE = re.compile(r"^'(?P<value>(?:[^'\\]|\\.)*)'$")
@@ -25,6 +27,14 @@ _UNIT_ALIASES = {
 class DisplayUnitRule:
     units: tuple[str, ...]
     unit_included: bool
+
+
+def display_unit_references(value: str) -> list[str]:
+    """程序倒计时的条件引用不是展示值；重复读取同一天数仍只展示一次。"""
+    display = recognize_countdown(value)
+    if display is not None:
+        return [display.path] if display.kind == "number" else []
+    return expression_references(value)
 
 
 def collect_bound_display_unit_rules(
@@ -170,7 +180,7 @@ def repair_repeated_display_units(
         if component.get("component") != "Text":
             continue
         content = component.get("content")
-        refs = expression_references(content) if isinstance(content, str) else []
+        refs = display_unit_references(content) if isinstance(content, str) else []
         matched = [unit_rule_for_path(ref, rules) for ref in refs]
         matched = [rule for rule in matched if rule is not None]
         if len(matched) != 1:

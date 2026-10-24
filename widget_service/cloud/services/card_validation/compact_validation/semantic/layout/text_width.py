@@ -11,6 +11,7 @@ from services.card_validation.compact_validation.text import (
 )
 from services.compact_dsl_a2ui_converter import ComponentRow
 from services.compact_region_layout import reference_region_boxes
+from services.presentation_expressions import recognize_countdown
 
 
 def _collect_text_width_budget_errors(
@@ -52,9 +53,35 @@ def _collect_text_width_budget_errors(
             errors.append(message)
         return
     for row in components:
-        if row.component_type not in {"Text", "Button"}:
-            continue
         props = row.props
+        icon_pressure = 0.0
+        countdown_title = False
+        if row.component_type == "SingleLineTitle":
+            display = recognize_countdown(props.get("title"))
+            if display is None or display.kind != "prefix":
+                continue
+            from services.compact_component_runtime import visual_recipe_part
+
+            variant = "withIcon" if props.get("icon") else None
+            _, title_styles = visual_recipe_part(
+                "SingleLineTitle", "title", size=size, variant=variant,
+            )
+            props = {**title_styles, **props}
+            countdown_title = True
+            if props.get("icon"):
+                _, icon_styles = visual_recipe_part(
+                    "SingleLineTitle", "icon", size=size, variant=variant,
+                )
+                _, root_styles = visual_recipe_part(
+                    "SingleLineTitle", "root", size=size, variant=variant,
+                )
+                icon_width = _non_negative_number(icon_styles.get("width"))
+                gap = _non_negative_number(root_styles.get("itemMargin"))
+                if icon_width is None or gap is None:
+                    continue
+                icon_pressure = icon_width + gap
+        elif row.component_type not in {"Text", "Button"}:
+            continue
         if props.get("maxLines", 1) != 1:
             continue
         font = _non_negative_number(props.get("fontSize"))
@@ -79,6 +106,8 @@ def _collect_text_width_budget_errors(
         if width is None:
             continue
         content = props.get("content") if row.component_type == "Text" else props.get("label")
+        if countdown_title:
+            content = props.get("title")
         # 两种尺寸共用保守的完整文案解析；不运行表达式或猜测未知字段。
         text = small_card_display_text(content, task_spec)
         if text is None and isinstance(content, str) and "{{" not in content:
@@ -95,7 +124,7 @@ def _collect_text_width_budget_errors(
         )
         if duration_error is not None:
             errors.append(duration_error)
-        available = width - _horizontal_padding(props)
+        available = width - _horizontal_padding(props) - icon_pressure
         maximum = _non_negative_number(props.get("maxWidth"))
         if maximum is not None:
             available = min(available, maximum)

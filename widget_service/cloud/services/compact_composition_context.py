@@ -505,6 +505,13 @@ def repair_action_labels(source: str, task: dict[str, Any]) -> dict[str, str]:
 
 def _literal_display_sample(value: Any, task: dict[str, Any]) -> tuple[str, str] | None:
     """只接受一个原路径和字符串字面量的加法串；函数、算术和多路径都不猜测。"""
+    from services.presentation_expressions import recognize_countdown
+
+    display = recognize_countdown(value)
+    if display is not None and display.kind == "number":
+        generated = _countdown_display_sample(value, task)
+        if generated is not None:
+            return generated
     if isinstance(value, dict) and set(value) == {"path"}:
         path = value.get("path")
         if not isinstance(path, str):
@@ -552,6 +559,9 @@ def _literal_display_sample(value: Any, task: dict[str, Any]) -> tuple[str, str]
 
 def small_card_display_text(value: Any, task: dict[str, Any]) -> str | None:
     """小卡完整文字压力：只读字符串连接或简单布尔映射，不执行表达式。"""
+    generated = _countdown_display_sample(value, task)
+    if generated is not None:
+        return generated[1]
     if isinstance(value, dict):
         displayed = _literal_display_sample(value, task)
         return displayed[1] if displayed is not None else None
@@ -591,6 +601,31 @@ def small_card_display_text(value: Any, task: dict[str, Any]) -> str | None:
     return concatenated_display_text(
         value, lambda path: _schema_value(task, path).get("sampleValue"),
     )
+
+
+def _countdown_display_sample(value: Any, task: dict[str, Any]) -> tuple[str, str] | None:
+    """只核算程序产出的有界倒计时形式，不求值其它表达式。"""
+    from services.presentation_expressions import recognize_countdown
+
+    display = recognize_countdown(value)
+    if display is None:
+        return None
+    field = _schema_value(task, display.path)
+    if field.get("type") not in {"integer", "number"}:
+        return None
+    if display.kind == "prefix":
+        target = display.target
+        if display.target_path:
+            sample = _schema_value(task, target).get("sampleValue")
+            if not isinstance(sample, str):
+                return None
+            target = max((sample, "目标日"), key=lambda text: _text_width(text, 1))
+        return display.path, "距离" + target + "还剩"
+    sample = field.get("sampleValue")
+    if isinstance(sample, bool) or not isinstance(sample, (int, float)):
+        return None
+    return display.path, str(abs(sample)) + display.unit
+
 
 
 def compact_plan_capacity_context(size: str) -> str:
