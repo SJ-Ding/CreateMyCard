@@ -1,5 +1,12 @@
 # Compact DSL 现有校验规则分类清单 v1
 
+2026-10-22：Fusion 后置动态增强操作最终标准 A2UI，不新增或迁移 Compact 检查。
+`card_validation/enhancement_expression.py` 负责语法／表达式结构；`enhancement_rules.py`
+负责语义／数据与素材授权、内容保护、全部结果颜色及文本宽度包络，复用公共单位和产物校验。
+`display_unit_validator.py` 保持语义／展示单位归属，受限三目逐结果检查，条件引用不算数值展示。
+模型调用、属性组装及原子回退位于 `dynamic_expression_enhancement.py`。
+回归为微服务 `test_dynamic_expression_enhancement.py` 和 `test_dynamic_enhancement_pipeline.py`。
+
 2026-10-21：编辑目标履约属于标准 A2UI 的语义／编辑目标一致性，判定位于
 `card_validation/edit_validation/artifact.py`；模型意图形状、字段权限及可比较性属于
 `widget_edit_contract.py`。提示词加载与修复格式化位于 `widget_edit_prompt.py`，编排仍在

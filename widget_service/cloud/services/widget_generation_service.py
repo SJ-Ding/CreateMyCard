@@ -1866,6 +1866,15 @@ class WidgetGenerationService:
                     allow_expansion=defer_size_notification,
                     final_layout=design_token,
                 )
+            if generation_mode == "create" and colorless_source():
+                from services.dynamic_expression_enhancement import enhance_artifact
+
+                artifact = await enhance_artifact(
+                    artifact, model_client, ArtifactValidator(asset_mapper.mapping),
+                    protocol_profile, asset_mapping=asset_mapper.mapping,
+                    source_layout=latest_processing_result.source_dsl,
+                    accepted_plan=accepted_compact_plan,
+                )
             final_size = artifact.cardSpec.get("suggestSize", card_spec.suggestSize)
             if defer_size_notification and before_model_call is not None:
                 await before_model_call(final_size)

@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     else:
         CONFIG: ConfigHelper = ConfigHelper("cloud")
     WORKSPACE_ROOT: Path = Path(CONFIG.get("workspace_root", WORKSPACE_ROOT))
+    enable_dynamic_expression_enhancement: bool = (
+        CONFIG.get("enable_dynamic_expression_enhancement", "false") == "true"
+    )
     enable_photo_background_theme: bool = (
         CONFIG.get("enable_photo_background_theme", "true") == "true"
     )

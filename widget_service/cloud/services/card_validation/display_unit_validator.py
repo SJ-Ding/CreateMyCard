@@ -11,6 +11,7 @@ from .display_unit_rules import (
     static_text_exactly_matches_rule,
     unit_rule_for_path,
 )
+from .enhancement_expression import display_result_expressions
 
 
 class DisplayUnitValidator(BaseValidator):
@@ -36,65 +37,75 @@ class DisplayUnitValidator(BaseValidator):
             content = component.get("content")
             if not isinstance(component_id, str) or not isinstance(content, str):
                 continue
-            matched_rules = [
-                unit_rule_for_path(path, unit_rules)
-                for path in expression_references(content)
-            ]
-            matched_rules = [rule for rule in matched_rules if rule is not None]
-            if len(matched_rules) != 1:
-                continue
-            rule = matched_rules[0]
-            inline_count = matching_unit_literal_count(content, rule)
-            sibling_count = self._matching_sibling_count(
-                component_id,
-                rule,
-                parents_by_child,
-                context.components_by_id,
+            for display_content in display_result_expressions(content):
+                self._validate_content(
+                    component_id, display_content, unit_rules, parents_by_child,
+                    context, reporter, skip_missing_unit,
+                )
+
+    def _validate_content(
+        self, component_id, content, unit_rules, parents_by_child,
+        context, reporter, skip_missing_unit,
+    ) -> None:
+        matched_rules = [
+            unit_rule_for_path(path, unit_rules)
+            for path in expression_references(content)
+        ]
+        matched_rules = [rule for rule in matched_rules if rule is not None]
+        if len(matched_rules) != 1:
+            return
+        rule = matched_rules[0]
+        inline_count = matching_unit_literal_count(content, rule)
+        sibling_count = self._matching_sibling_count(
+            component_id,
+            rule,
+            parents_by_child,
+            context.components_by_id,
+        )
+        visible_unit_count = inline_count + sibling_count
+        pointer = f"/updateComponents/componentsById/{component_id}/content"
+        if rule.unit_included and visible_unit_count:
+            reporter.add(
+                "error",
+                "DISPLAY_UNIT_DUPLICATED",
+                self.stage,
+                "genui",
+                line=2,
+                json_pointer=pointer,
+                actual=content,
+                expected={"unitIncluded": True, "displayUnits": list(rule.units)},
+                message="动态字段已自带展示单位，不得再次拼接或另行展示相同单位。",
+                fix_hint="删除表达式或相邻 Text 中重复追加的单位，仅保留字段自身内容。",
             )
-            visible_unit_count = inline_count + sibling_count
-            pointer = f"/updateComponents/componentsById/{component_id}/content"
-            if rule.unit_included and visible_unit_count:
-                reporter.add(
-                    "error",
-                    "DISPLAY_UNIT_DUPLICATED",
-                    self.stage,
-                    "genui",
-                    line=2,
-                    json_pointer=pointer,
-                    actual=content,
-                    expected={"unitIncluded": True, "displayUnits": list(rule.units)},
-                    message="动态字段已自带展示单位，不得再次拼接或另行展示相同单位。",
-                    fix_hint="删除表达式或相邻 Text 中重复追加的单位，仅保留字段自身内容。",
-                )
-            elif not rule.unit_included and visible_unit_count == 0 and not skip_missing_unit:
-                reporter.add(
-                    "error",
-                    "DISPLAY_UNIT_MISSING",
-                    self.stage,
-                    "genui",
-                    line=2,
-                    json_pointer=pointer,
-                    actual=content,
-                    expected={"unitIncluded": False, "displayUnits": list(rule.units)},
-                    message="动态数值字段不包含展示单位，当前 Text 未展示其声明的单位。",
-                    fix_hint=(
-                        f"在数值表达式中追加单位“{rule.units[0]}”，或让紧邻数值后的"
-                        f"静态 Text 包含该单位，且整组只展示一次。"
-                    ),
-                )
-            elif not rule.unit_included and visible_unit_count > 1:
-                reporter.add(
-                    "error",
-                    "DISPLAY_UNIT_DUPLICATED",
-                    self.stage,
-                    "genui",
-                    line=2,
-                    json_pointer=pointer,
-                    actual=content,
-                    expected={"unitIncluded": False, "displayUnits": list(rule.units)},
-                    message="动态数值字段的展示单位被重复追加。",
-                    fix_hint=f"只保留一个单位“{rule.units[0]}”。",
-                )
+        elif not rule.unit_included and visible_unit_count == 0 and not skip_missing_unit:
+            reporter.add(
+                "error",
+                "DISPLAY_UNIT_MISSING",
+                self.stage,
+                "genui",
+                line=2,
+                json_pointer=pointer,
+                actual=content,
+                expected={"unitIncluded": False, "displayUnits": list(rule.units)},
+                message="动态数值字段不包含展示单位，当前 Text 未展示其声明的单位。",
+                fix_hint=(
+                    f"在数值表达式中追加单位“{rule.units[0]}”，或让紧邻数值后的"
+                    f"静态 Text 包含该单位，且整组只展示一次。"
+                ),
+            )
+        elif not rule.unit_included and visible_unit_count > 1:
+            reporter.add(
+                "error",
+                "DISPLAY_UNIT_DUPLICATED",
+                self.stage,
+                "genui",
+                line=2,
+                json_pointer=pointer,
+                actual=content,
+                expected={"unitIncluded": False, "displayUnits": list(rule.units)},
+                message="动态数值字段的展示单位被重复追加。",
+                fix_hint=f"只保留一个单位“{rule.units[0]}”。",
+            )
 
     @staticmethod
     def _parents_by_child(components) -> dict[str, list[dict]]:
