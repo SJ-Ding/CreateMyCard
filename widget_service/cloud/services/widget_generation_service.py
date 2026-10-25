@@ -82,7 +82,7 @@ from services.generation_trace_recorder import (
     trace_step,
 )
 from services.multi_step_generation.core.bridge import JsxA2UIBridge
-from services.presentation.release import presentation_enabled, verified_client_scope
+from services.presentation.release import presentation_enabled
 from services.protocol_registry import (
     A2UI_FORM_PROTOCOL_PROFILE_ID,
     A2UIProtocolRegistry,
@@ -2315,7 +2315,6 @@ class WidgetGenerationService:
             need_fallback=False,
         )
 
-    @verified_client_scope
     async def _generate_widget_card_with_policy(
         self,
         request: GenerateWidgetCardRequest,

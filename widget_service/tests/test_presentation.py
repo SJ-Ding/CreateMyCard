@@ -517,7 +517,10 @@ def test_higher_priority_global_state_wins(artifact, raw_plan):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("compile_failure", [False, True])
-async def test_real_create_pipeline_saves_required_plan(monkeypatch, raw_plan, compile_failure):
+@pytest.mark.parametrize("app,rom", [("11.7.7.331", "7.0"), ("11.7.8.340", "6.0")])
+async def test_real_create_pipeline_saves_required_plan(
+    monkeypatch, raw_plan, compile_failure, app, rom
+):
     from api.schemas import GenerateWidgetCardRequest
     from core.errors import GenerationStatus
     from custom.a2ui_model_client import A2UIModelClient
@@ -527,17 +530,6 @@ async def test_real_create_pipeline_saves_required_plan(monkeypatch, raw_plan, c
     settings = get_settings()
     monkeypatch.setattr(settings, "enable_dynamic_presentation", True)
     monkeypatch.setattr(settings, "enable_a2ui_model_mock", False)
-    monkeypatch.setattr(
-        settings,
-        "dynamic_presentation_verified_clients",
-        [
-            {
-                "appVersion": "11.7.7.331",
-                "romVersion": "7.0",
-                "protocolProfileId": "a2ui-form-rom6.0-v1",
-            }
-        ],
-    )
     monkeypatch.setattr(settings, "enable_artifact_validation", False)
     monkeypatch.setattr(settings, "enable_generation_trace_recording", False)
     monkeypatch.setattr(WidgetGenerationService, "_enable_card_template", lambda _self: True)
@@ -597,8 +589,8 @@ async def test_real_create_pipeline_saves_required_plan(monkeypatch, raw_plan, c
         monkeypatch.setattr("services.presentation.runtime.compile_artifact", reject)
     request = GenerateWidgetCardRequest(
         uid="presentation-test",
-        prdVer="11.7.7.331",
-        device={"romVersion": "7.0"},
+        prdVer=app,
+        device={"romVersion": rom},
         userQuery="毕业倒计时，每100天采用主题色彩",
         size="2x2",
         title="毕业倒计时",
@@ -680,7 +672,8 @@ def test_twenty_five_properties_still_share_two_visible_states(artifact, raw_pla
 
 
 @pytest.mark.asyncio
-async def test_real_edit_pipeline_updates_only_period(monkeypatch, artifact, raw_plan):
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_real_edit_pipeline_updates_only_period(monkeypatch, artifact, raw_plan, enabled):
     from api.schemas import GenerateWidgetCardRequest
     from core.errors import GenerationStatus
     from custom.a2ui_model_client import A2UIModelClient
@@ -704,18 +697,7 @@ async def test_real_edit_pipeline_updates_only_period(monkeypatch, artifact, raw
     )
     settings = get_settings()
     monkeypatch.setattr(settings, "enable_widget_edit", True)
-    monkeypatch.setattr(settings, "enable_dynamic_presentation", True)
-    monkeypatch.setattr(
-        settings,
-        "dynamic_presentation_verified_clients",
-        [
-            {
-                "appVersion": "11.7.7.331",
-                "romVersion": "7.0",
-                "protocolProfileId": "a2ui-form-rom6.0-v1",
-            }
-        ],
-    )
+    monkeypatch.setattr(settings, "enable_dynamic_presentation", enabled)
     monkeypatch.setattr(settings, "enable_semantic_widget_edit", True)
     monkeypatch.setattr(settings, "enable_generation_trace_recording", False)
     saved = []
@@ -754,6 +736,11 @@ async def test_real_edit_pipeline_updates_only_period(monkeypatch, artifact, raw
         sourceArtifactUrl="https://old.test/card.md",
     )
     response = await WidgetGenerationService().generate_widget_card_compact_dsl(request)
+    if not enabled:
+        assert response.status == GenerationStatus.UNSUPPORTED
+        assert not calls
+        assert not saved
+        return
     assert response.status == GenerationStatus.SUCCESS, response
     assert calls == ["edit_intent"]
     assert len(saved) == 1
@@ -762,41 +749,35 @@ async def test_real_edit_pipeline_updates_only_period(monkeypatch, artifact, raw
     verify_archive(saved[0])
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+def test_release_uses_only_feature_switch(monkeypatch, enabled):
+    from services.presentation.release import presentation_enabled
+
+    monkeypatch.setattr(get_settings(), "enable_dynamic_presentation", enabled)
+    assert presentation_enabled() is enabled
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "app,rom,profile,master,expected",
-    [
-        ("11.7.7.331", "7.0", "a2ui-form-rom6.0-v1", True, True),
-        ("11.7.7.332", "7.0", "a2ui-form-rom6.0-v1", True, False),
-        ("11.7.7.331", "7.1", "a2ui-form-rom6.0-v1", True, False),
-        ("11.7.7.331", "7.0", "unknown", True, False),
-        ("11.7.7.331", "7.0", "a2ui-form-rom6.0-v1", False, False),
-    ],
-)
-async def test_release_requires_exact_verified_client(
-    monkeypatch, app, rom, profile, master, expected
-):
-    from services.presentation.release import presentation_enabled, verified_client_scope
+async def test_disabled_switch_rejects_required_create(monkeypatch):
+    from api.schemas import GenerateWidgetCardRequest
+    from core.errors import GenerationStatus
+    from custom.a2ui_model_client import A2UIModelClient
+    from services.widget_generation_service import WidgetGenerationService
 
-    settings = get_settings()
-    monkeypatch.setattr(settings, "enable_dynamic_presentation", master)
-    monkeypatch.setattr(
-        settings,
-        "dynamic_presentation_verified_clients",
-        [
-            {
-                "appVersion": "11.7.7.331",
-                "romVersion": "7.0",
-                "protocolProfileId": "a2ui-form-rom6.0-v1",
-            }
-        ],
+    monkeypatch.setattr(get_settings(), "enable_dynamic_presentation", False)
+
+    async def forbidden(*_args, **_kwargs):
+        pytest.fail("关闭动态展示后不能调用模型生成必需联动")
+
+    monkeypatch.setattr(A2UIModelClient, "generate", forbidden)
+    request = GenerateWidgetCardRequest(
+        uid="presentation-switch-test",
+        prdVer="11.7.8.340",
+        device={"romVersion": "6.0"},
+        userQuery="毕业倒计时，每100天采用主题色彩",
+        size="2x2",
+        title="毕业倒计时",
+        description="距离毕业的天数",
     )
-
-    @verified_client_scope
-    async def probe(_service, _request, _policy):
-        return presentation_enabled()
-
-    request = SimpleNamespace(prdVer=app, device=SimpleNamespace(romVersion=rom))
-    policy = SimpleNamespace(protocol_profile_id=profile)
-    assert await probe(None, request, policy) is expected
-    assert presentation_enabled() is master
+    response = await WidgetGenerationService().generate_widget_card_compact_dsl(request)
+    assert response.status == GenerationStatus.UNSUPPORTED

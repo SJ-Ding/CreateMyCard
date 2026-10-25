@@ -241,9 +241,6 @@ class Settings(BaseSettings):
     enable_validation_failure_retry: bool = CONFIG.get("enable_validation_failure_retry") == "true"
     enable_widget_edit: bool = CONFIG.get("enable_widget_edit", "true") == "true"
     enable_dynamic_presentation: bool = CONFIG.get("enable_dynamic_presentation", "false") == "true"
-    dynamic_presentation_verified_clients: list[dict[str, str]] = Field(
-        default=CONFIG.get("dynamic_presentation_verified_clients", []),
-    )
     enable_semantic_widget_edit: bool = CONFIG.get("enable_semantic_widget_edit", "true") == "true"
     widget_edit_max_repair_attempts: int = Field(
         default=CONFIG.get("widget_edit_max_repair_attempts", 2), ge=0, le=5,
