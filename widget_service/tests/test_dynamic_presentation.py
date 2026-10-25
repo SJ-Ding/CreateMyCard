@@ -137,7 +137,8 @@ def test_countdown_boundaries_refresh_same_expressions(runtime, size):
     resolved = runtime(expressions, updates)
     for value, result in zip(values, resolved, strict=True):
         assert result.get("number") == abs(value)
-        assert result.get("prefix") == "距离春节" + ("已经" if value < 0 else "还剩")
+        state = "今天" if value == 0 else "已过" if value < 0 else "还剩"
+        assert result.get("prefix") == "春节 · " + state
     assert runtime(expressions, [{}]) == [{"prefix": "", "number": ""}]
 
 
@@ -223,7 +224,7 @@ def test_projected_text_adds_only_registered_numeric_dependency():
 def test_countdown_prefix_budget_keeps_complete_target_and_both_branches():
     _, task = context()
     name = "非常重要的项目最终交付纪念日"
-    assert small_card_display_text(countdown_prefix(DAY, name), task) == "距离" + name + "还剩"
+    assert small_card_display_text(countdown_prefix(DAY, name), task) == name + " · 还剩"
     assert small_card_display_text(countdown_number(DAY), task) == "30"
 
 
@@ -257,8 +258,8 @@ def test_processor_only_normalizes_actual_fusion_source(monkeypatch, fusion):
         colorless_layout=fusion,
     ))
     assert not result.errors, result.issues
-    assert ("距离" in result.source_dsl) == fusion
-    assert ("距离" in result.standard_dsl) == fusion
+    assert (" · 已过" in result.source_dsl) == fusion
+    assert (" · 已过" in result.standard_dsl) == fusion
 
 
 @pytest.mark.asyncio
@@ -395,7 +396,7 @@ async def test_service_create_and_edit_compile_without_model_expressions(
     assert edited.artifactUrl and edited.artifactUrl != created.artifactUrl
     updated = await asyncio.to_thread(SourceArtifactRepository().load, edited.artifactUrl)
     for artifact in (original.artifact, updated.artifact):
-        assert ("距离" in artifact.genui) == day
+        assert (" · 已过" in artifact.genui) == day
         conditional = []
         for node in components(decode(artifact.genui)):
             colors = conditional_colors(node.get("styles", {}).get("fontColor"))
@@ -431,7 +432,7 @@ def test_countdown_targets_are_escaped_and_normalized_without_guessing(runtime, 
     title_props = json.loads(result.splitlines()[1])[2]
     value = title_props.get("title")
     assert runtime(value, [{"data": {"countdown": {"countdownDays": -1}}}]) == [
-        "距离" + target + "已经",
+        target + " · 已过",
     ]
 
 
@@ -536,7 +537,7 @@ def test_wide_countdown_keeps_prefix_inside_its_own_region(monkeypatch):
         colorless_layout=True,
     ))
     assert not result.errors, result.issues
-    assert "距离" in result.standard_dsl and "已就绪" in result.standard_dsl
+    assert " · 已过" in result.standard_dsl and "已就绪" in result.standard_dsl
 
 
 def test_long_countdown_prefix_is_checked_before_layout_freezes(monkeypatch):
@@ -551,7 +552,7 @@ def test_long_countdown_prefix_is_checked_before_layout_freezes(monkeypatch):
         ),
     )
     assert result.errors
-    assert any("距离" in issue.message for issue in result.errors)
+    assert any("text width overflow" in issue.message for issue in result.errors)
 
 
 def test_title_and_action_semantic_roots_are_not_colored_by_binding():
@@ -594,7 +595,7 @@ def test_upstream_datadisplay_countdown_is_normalized_before_layout(monkeypatch)
         colorless_layout=True,
     ))
     assert not result.errors, result.issues
-    assert "距离" in result.standard_dsl
+    assert " · 已过" in result.standard_dsl
     assert "S-title-content" in result.source_dsl
     normalized = normalize_presentation_source(result.source_dsl, card, task)
     assert normalize_presentation_source(normalized, card, task) == normalized

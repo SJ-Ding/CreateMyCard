@@ -620,11 +620,16 @@ def _countdown_display_sample(value: Any, task: dict[str, Any]) -> tuple[str, st
             if not isinstance(sample, str):
                 return None
             target = max((sample, "目标日"), key=lambda text: _text_width(text, 1))
-        return display.path, "距离" + target + "还剩"
+        return display.path, target + " · 还剩"
     sample = field.get("sampleValue")
     if isinstance(sample, bool) or not isinstance(sample, (int, float)):
         return None
-    return display.path, str(abs(sample)) + display.unit
+    number = str(abs(sample)) + display.unit
+    if display.status:
+        number = max(
+            ("今天", "还剩" + number, "已过" + number), key=lambda text: _text_width(text, 1),
+        )
+    return display.path, number
 
 
 

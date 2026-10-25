@@ -2,7 +2,7 @@
   "COMPACT_ASSET_NOT_ALLOWED": "从本轮素材候选中选择与原意相符的资源路径，修正对应素材属性；不要编造路径或用网络地址替代。",
   "COMPACT_SVG_FILL_COLOR_MISSING": "为该图标补充符合组件合同和当前配色的 fillColor（#AARRGGBB）；保留原素材，不修改组件内部尺寸或字号。",
   "COMPACT_DISPLAY_NUMERIC_COMPONENT_MISUSE": "保留完整内容及原绑定，改用适合该信息角色的 EmphasisText 或正文组件；不要截取样例数字、强转数值或伪造字段。",
-  "COMPACT_DISPLAY_COUNTDOWN_TARGET": "保留独立倒计时数字和单位，将目标名称放同分区的标题；其它事实单独展示。程序负责生成动态前后文案，不用静态剩余文案替代。",
+  "COMPACT_DISPLAY_COUNTDOWN_TARGET": "保留具体事件身份和完整必要事实，标题、标签或本地说明与同一倒计时关联；允许独立数字或完整文本读数。状态与数值表达式由程序生成，不强制距离句式，不用目标日替代已知事件，不删行程来满足容量。",
   "COMPACT_DISPLAY_PROGRESS_OBJECT_MISMATCH": "将进度与同组读数对应到同一对象；该对象没有合法数值字段时，省略其进度并保留完整文本，不借用其它对象的值。",
   "COMPACT_LAYOUT_HEIGHT_OVERFLOW": "根据占用明细重新组合完整信息或选择合法布局，保留必要事实、动作、字号和固定设计高度；不能靠裁剪、收缩或调整权重消除负预算。",
   "COMPACT_LAYOUT_WIDTH_OVERFLOW": "根据子项占用与可用宽度调整区域分配，或改用合法组合。保留全部必要读数、标签、绑定和动作；尺寸与字号调整须遵守对应组件的设计约束和最小可读尺寸。调整后重新校验，不能依靠裁切、遮挡或丢失内容消除报错。",

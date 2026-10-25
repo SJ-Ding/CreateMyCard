@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -22,12 +23,14 @@ from debug_tools.postprocess_plugins.data_analysis.metrics import aggregate, ana
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, Field
 from services import post_layout_theme
+from services.generation_pipeline import DesignCompactProcessor, DslProcessingContext
 from services.generation_trace_recorder import (
     GenerationTraceRecorder,
     trace_flow,
     trace_increment_attempt,
     trace_phase,
 )
+from services.protocol_registry import A2UIProtocolRegistry
 
 UID = "batch-1234abcd-00001-000"
 
@@ -71,6 +74,38 @@ def _finish(recorder, token, root, status):
     view = importer.read(UID)
     assert view.get("status") == "complete", view.get("warnings")
     return view
+
+
+def test_presentation_normalization_records_valid_step_interval(tmp_path, monkeypatch):
+    monkeypatch.setattr("services.generation_pipeline.report_ops_metrics", Mock())
+    path = "/data/event/countdownDays"
+    card = {"suggestSize": "2x2", "dataBindings": [{
+        "capabilityId": "GetCountdownDays", "writeResultTo": "/data/event", "arguments": {},
+    }]}
+    task = {"size": "2x2", "appVersion": "11.7.8.337",
+            "userQuery": "原文目标倒计时", "dataModelSchema": {
+        "data": {"event": {"countdownDays": {"type": "integer", "sampleValue": 8}}},
+    }}
+    source = "\n".join(json.dumps(row, ensure_ascii=False) for row in [
+        ["root", "Layout", {"layout": "S-title-content"}, ["title", "value"]],
+        ["title", "SingleLineTitle", {"title": "原文目标"}],
+        ["value", "EmphasizedData", {"value": {"path": path}, "unit": "天"}],
+    ])
+    recorder, token = _start(tmp_path)
+    try:
+        result = DesignCompactProcessor().process(source, DslProcessingContext(
+            size="2x2", card_spec=card, task_spec=task, colorless_layout=True,
+            protocol_profile=A2UIProtocolRegistry("a2ui-form-rom6.0-v1").get_profile(),
+        ))
+        assert not result.errors, result.issues
+    finally:
+        view = _finish(recorder, token, tmp_path, "success")
+    steps = view.get("nodes")
+    assert isinstance(steps, list)
+    step = next(node for node in steps if node.get("operation") == "dsl.presentation.normalized")
+    assert step.get("kind") == "step"
+    duration = step.get("durationMs")
+    assert isinstance(duration, (int, float)) and duration >= 0
 
 
 class _Meta(BaseModel):

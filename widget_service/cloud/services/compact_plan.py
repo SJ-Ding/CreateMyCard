@@ -42,7 +42,7 @@ _JSON_FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL | re.IGNOREC
 _BINDING_PATH = re.compile(r"\$\{(?P<path>/[^}\s]+)\}")
 _PERCENTAGE_VALUE = re.compile(r"^\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*[%％]\s*$")
 _FACT_KEYS = frozenset(
-    {"requirement", "priority", "dataId", "actionId", "text", "componentHints"}
+    {"requirement", "priority", "dataId", "actionId", "text", "componentHints", "displayName"}
 )
 _TARGET_KEYS = ("dataId", "actionId", "text")
 _FACT_PRIORITIES = frozenset({"must", "should"})
@@ -214,6 +214,10 @@ def build_compact_plan_tool(
         },
     }
     if data_paths:
+        properties["displayName"] = {
+            "type": "string", "minLength": 1,
+            "description": "可选的同对象展示名称，逐字取自本轮需求或卡片标题／描述；不写表达式。",
+        }
         properties["dataId"] = {
             "type": "string",
             "enum": data_paths,
@@ -804,6 +808,7 @@ def parse_compact_plan_call(
     *,
     static_text_source: str | None = None,
     require_composition: bool = False,
+    card_spec: dict[str, Any] | None = None,
 ) -> CompactPlanValidationResult:
     """解析命名工具调用包，并按当前 TaskSpec 标准化 Plan。"""
     syntax_warnings: list[str] = []
@@ -842,6 +847,21 @@ def parse_compact_plan_call(
     )
     warnings[:0] = syntax_warnings
     plan: dict[str, Any] = {"info_required": facts}
+    from services.card_validation.compact_validation.semantic.display import (
+        display_name_errors,
+    )
+
+    name_errors = display_name_errors(plan, card_spec or {}, task_spec)
+    if name_errors:
+        raise CompactPlanValidationError(list(name_errors))
+    if card_spec is not None:
+        from services.card_validation.compact_validation.semantic.countdown_facts import (
+            countdown_plan_errors,
+        )
+
+        identity_errors = countdown_plan_errors(plan, card_spec, task_spec)
+        if identity_errors:
+            raise CompactPlanValidationError(list(identity_errors))
     whole_card_click = None if require_composition else select_whole_card_click(task_spec, facts)
     if whole_card_click is not None:
         plan["wholeCardActionId"] = whole_card_click.action_id
@@ -1411,6 +1431,14 @@ def _compact_fact_coverage_result(
                 warnings=(),
                 duplicate_facts=(duplicate_fact,),
             )
+        display_name = fact.get("displayName")
+        if isinstance(display_name, str):
+            name = _normalize_text(display_name)
+            if not any(name in text for text in (*state.literals, *state.item_literals)):
+                return CompactPlanCoverageResult(
+                    errors=(f"Plan displayName is missing from visible DSL: {display_name}.",),
+                    warnings=(),
+                )
     action_id = fact.get("actionId")
     if isinstance(action_id, str):
         expected = event_handlers.get(action_id)
@@ -1445,6 +1473,7 @@ def evaluate_compact_plan_coverage(
     *,
     allowed_omitted_fact_indexes: tuple[int, ...] = (),
     information_errors_as_warnings: bool = False,
+    protect_required_information: bool = False,
 ) -> CompactPlanCoverageResult:
     """检查 Plan 覆盖；修复后可仅放宽非 Action 展示事实。"""
     if not plan:
@@ -1467,12 +1496,13 @@ def evaluate_compact_plan_coverage(
         if not isinstance(fact, dict):
             continue
         result = _compact_fact_coverage_result(fact, state, event_handlers)
-        if index in allowed and "actionId" not in fact:
+        protected = protect_required_information and fact.get("priority", "must") == "must"
+        if index in allowed and "actionId" not in fact and not protected:
             continue
         if result.duplicate_facts:
             errors.extend(result.errors)
             duplicate_facts.extend(result.duplicate_facts)
-        elif information_errors_as_warnings and "actionId" not in fact:
+        elif information_errors_as_warnings and "actionId" not in fact and not protected:
             warnings.extend(result.errors)
         else:
             errors.extend(result.errors)
@@ -1493,6 +1523,10 @@ def evaluate_compact_plan_coverage(
             )
     required_route = compact_plan_required_route(plan, task_spec)
     if required_route is not None:
+        from services.card_validation.compact_validation.semantic.plan_contracts import (
+            is_normalized_countdown_focus,
+        )
+
         locked_layout = required_route.get("layout")
         if not isinstance(locked_layout, str):
             locked_layout = ""
@@ -1503,10 +1537,11 @@ def evaluate_compact_plan_coverage(
                 layout_scope=locked_layout,
             )
         except CompactLayoutRuntimeError:
-            errors.append(
-                "已接受 Plan 选择了 2x2 单焦点 S-center + DataDisplay；修复时必须保留"
-                "该布局与组件，不得降级为 SingleLineTitle + EmphasisText 或 EmphasizedData。"
-            )
+            if not is_normalized_countdown_focus(components):
+                errors.append(
+                    "已接受 Plan 选择了 2x2 单焦点 S-center + DataDisplay；修复时必须保留"
+                    "该布局与组件，不得降级为 SingleLineTitle + EmphasisText 或 EmphasizedData。"
+                )
     return CompactPlanCoverageResult(
         errors=tuple(errors),
         warnings=tuple(warnings),
@@ -1991,6 +2026,13 @@ def _validate_facts(
             "priority": priority,
             target: target_value,
         }
+        display_name = raw_fact.get("displayName")
+        if "displayName" in raw_fact:
+            valid_name = isinstance(display_name, str) and bool(display_name.strip())
+            if target != "dataId" or not valid_name:
+                errors.append(f"{location}.displayName requires a dataId and non-empty text.")
+            else:
+                fact["displayName"] = display_name.strip()
         hints = raw_fact.get("componentHints")
         if hints is not None:
             if not isinstance(hints, list):
@@ -2055,6 +2097,12 @@ def _validate_facts(
             continue
         if fact["requirement"] not in previous["requirement"]:
             previous["requirement"] += "; " + fact["requirement"]
+        if fact.get("displayName"):
+            previous_name = previous.get("displayName")
+            if previous_name is not None and previous_name != fact.get("displayName"):
+                errors.append(f"{location}.displayName conflicts with the same dataId.")
+            else:
+                previous["displayName"] = fact.get("displayName")
         if fact["priority"] == "must":
             previous["priority"] = "must"
         merged_hints = list(
@@ -2322,6 +2370,13 @@ def _collect_paths_and_literals(
     literals: list[str],
 ) -> None:
     if isinstance(value, str):
+        from services.expression_semantics import expression_display_paths, expression_literals
+
+        display_paths = expression_display_paths(value)
+        if display_paths is not None:
+            paths.update(display_paths)
+            literals.extend(expression_literals(value))
+            return
         matches = list(_BINDING_PATH.finditer(value))
         if matches:
             paths.update(match.group("path") for match in matches)
@@ -2349,6 +2404,16 @@ def _collect_visible_path_occurrences(
     occurrences: list[_CompactVisiblePathOccurrence],
 ) -> None:
     if isinstance(value, str):
+        from services.expression_semantics import expression_display_paths
+
+        display_paths = expression_display_paths(value)
+        if display_paths is not None:
+            for path in display_paths:
+                occurrences.append(_CompactVisiblePathOccurrence(
+                    data_id=path, component_id=component_id, component_type=component_type,
+                    property_path=property_path,
+                ))
+            return
         for match in _BINDING_PATH.finditer(value):
             occurrences.append(
                 _CompactVisiblePathOccurrence(
@@ -2458,7 +2523,11 @@ def _layout_hints(size: Any) -> tuple[str, ...]:
 
 
 def _normalize_text(value: Any) -> str:
-    return re.sub(r"\s+", "", value).casefold() if isinstance(value, str) else ""
+    if not isinstance(value, str):
+        return ""
+    # 标题与时间之间的分隔符不属于时间值；保留 HH:MM 内部冒号。
+    text = re.sub(r"[:：](?=\s*\d{1,2}:\d{2})", "", value.casefold())
+    return re.sub(r"\s+", "", text)
 
 
 def _non_empty(value: Any) -> bool:

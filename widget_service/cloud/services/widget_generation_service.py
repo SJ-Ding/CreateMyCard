@@ -921,6 +921,7 @@ class WidgetGenerationService:
                             raw_plan,
                             task_spec.model_dump(mode="json", exclude_none=True),
                             static_text_source=previous_design_token,
+                            card_spec=processing_context.card_spec,
                             require_composition=(
                                 settings.enable_design_compact_runtime_prompt_context
                             ),

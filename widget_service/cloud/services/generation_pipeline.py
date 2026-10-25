@@ -248,12 +248,14 @@ class DesignCompactProcessor:
                 from services.dynamic_presentation import normalize_presentation_source
 
                 presentation_input = source_dsl
+                presentation_started_at = time.perf_counter()
                 source_dsl = normalize_presentation_source(
-                    source_dsl, context.card_spec, context.task_spec,
+                    source_dsl, context.card_spec, context.task_spec, context.compact_plan,
                 )
                 if source_dsl != presentation_input:
                     trace_step(
                         "dsl.presentation.normalized", stage="dsl.presentation", status="success",
+                        duration_ms=_elapsed_ms(presentation_started_at),
                         text_artifacts={
                             "presentation_input": presentation_input,
                             "presentation_output": source_dsl,
@@ -337,14 +339,28 @@ class DesignCompactProcessor:
             )
 
         plan_coverage_started_at = time.perf_counter()
+        protect_countdown = context.colorless_layout and any(
+            binding.get("capabilityId") == "GetCountdownDays"
+            for binding in context.card_spec.get("dataBindings") or []
+        )
         plan_coverage = evaluate_compact_plan_coverage(
             source_dsl,
             context.compact_plan,
             context.task_spec,
             allowed_omitted_fact_indexes=context.allowed_omitted_plan_fact_indexes,
             information_errors_as_warnings=context.plan_information_coverage_as_warning,
+            protect_required_information=protect_countdown,
         )
-        plan_errors = plan_coverage.errors
+        from services.card_validation.compact_validation.semantic.countdown_facts import (
+            countdown_source_errors,
+        )
+
+        protected_errors = ()
+        if context.colorless_layout:
+            protected_errors = countdown_source_errors(
+                source_dsl, context.card_spec, context.task_spec,
+            )
+        plan_errors = plan_coverage.errors + protected_errors
         plan_warnings = plan_coverage.warnings
         omitted_facts = compact_plan_omitted_facts(
             source_dsl,

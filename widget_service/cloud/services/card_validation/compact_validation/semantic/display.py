@@ -60,6 +60,25 @@ def require_countdown_presentation(
     raise CompactDslValidationError.from_records([diagnostic])
 
 
+def display_name_errors(plan: dict, card: dict, task: dict) -> tuple[str, ...]:
+    """动态事实的名称必须可追溯到本轮原文，描述文字不能自行补造事件。"""
+    sources = []
+    for value in (task.get("userQuery"), card.get("title"), card.get("description")):
+        if isinstance(value, str):
+            sources.append(re.sub(r"\s+", "", value))
+    errors = []
+    for fact in plan.get("info_required") or []:
+        name = fact.get("displayName")
+        if not isinstance(name, str):
+            continue
+        normalized = re.sub(r"\s+", "", name)
+        if "{{" in name or not any(normalized in source for source in sources):
+            errors.append(
+                "displayName must be copied from the current request or card metadata: " + name,
+            )
+    return tuple(errors)
+
+
 def _collect_raw_boolean_text_errors(
     components: list[ComponentRow], task_spec: dict[str, Any], errors: list[str]
 ) -> None:

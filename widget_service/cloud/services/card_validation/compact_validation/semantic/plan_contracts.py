@@ -21,6 +21,38 @@ from services.event_matching import event_handlers_match
 _BUTTON_COMPONENT_TYPES = frozenset({"PillButton", "CircleButton", "CardButton"})
 
 
+def is_normalized_countdown_focus(components: list[ComponentRow]) -> bool:
+    """单焦点计划只认可规范倒计时标题／数字的等价转换，仍验证真实布局。"""
+    from services.compact_layout_runtime import CompactLayoutRuntimeError, match_compact_layout
+    from services.presentation_expressions import recognize_countdown
+
+    titles = []
+    values = []
+    for row in components:
+        if row.component_type in {"Row", "Column", "Stack", "Layout", "Region"}:
+            continue
+        if row.component_type == "SingleLineTitle":
+            titles.append(recognize_countdown(row.props.get("title")))
+        elif row.component_type == "EmphasizedData" and row.props.get("unit") == "天":
+            values.append(recognize_countdown(row.props.get("value")))
+        else:
+            return False
+    if len(titles) != 1 or len(values) != 1:
+        return False
+    title, value = titles[0], values[0]
+    if title is None or value is None:
+        return False
+    if title.kind != "prefix" or value.kind != "number" or title.path != value.path:
+        return False
+    if value.unit:
+        return False
+    try:
+        match_compact_layout(components, size="2x2", layout_scope="S-title-content")
+    except CompactLayoutRuntimeError:
+        return False
+    return True
+
+
 def collect_actions_only_plan_errors(
     source_components: list[ComponentRow],
     compact_plan: dict[str, Any] | None,

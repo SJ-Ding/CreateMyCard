@@ -145,13 +145,17 @@ def _collect_text_width_budget_errors(
                     )
                 continue
             if _uses_visual_recipe_part(row, "InfoBlock.secondary"):
-                if warnings is not None:
-                    warnings.append(
-                        f"component {row.component_id}: InfoBlock.secondaryText exceeds its "
-                        f"{available:g}vp single-line text area and will be rendered with "
-                        "an ellipsis."
-                    )
-                continue
+                countdown = recognize_countdown(content)
+                countdown_label = _has_countdown_readout_sibling(row, parents, by_id)
+                generated_prefix = countdown is not None and countdown.kind == "prefix"
+                if not countdown_label and not generated_prefix:
+                    if warnings is not None:
+                        warnings.append(
+                            f"component {row.component_id}: InfoBlock.secondaryText exceeds its "
+                            f"{available:g}vp single-line text area and will be rendered with "
+                            "an ellipsis."
+                        )
+                    continue
             if _uses_visual_recipe_part(row, "CardButton.label"):
                 if warnings is not None:
                     warnings.append(
@@ -168,6 +172,22 @@ def _collect_text_width_budget_errors(
                 "region. A fixed single-line component needs same-font separate lines or a "
                 "different legal composition, not clipping, smaller secondary text or weight."
             )
+
+
+def _has_countdown_readout_sibling(
+    row: ComponentRow, parents: dict, by_id: dict,
+) -> bool:
+    parent = by_id.get(parents.get(row.component_id))
+    if parent is None:
+        return False
+    for identifier in parent.children:
+        sibling = by_id.get(identifier)
+        if sibling is None:
+            continue
+        display = recognize_countdown(sibling.props.get("content"))
+        if display is not None and display.status:
+            return True
+    return False
 
 
 def _compound_duration_label_width_error(

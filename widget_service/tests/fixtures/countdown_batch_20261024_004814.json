@@ -1,0 +1,2225 @@
+{
+  "batch": "batch_20261024_004814_34bb7ef0",
+  "cases": [
+    {
+      "id": "Q005",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-09-25"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown/midAutumn"
+          },
+          {
+            "arguments": {
+              "targetDate": "2026-10-01"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown/national"
+          }
+        ],
+        "description": "国庆、中秋节倒计时卡片。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "国庆中秋倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.340",
+        "assetCandidates": [
+          {
+            "description": "样式：蓝色圆形外框与浅蓝表盘组成的写实 3D 时钟，白色指针和刻度清晰，透明背景，原始尺寸为 512×512，PNG 位图需保留原色；适用：当前时间、计时或时长统计相关卡片。不适用：只含时间字段的日程或会议卡片。",
+            "id": "asset.emoji_time",
+            "src": "resources/base/media/emoji_time.png"
+          },
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          },
+          {
+            "description": "样式：默认黑色的单色实心生日蛋糕图标，顶部带蜡烛，原始尺寸为 24×24；适用：生日、纪念日、节日、庆祝事件与运动目标达成。",
+            "id": "asset.cake_fill",
+            "src": "resources/base/media/cake_fill.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "midAutumn": {
+                "countdownDays": {
+                  "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                  "sampleValue": 30,
+                  "type": "integer"
+                }
+              },
+              "national": {
+                "countdownDays": {
+                  "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                  "sampleValue": 30,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "国庆中秋节倒计时"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-dual-info\"},[\"first\",\"second\"]]\n[\"first\",\"InfoBlock\",{\"surfaceRole\":\"panel\",\"primaryText\":{\"path\":\"/data/countdown/midAutumn/countdownDays\"},\"secondaryText\":\"中秋节\",\"unit\":\"天\"}]\n[\"second\",\"InfoBlock\",{\"surfaceRole\":\"panel\",\"primaryText\":{\"path\":\"/data/countdown/national/countdownDays\"},\"secondaryText\":\"国庆节\",\"unit\":\"天\"}]\n[\"/data/countdown/midAutumn/countdownDays\",30]\n[\"/data/countdown/national/countdownDays\",30]",
+          "sourceSha256": "c2c2ae1c5ebaada6d9a11394cc83802294252b861de40187551b145778f9363a",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.cake_fill"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "InfoBlock",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/midAutumn/countdownDays",
+                "priority": "must",
+                "requirement": "中秋节倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "InfoBlock",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/national/countdownDays",
+                "priority": "must",
+                "requirement": "国庆节倒计时天数"
+              }
+            ],
+            "layoutHints": [
+              "S-dual-info",
+              "S-title-dual-content"
+            ]
+          }
+        },
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-dual-info\"},[\"first\",\"second\"]]\n[\"first\",\"InfoBlock\",{\"surfaceRole\":\"panel\",\"primaryText\":\"{{ '中秋节 ' + ${/data/countdown/midAutumn/countdownDays} + '天' }}\",\"secondaryText\":\"倒计时\"}]\n[\"second\",\"InfoBlock\",{\"surfaceRole\":\"panel\",\"primaryText\":\"{{ '国庆节 ' + ${/data/countdown/national/countdownDays} + '天' }}\",\"secondaryText\":\"倒计时\"}]\n[\"/data/countdown/midAutumn/countdownDays\",30]\n[\"/data/countdown/national/countdownDays\",30]",
+          "sourceSha256": "a1b7557200a20963338cc2c1a61db53357ab15fdcbff28081fee2e432d0b2664",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "InfoBlock",
+                  "EmphasizedData"
+                ],
+                "dataId": "/data/countdown/midAutumn/countdownDays",
+                "priority": "must",
+                "requirement": "中秋节倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "InfoBlock",
+                  "EmphasizedData"
+                ],
+                "dataId": "/data/countdown/national/countdownDays",
+                "priority": "must",
+                "requirement": "国庆节倒计时天数"
+              }
+            ],
+            "layoutHints": [
+              "S-dual-info"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-dual-info\"},[\"first\",\"second\"]]\r\n[\"first\",\"InfoBlock\",{\"surfaceRole\":\"panel\",\"primaryText\":\"{{ ('' + ${/data/countdown/midAutumn/countdownDays}) != '' ? (${/data/countdown/midAutumn/countdownDays} >= 0 ? ${/data/countdown/midAutumn/countdownDays} : -${/data/countdown/midAutumn/countdownDays}) + '天' : '' }}\",\"secondaryText\":\"{{ ('' + ${/data/countdown/midAutumn/countdownDays}) != '' ? ('距离' + '中秋节' + (${/data/countdown/midAutumn/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\"}]\r\n[\"second\",\"InfoBlock\",{\"surfaceRole\":\"panel\",\"primaryText\":\"{{ ('' + ${/data/countdown/national/countdownDays}) != '' ? (${/data/countdown/national/countdownDays} >= 0 ? ${/data/countdown/national/countdownDays} : -${/data/countdown/national/countdownDays}) + '天' : '' }}\",\"secondaryText\":\"{{ ('' + ${/data/countdown/national/countdownDays}) != '' ? ('距离' + '国庆节' + (${/data/countdown/national/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\"}]\r\n[\"/data/countdown/midAutumn/countdownDays\",30]\r\n[\"/data/countdown/national/countdownDays\",30]",
+      "deliveredSourceSha256": "3448d4ff672485fe5670bbcf0eb0b66847bd824e2de68e7952f364e7a8ba3208"
+    },
+    {
+      "id": "Q011",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-10-01"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "国庆中秋节倒计时卡片，使用绒球效果。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "国庆中秋倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.340",
+        "assetCandidates": [
+          {
+            "description": "样式：蓝色圆形外框与浅蓝表盘组成的写实 3D 时钟，白色指针和刻度清晰，透明背景，原始尺寸为 512×512，PNG 位图需保留原色；适用：当前时间、计时或时长统计相关卡片。不适用：只含时间字段的日程或会议卡片。",
+            "id": "asset.emoji_time",
+            "src": "resources/base/media/emoji_time.png"
+          },
+          {
+            "description": "样式：默认黑色的单色实心生日蛋糕图标，顶部带蜡烛，原始尺寸为 24×24；适用：生日、纪念日、节日、庆祝事件与运动目标达成。",
+            "id": "asset.cake_fill",
+            "src": "resources/base/media/cake_fill.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "国庆中秋节倒计时卡片，使用绒球效果"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-center\"},[\"content\"]]\n[\"content\",\"DataDisplay\",{\"icon\":\"resources/base/media/cake_fill.svg\",\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"supportingText\":\"天\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "614301e23271d09ab7efefacfe80e3c86ecec5a7d233d918bdf60b9fb3a622a4",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.cake_fill"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "DataDisplay",
+                  "EmphasizedData",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "国庆中秋节倒计时剩余天数"
+              }
+            ],
+            "layoutHints": [
+              "S-center"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"content_presentation_title\",\"content\"]]\r\n[\"content_presentation_title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '目标日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/cake_fill.svg\"}]\r\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\"}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "81124567c63a1b461e426ebb28124af8754b323e938fe1016410c1c10a096606"
+    },
+    {
+      "id": "Q039",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-10-03"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          },
+          {
+            "arguments": {
+              "prefectureName": "石家庄市"
+            },
+            "capabilityId": "ViewWeather",
+            "writeResultTo": "/data/weather"
+          }
+        ],
+        "description": "石家庄出发倒计时、目的地天气与空气质量，点击拨号。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "旅途倒计时"
+      },
+      "task": {
+        "appVersion": "11.9.9.300",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          },
+          {
+            "description": "样式：蓝色半透明渐变的云朵图标，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：天气卡片中配合 ViewWeather 的 current.condition 或 daily.condition 展示天气现象，也可与 event.open.weather 组成天气详情入口。图标仅表示天气主题，不代表晴、阴、雨等具体天气状态。",
+            "id": "asset.ic_weather_color",
+            "src": "resources/base/media/ic_weather_color.svg"
+          },
+          {
+            "description": "样式：电话实心图标，默认黑色，图形为经典听筒造型；适用：拨打电话、通话功能入口。",
+            "id": "asset.phone_fill",
+            "src": "resources/base/media/phone_fill.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            },
+            "weather": {
+              "current": {
+                "airQuality": {
+                  "description": "当前空气质量等级，例如“优”“良”。",
+                  "sampleValue": "良",
+                  "type": "string"
+                },
+                "condition": {
+                  "description": "当前天气现象，例如“阴”“多云”“小雨”。",
+                  "sampleValue": "多云",
+                  "type": "string"
+                },
+                "temperatureText": {
+                  "description": "可直接显示的当前温度文本，已包含“℃”单位；展示时不得再次追加温度单位。例如“29℃”。",
+                  "sampleValue": "29℃",
+                  "type": "string"
+                }
+              },
+              "daily": [
+                {
+                  "rainProbabilityPercent": {
+                    "description": "白天降雨概率的百分数数值，返回值不包含单位，例如 20 表示 20%；文本展示必须追加一个“%”，进度组件直接使用数值。",
+                    "sampleValue": 20,
+                    "type": "number"
+                  },
+                  "temperatureRangeText": {
+                    "description": "可直接显示的最低温与最高温范围文本，每个温度值均已包含“℃”单位；展示时不得再次追加温度单位。例如“25℃ / 32℃”。",
+                    "sampleValue": "25℃ / 32℃",
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "eventCandidates": [
+          {
+            "args": {
+              "intentName": "CallPhone",
+              "params": {
+                "phoneNumber": "1388888888"
+              }
+            },
+            "call": "clickToApi",
+            "description": "点击跳转至指定号码的拨号界面",
+            "id": "event.call.phone"
+          }
+        ],
+        "size": "2x2",
+        "userQuery": "生成一个2x4规格的鸿蒙桌面卡片，显示距离10月3日出发去石家庄看妈妈还有几天倒计时、当天石家庄的温度范围、下雨概率和空气质量，点击卡片打开拨号界面并带上妈妈的号码1388888888"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-title-primary-secondary-action\"},[\"title\",\"primary\",\"support\",\"action\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"距出发去石家庄看妈妈\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasizedData\",{\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"unit\":\"天\",\"fontSize\":30}]\n[\"support\",\"SecondaryBody\",{\"items\":[{\"label\":\"温度 \",\"value\":{\"path\":\"/data/weather/daily/0/temperatureRangeText\"}},{\"label\":\"降雨 \",\"value\":\"{{ ${/data/weather/daily/0/rainProbabilityPercent} + '%' }}\"},{\"label\":\"空气 \",\"value\":{\"path\":\"/data/weather/current/airQuality\"}}],\"columns\":1,\"fontSize\":12}]\n[\"action\",\"PillButton\",{\"label\":\"呼叫妈妈\",\"icon\":\"resources/base/media/phone_fill.svg\",\"onClick\":[{\"call\":\"clickToApi\",\"args\":{\"intentName\":\"CallPhone\",\"params\":{\"phoneNumber\":\"1388888888\"}}}]}]\n[\"/data/countdown/countdownDays\",30]\n[\"/data/weather/daily/0/temperatureRangeText\",\"25℃ / 32℃\"]\n[\"/data/weather/daily/0/rainProbabilityPercent\",20]\n[\"/data/weather/current/airQuality\",\"良\"]",
+          "sourceSha256": "311c96f73d9905f55093529a44ce45ef3a14959e3a6242394670a81258dc4fbd",
+          "plan": {
+            "assetAssignments": {
+              "actions": [
+                {
+                  "actionId": "event.call.phone",
+                  "assetId": "asset.phone_fill"
+                }
+              ],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "InfoBlock",
+                  "DataDisplay"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离10月3日出发去石家庄看妈妈的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "SecondaryBody",
+                  "TableText",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/weather/daily/0/temperatureRangeText",
+                "priority": "must",
+                "requirement": "当天石家庄的温度范围"
+              },
+              {
+                "componentHints": [
+                  "SecondaryBody",
+                  "TableText",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/weather/daily/0/rainProbabilityPercent",
+                "priority": "must",
+                "requirement": "当天石家庄的降雨概率"
+              },
+              {
+                "componentHints": [
+                  "SecondaryBody",
+                  "TableText",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/weather/current/airQuality",
+                "priority": "must",
+                "requirement": "当天石家庄的空气质量"
+              },
+              {
+                "actionId": "event.call.phone",
+                "componentHints": [
+                  "PillButton",
+                  "CardButton"
+                ],
+                "priority": "must",
+                "requirement": "点击卡片打开拨号界面并带上妈妈的号码1388888888"
+              }
+            ],
+            "layoutHints": [
+              "S-title-primary-secondary-action",
+              "S-title-content-action"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Column\",{\"width\":\"matchParent\",\"height\":\"matchParent\",\"borderRadius\":20,\"clip\":true,\"alignItems\":\"start\",\"justifyContent\":\"start\",\"padding\":12,\"itemMargin\":0},[\"title\",\"content_flow\",\"action\"]]\r\n[\"title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '距出发去石家庄看妈妈' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12,\"width\":\"matchParent\"}]\r\n[\"content_flow\",\"Column\",{\"width\":\"matchParent\",\"layoutWeight\":1,\"itemMargin\":2,\"alignItems\":\"start\",\"justifyContent\":\"start\"},[\"primary\",\"support\"]]\r\n[\"primary\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30,\"width\":\"matchParent\"}]\r\n[\"support\",\"SecondaryBody\",{\"items\":[{\"label\":\"温度 \",\"value\":{\"path\":\"/data/weather/daily/0/temperatureRangeText\"}},{\"label\":\"降雨 \",\"value\":\"{{ ${/data/weather/daily/0/rainProbabilityPercent} + '%' }}\"},{\"label\":\"空气 \",\"value\":{\"path\":\"/data/weather/current/airQuality\"}}],\"columns\":1,\"fontSize\":12,\"width\":\"matchParent\"}]\r\n[\"action\",\"PillButton\",{\"label\":\"呼叫妈妈\",\"icon\":\"resources/base/media/phone_fill.svg\",\"onClick\":[{\"call\":\"clickToApi\",\"args\":{\"intentName\":\"CallPhone\",\"params\":{\"phoneNumber\":\"1388888888\"}}}]}]\r\n[\"/data/countdown/countdownDays\",30]\r\n[\"/data/weather/daily/0/temperatureRangeText\",\"25℃ / 32℃\"]\r\n[\"/data/weather/daily/0/rainProbabilityPercent\",20]\r\n[\"/data/weather/current/airQuality\",\"良\"]",
+      "deliveredSourceSha256": "730e7be753168b5a72fe89c3172a26fc1db7a303412282e9829ca78d602a04e8"
+    },
+    {
+      "id": "Q041",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-08-31"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          },
+          {
+            "arguments": {
+              "prefectureName": "石家庄市"
+            },
+            "capabilityId": "ViewWeather",
+            "writeResultTo": "/data/weather"
+          }
+        ],
+        "description": "回石家庄倒计时、当地天气与空气质量，一键拨号给妈妈。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "旅途倒计时"
+      },
+      "task": {
+        "appVersion": "11.9.9.300",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          },
+          {
+            "description": "样式：蓝色半透明渐变的云朵图标，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：天气卡片中配合 ViewWeather 的 current.condition 或 daily.condition 展示天气现象，也可与 event.open.weather 组成天气详情入口。图标仅表示天气主题，不代表晴、阴、雨等具体天气状态。",
+            "id": "asset.ic_weather_color",
+            "src": "resources/base/media/ic_weather_color.svg"
+          },
+          {
+            "description": "样式：电话实心图标，默认黑色，图形为经典听筒造型；适用：拨打电话、通话功能入口。",
+            "id": "asset.phone_fill",
+            "src": "resources/base/media/phone_fill.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            },
+            "weather": {
+              "current": {
+                "airQuality": {
+                  "description": "当前空气质量等级，例如“优”“良”。",
+                  "sampleValue": "良",
+                  "type": "string"
+                },
+                "condition": {
+                  "description": "当前天气现象，例如“阴”“多云”“小雨”。",
+                  "sampleValue": "多云",
+                  "type": "string"
+                },
+                "temperatureText": {
+                  "description": "可直接显示的当前温度文本，已包含“℃”单位；展示时不得再次追加温度单位。例如“29℃”。",
+                  "sampleValue": "29℃",
+                  "type": "string"
+                }
+              },
+              "daily": [
+                {
+                  "rainProbabilityPercent": {
+                    "description": "白天降雨概率的百分数数值，返回值不包含单位，例如 20 表示 20%；文本展示必须追加一个“%”，进度组件直接使用数值。",
+                    "sampleValue": 20,
+                    "type": "number"
+                  },
+                  "temperatureRangeText": {
+                    "description": "可直接显示的最低温与最高温范围文本，每个温度值均已包含“℃”单位；展示时不得再次追加温度单位。例如“25℃ / 32℃”。",
+                    "sampleValue": "25℃ / 32℃",
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "eventCandidates": [
+          {
+            "args": {
+              "intentName": "CallPhone",
+              "params": {
+                "phoneNumber": "1388888888"
+              }
+            },
+            "call": "clickToApi",
+            "description": "点击跳转至指定号码的拨号界面",
+            "id": "event.call.phone"
+          }
+        ],
+        "size": "2x2",
+        "userQuery": "3天后回石家庄看妈妈，看离出发还有几天、当天温度范围、下雨概率和空气质量，妈妈的号码是1388888888，点一下打开拨号界面并带上这个号码"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-title-primary-secondary-action\"},[\"title\",\"primary\",\"support\",\"action\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"回石家庄看妈妈\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasizedData\",{\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"unit\":\"天\",\"fontSize\":30}]\n[\"support\",\"SecondaryBody\",{\"items\":[{\"label\":\"温度 \",\"value\":{\"path\":\"/data/weather/daily/0/temperatureRangeText\"}},{\"label\":\"降雨 \",\"value\":\"{{ ${/data/weather/daily/0/rainProbabilityPercent} + '%' }}\"},{\"label\":\"空气 \",\"value\":{\"path\":\"/data/weather/current/airQuality\"}}],\"columns\":1,\"fontSize\":12}]\n[\"action\",\"PillButton\",{\"label\":\"拨打妈妈电话\",\"icon\":\"resources/base/media/phone_fill.svg\",\"onClick\":[{\"call\":\"clickToApi\",\"args\":{\"intentName\":\"CallPhone\",\"params\":{\"phoneNumber\":\"1388888888\"}}}]}]\n[\"/data/countdown/countdownDays\",30]\n[\"/data/weather/daily/0/temperatureRangeText\",\"25℃ / 32℃\"]\n[\"/data/weather/daily/0/rainProbabilityPercent\",20]\n[\"/data/weather/current/airQuality\",\"良\"]",
+          "sourceSha256": "f2c3a0b47ace8c6356a2d7a3cd8c20cb5f8956ee0640a1d46aa54609001d75cd",
+          "plan": {
+            "assetAssignments": {
+              "actions": [
+                {
+                  "actionId": "event.call.phone",
+                  "assetId": "asset.phone_fill"
+                }
+              ],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "DataDisplay",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离回石家庄出发还有几天"
+              },
+              {
+                "componentHints": [
+                  "SecondaryBody",
+                  "InfoBlock",
+                  "TableText"
+                ],
+                "dataId": "/data/weather/daily/0/temperatureRangeText",
+                "priority": "must",
+                "requirement": "出发当天温度范围"
+              },
+              {
+                "componentHints": [
+                  "SecondaryBody",
+                  "InfoBlock",
+                  "TableText"
+                ],
+                "dataId": "/data/weather/daily/0/rainProbabilityPercent",
+                "priority": "must",
+                "requirement": "出发当天降雨概率"
+              },
+              {
+                "componentHints": [
+                  "SecondaryBody",
+                  "InfoBlock",
+                  "TableText"
+                ],
+                "dataId": "/data/weather/current/airQuality",
+                "priority": "must",
+                "requirement": "出发当天空气质量"
+              },
+              {
+                "actionId": "event.call.phone",
+                "componentHints": [
+                  "PillButton",
+                  "CardButton"
+                ],
+                "priority": "must",
+                "requirement": "点击打开拨号界面并带上妈妈号码1388888888"
+              }
+            ],
+            "layoutHints": [
+              "S-title-primary-secondary-action",
+              "S-title-content-action"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Column\",{\"width\":\"matchParent\",\"height\":\"matchParent\",\"borderRadius\":20,\"clip\":true,\"alignItems\":\"start\",\"justifyContent\":\"start\",\"padding\":12,\"itemMargin\":0},[\"title\",\"content_flow\",\"action\"]]\r\n[\"title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '回石家庄看妈妈' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12,\"width\":\"matchParent\"}]\r\n[\"content_flow\",\"Column\",{\"width\":\"matchParent\",\"layoutWeight\":1,\"itemMargin\":2,\"alignItems\":\"start\",\"justifyContent\":\"start\"},[\"primary\",\"support\"]]\r\n[\"primary\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30,\"width\":\"matchParent\"}]\r\n[\"support\",\"SecondaryBody\",{\"items\":[{\"label\":\"温度 \",\"value\":{\"path\":\"/data/weather/daily/0/temperatureRangeText\"}},{\"label\":\"降雨 \",\"value\":\"{{ ${/data/weather/daily/0/rainProbabilityPercent} + '%' }}\"},{\"label\":\"空气 \",\"value\":{\"path\":\"/data/weather/current/airQuality\"}}],\"columns\":1,\"fontSize\":12,\"width\":\"matchParent\"}]\r\n[\"action\",\"PillButton\",{\"label\":\"拨打妈妈电话\",\"icon\":\"resources/base/media/phone_fill.svg\",\"onClick\":[{\"call\":\"clickToApi\",\"args\":{\"intentName\":\"CallPhone\",\"params\":{\"phoneNumber\":\"1388888888\"}}}]}]\r\n[\"/data/countdown/countdownDays\",30]\r\n[\"/data/weather/daily/0/temperatureRangeText\",\"25℃ / 32℃\"]\r\n[\"/data/weather/daily/0/rainProbabilityPercent\",20]\r\n[\"/data/weather/current/airQuality\",\"良\"]",
+      "deliveredSourceSha256": "3518dfb461e7305b720ecbb076e4e60503b08e11b03e23e983460f74460dec4b"
+    },
+    {
+      "id": "Q069",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-08-29"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "倒计时到明天提醒上楼。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.7.330",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          },
+          {
+            "description": "样式：默认黑色的单色秒表实心图标，内部通过镂空表现表盘指针，支持通过 fillColor 与卡片配色统一；适用：计时功能、运动计时、倒计时。",
+            "id": "asset.stopwatch_fill",
+            "src": "resources/base/media/stopwatch_fill.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "生成一个倒计时卡片，倒计时到明天提醒上楼"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"title\",\"content\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"上楼提醒\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"content\",\"EmphasizedData\",{\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"unit\":\"天\",\"fontSize\":30}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "7768d1da6bc1085e87589e9ac27629e84a78bbe6051255050f5664f0f74ec117",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "DataDisplay",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离明天上楼提醒的剩余天数"
+              }
+            ],
+            "layoutHints": [
+              "S-title-content"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"title\",\"content\"]]\r\n[\"title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '上楼提醒' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\r\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "61ffaebf59b275e8268012522d24a4b44a94ebe6fbaae38f153e9b9b261312a7"
+    },
+    {
+      "id": "Q100",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-08-30"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "本周日倒计时桌面卡片。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "周日倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.339",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "帮我生成一个本周日倒计时桌面卡片"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"title\",\"content\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"本周日倒计时\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "a0fb8371da03faf72282bacbc57bcff9b2e48d1244f7032632f9d49e13b84a34",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "DataDisplay",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离本周日还剩的天数"
+              }
+            ],
+            "layoutHints": [
+              "S-title-content",
+              "S-center"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"title\",\"content\"]]\r\n[\"title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '本周日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\r\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "bad88907ba2c5cc8d1897c05f9f8eb3ea77e903f739ed764f23bfe80e25a29ff"
+    },
+    {
+      "id": "Q101",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-08-30"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "本周日倒计时桌面卡片。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "周日倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.339",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "生成一个本周日倒计时桌面卡片"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-center\"},[\"content\"]]\n[\"content\",\"DataDisplay\",{\"label\":\"本周日倒计时\",\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"supportingText\":\"天\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "8cc5c02acf0717b43ae1b68e77be539e4cf40c7dd05b283a080b81558f365878",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "DataDisplay",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离本周日还剩的天数（纯整数，展示时追加单位“天”）"
+              }
+            ],
+            "layoutHints": [
+              "S-title-content",
+              "S-center"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"content_presentation_title\",\"content\"]]\r\n[\"content_presentation_title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '本周日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\"}]\r\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\"}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "7bd76772912e8a91cfae7725fa90b127d3fad1db052ca86a181ac719be1b3db9"
+    },
+    {
+      "id": "Q105",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-10-18"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "倒计时到本周日（10月18日）约饭，展示约饭倒计时。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "周日约饭倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.339",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "生成一张周日约饭倒计时卡片，目标日期为本周日（2026年10月18日），使用GetCountdownDays数据能力计算倒计时天数，展示约饭倒计时"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-center\"},[\"content\"]]\n[\"content\",\"DataDisplay\",{\"icon\":\"resources/base/media/ic_calender.svg\",\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"supportingText\":\"天\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "69ef836e21e1a9c6795f782f5b3e996ffb40c638a1168f1673609e5e887c5cf2",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "DataDisplay",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "约饭倒计时天数（距离2026年10月18日还剩的天数）"
+              }
+            ],
+            "layoutHints": [
+              "S-title-content"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"content_presentation_title\",\"content\"]]\r\n[\"content_presentation_title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '目标日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\"}]\r\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\"}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "94efd33ff90c515902fc14cde8292111beebc96f28d106ee653f248ba81c32a9"
+    },
+    {
+      "id": "Q106",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-10-17"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "杭州2天1晚秋日漫游出发倒计时与行程概要。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "杭州漫游倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.339",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "生成杭州2天1晚秋日漫游行程倒计时卡片，10月17日出发，展示行程概要"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-title-dual-content\"},[\"title\",\"primary\",\"support\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"杭州2天1晚秋日漫游\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasizedData\",{\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"unit\":\"天\",\"fontSize\":30}]\n[\"support\",\"SecondaryBody\",{\"items\":[{\"value\":\"10月17日出发\"}],\"fontSize\":14}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "d2029d26c78a92cb8eda5b6a6d26a145b52f9cbc9149b4a9e0c8422a9d4540dd",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "DataDisplay"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离10月17日杭州2天1晚秋日漫游出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "SingleLineTitle"
+                ],
+                "priority": "must",
+                "requirement": "行程概要：杭州2天1晚秋日漫游，10月17日出发",
+                "text": "杭州2天1晚秋日漫游"
+              },
+              {
+                "componentHints": [
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "出发日期 10月17日",
+                "text": "10月17日出发"
+              }
+            ],
+            "layoutHints": [
+              "S-title-content"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-dual-content\"},[\"title\",\"primary\",\"support\"]]\r\n[\"title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '杭州2天1晚秋日漫游' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\r\n[\"primary\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\r\n[\"support\",\"SecondaryBody\",{\"items\":[{\"value\":\"10月17日出发\"}],\"fontSize\":14}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "e60a776034d14cf1a61192ecdecfc95fd611a094a360613f818731722c03589e"
+    },
+    {
+      "id": "Q107",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-10-17"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "杭州2天1晚秋日漫游行程，倒计时展示距离出发天数。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "杭州漫游倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.339",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "将杭州2天1晚秋日漫游完整行程生成一张大尺寸桌面卡片，包含Day1：灵隐寺祈福、知竹素菜馆午餐、浙江省博物馆新馆、清河坊历史文化街区、赵府私厨晚餐、如家商旅酒店住宿；Day2：小河直街、胜利河美食街午餐、拱宸桥桥西直街。目标日期2026年10月17日，使用GetCountdownDays数据能力展示距离出发的倒计时天数。"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-center\"},[\"content\"]]\n[\"content\",\"DataDisplay\",{\"icon\":\"resources/base/media/ic_calender.svg\",\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"supportingText\":\"天\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "69ef836e21e1a9c6795f782f5b3e996ffb40c638a1168f1673609e5e887c5cf2",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "EmphasisText",
+                  "DataDisplay"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离2026年10月17日杭州行程出发的倒计时天数"
+              }
+            ],
+            "layoutHints": [
+              "S-title-content",
+              "S-center"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"content_presentation_title\",\"content\"]]\r\n[\"content_presentation_title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '目标日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\"}]\r\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\"}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "94efd33ff90c515902fc14cde8292111beebc96f28d106ee653f248ba81c32a9"
+    },
+    {
+      "id": "Q108",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-10-17"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "杭州2天1晚秋日漫游完整行程，倒计时展示距离出发天数。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x4",
+        "title": "杭州漫游倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.339",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x4",
+        "userQuery": "将杭州2天1晚秋日漫游完整行程生成一张大尺寸桌面卡片，包含Day1：09:00-11:30灵隐寺祈福、11:30-13:00知竹素菜馆午餐、13:30-16:30浙江省博物馆新馆、17:00-19:00清河坊历史文化街区、赵府私厨晚餐、如家商旅酒店住宿；Day2：09:30-11:30小河直街、11:30-13:00胜利河美食街午餐、13:30-15:30拱宸桥桥西直街、15:30返程。目标日期2026年10月17日，使用GetCountdownDays数据能力展示距离出发的倒计时天数。"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-top-bottom\",\"variant\":\"bottom-details\"},[\"title\",\"primary\",\"details\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '2026年10月17日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\n[\"details\",\"EventCard\",{\"items\":[{\"title\":\"灵隐寺祈福\",\"time\":\"Day1 09:00-11:30\"},{\"title\":\"知竹素菜馆午餐\",\"time\":\"Day1 11:30-13:00\"},{\"title\":\"浙江省博物馆新馆\",\"time\":\"Day1 13:30-16:30\"},{\"title\":\"清河坊历史文化街区\",\"time\":\"Day1 17:00-19:00\"},{\"title\":\"赵府私厨晚餐\",\"time\":\"Day1\"},{\"title\":\"如家商旅酒店住宿\",\"time\":\"Day1\"},{\"title\":\"小河直街\",\"time\":\"Day2 09:30-11:30\"},{\"title\":\"胜利河美食街午餐\",\"time\":\"Day2 11:30-13:00\"},{\"title\":\"拱宸桥桥西直街\",\"time\":\"Day2 13:30-15:30\"},{\"title\":\"返程\",\"time\":\"Day2 15:30\"}],\"density\":\"compact\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "8e4f2535aaf2ced1749f7a84cb644cc33f38ff529cf06fd7d8f71e482224f459",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "SingleLineTitle"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30灵隐寺祈福",
+                "text": "09:00-11:30灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00知竹素菜馆午餐",
+                "text": "11:30-13:00知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30浙江省博物馆新馆",
+                "text": "13:30-16:30浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00清河坊历史文化街区",
+                "text": "17:00-19:00清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 赵府私厨晚餐",
+                "text": "赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 如家商旅酒店住宿",
+                "text": "如家商旅酒店住宿"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30小河直街",
+                "text": "09:30-11:30小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00胜利河美食街午餐",
+                "text": "11:30-13:00胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30拱宸桥桥西直街",
+                "text": "13:30-15:30拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30返程",
+                "text": "15:30返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom",
+              "W-content-side-slots"
+            ]
+          }
+        },
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-split-panels\"},[\"left\",\"right\"]]\n[\"left_title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '2026年10月17日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"left_body\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\n[\"left\",\"Region\",{\"variant\":\"title-content\"},[\"left_title\",\"left_body\"]]\n[\"right_title\",\"SingleLineTitle\",{\"title\":\"Day1 行程\",\"fontSize\":12}]\n[\"right_body\",\"SecondaryBody\",{\"columns\":1,\"items\":[{\"value\":\"09:00-11:30灵隐寺祈福\"},{\"value\":\"11:30-13:00知竹素菜馆午餐\"},{\"value\":\"13:30-16:30浙江省博物馆新馆\"},{\"value\":\"17:00-19:00清河坊历史文化街区\"},{\"value\":\"赵府私厨晚餐\"},{\"value\":\"如家商旅酒店住宿\"}],\"fontSize\":12}]\n[\"right\",\"Region\",{\"variant\":\"title-content\"},[\"right_title\",\"right_body\"]]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "c232ca15b7c5ce3f9fc5e652a511279cc3d98033e1a7dd4eec0c57deb2cf3f9c",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "SingleLineTitle"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30灵隐寺祈福",
+                "text": "09:00-11:30灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00知竹素菜馆午餐",
+                "text": "11:30-13:00知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30浙江省博物馆新馆",
+                "text": "13:30-16:30浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00清河坊历史文化街区",
+                "text": "17:00-19:00清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 赵府私厨晚餐",
+                "text": "赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 如家商旅酒店住宿",
+                "text": "如家商旅酒店住宿"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30小河直街",
+                "text": "09:30-11:30小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00胜利河美食街午餐",
+                "text": "11:30-13:00胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30拱宸桥桥西直街",
+                "text": "13:30-15:30拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30返程",
+                "text": "15:30返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom",
+              "W-content-side-slots"
+            ]
+          }
+        },
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-top-bottom\",\"variant\":\"continuous\"},[\"title\",\"primary\",\"details\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"杭州2天1晚秋日漫游\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasisText\",{\"mainText\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"secondaryText\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '2026年10月17日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"fontSize\":18}]\n[\"details\",\"EventCard\",{\"items\":[{\"title\":\"灵隐寺祈福\",\"time\":\"Day1 09:00-11:30\"},{\"title\":\"知竹素菜馆午餐\",\"time\":\"Day1 11:30-13:00\"},{\"title\":\"浙江省博物馆新馆\",\"time\":\"Day1 13:30-16:30\"},{\"title\":\"清河坊历史文化街区\",\"time\":\"Day1 17:00-19:00\"},{\"title\":\"赵府私厨晚餐\",\"time\":\"Day1\"},{\"title\":\"如家商旅酒店住宿\",\"time\":\"Day1\"},{\"title\":\"小河直街\",\"time\":\"Day2 09:30-11:30\"},{\"title\":\"胜利河美食街午餐\",\"time\":\"Day2 11:30-13:00\"},{\"title\":\"拱宸桥桥西直街\",\"time\":\"Day2 13:30-15:30\"},{\"title\":\"返程\",\"time\":\"Day2 15:30\"}],\"density\":\"compact\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "142d9fbb468707223e813c2356826073481ee740b2536cd4310a0d0647afed49",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasisText",
+                  "InfoBlock",
+                  "EmphasizedData"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30 灵隐寺祈福",
+                "text": "09:00-11:30灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00 知竹素菜馆午餐",
+                "text": "11:30-13:00知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30 浙江省博物馆新馆",
+                "text": "13:30-16:30浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00 清河坊历史文化街区",
+                "text": "17:00-19:00清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 赵府私厨晚餐",
+                "text": "赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 如家商旅酒店住宿",
+                "text": "如家商旅酒店住宿"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30 小河直街",
+                "text": "09:30-11:30小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00 胜利河美食街午餐",
+                "text": "11:30-13:00胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30 拱宸桥桥西直街",
+                "text": "13:30-15:30拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30 返程",
+                "text": "15:30返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom"
+            ]
+          }
+        },
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-split-panels\"},[\"left\",\"right\"]]\n[\"left\",\"Region\",{\"variant\":\"title-content\"},[\"left_title\",\"left_body\"]]\n[\"left_title\",\"SingleLineTitle\",{\"title\":\"杭州2天1晚秋日漫游\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"left_body\",\"EmphasisText\",{\"mainText\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"secondaryText\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离2026年10月17日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经') + '天') : '' }}\",\"fontSize\":18}]\n[\"right\",\"Region\",{\"variant\":\"title-content\"},[\"right_title\",\"right_body\"]]\n[\"right_title\",\"SingleLineTitle\",{\"title\":\"Day1 行程\",\"fontSize\":12}]\n[\"right_body\",\"SecondaryBody\",{\"columns\":1,\"items\":[{\"label\":\"09:00-11:30\",\"value\":\"灵隐寺祈福\"},{\"label\":\"11:30-13:00\",\"value\":\"知竹素菜馆午餐\"},{\"label\":\"13:30-16:30\",\"value\":\"浙江省博物馆新馆\"},{\"label\":\"17:00-19:00\",\"value\":\"清河坊历史文化街区\"},{\"value\":\"赵府私厨晚餐\"},{\"value\":\"如家商旅酒店住宿\"}],\"fontSize\":12}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "0d53f9a585a3ac8b33a8a4d66dfedd730d6291f3d6aaf9464d8d53ada3c98137",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasisText",
+                  "InfoBlock",
+                  "EmphasizedData"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30 灵隐寺祈福",
+                "text": "09:00-11:30灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00 知竹素菜馆午餐",
+                "text": "11:30-13:00知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30 浙江省博物馆新馆",
+                "text": "13:30-16:30浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00 清河坊历史文化街区",
+                "text": "17:00-19:00清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 赵府私厨晚餐",
+                "text": "赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day1 如家商旅酒店住宿",
+                "text": "如家商旅酒店住宿"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30 小河直街",
+                "text": "09:30-11:30小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00 胜利河美食街午餐",
+                "text": "11:30-13:00胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30 拱宸桥桥西直街",
+                "text": "13:30-15:30拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList",
+                  "SecondaryBody"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30 返程",
+                "text": "15:30返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": null,
+      "deliveredSourceSha256": null
+    },
+    {
+      "id": "Q109",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2026-10-17"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "杭州2天1晚秋日漫游完整行程，倒计时展示距离出发天数。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x4",
+        "title": "杭州漫游倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.339",
+        "assetCandidates": [
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x4",
+        "userQuery": "将杭州2天1晚秋日漫游完整行程生成一张大尺寸桌面卡片，每一天包含具体的时间分配。Day1：09:00-11:30灵隐寺祈福、11:30-13:00知竹素菜馆午餐、13:30-16:30浙江省博物馆新馆、17:00-19:00清河坊历史文化街区、19:00赵府私厨晚餐、入住如家商旅酒店；Day2：09:30-11:30小河直街、11:30-13:00胜利河美食街午餐、13:30-15:30拱宸桥桥西直街、15:30返程。目标日期2026年10月17日，使用GetCountdownDays数据能力展示距离出发的倒计时天数。"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-top-bottom\",\"variant\":\"continuous\"},[\"title\",\"primary\",\"details\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"杭州2天1晚秋日漫游\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasizedData\",{\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"unit\":\"天\",\"fontSize\":30}]\n[\"details\",\"EventCard\",{\"items\":[{\"title\":\"灵隐寺祈福\",\"time\":\"Day1 09:00-11:30\"},{\"title\":\"知竹素菜馆午餐\",\"time\":\"Day1 11:30-13:00\"},{\"title\":\"浙江省博物馆新馆\",\"time\":\"Day1 13:30-16:30\"},{\"title\":\"清河坊历史文化街区\",\"time\":\"Day1 17:00-19:00\"},{\"title\":\"赵府私厨晚餐\",\"time\":\"Day1 19:00\"},{\"title\":\"入住如家商旅酒店\",\"time\":\"Day1\"},{\"title\":\"小河直街\",\"time\":\"Day2 09:30-11:30\"},{\"title\":\"胜利河美食街午餐\",\"time\":\"Day2 11:30-13:00\"},{\"title\":\"拱宸桥桥西直街\",\"time\":\"Day2 13:30-15:30\"},{\"title\":\"返程\",\"time\":\"Day2 15:30\"}],\"density\":\"compact\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "221a10c260e9c307ca96a709504748058b684baff26d64bd89c33d11299958fa",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "InfoBlock",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离目标日期2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30 灵隐寺祈福",
+                "text": "Day1：09:00-11:30灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00 知竹素菜馆午餐",
+                "text": "11:30-13:00知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30 浙江省博物馆新馆",
+                "text": "13:30-16:30浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00 清河坊历史文化街区",
+                "text": "17:00-19:00清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 19:00 赵府私厨晚餐",
+                "text": "19:00赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 入住如家商旅酒店",
+                "text": "入住如家商旅酒店"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30 小河直街",
+                "text": "Day2：09:30-11:30小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00 胜利河美食街午餐",
+                "text": "11:30-13:00胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30 拱宸桥桥西直街",
+                "text": "13:30-15:30拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30 返程",
+                "text": "15:30返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom"
+            ]
+          }
+        },
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-top-bottom\",\"variant\":\"continuous\"},[\"title\",\"details\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"{{ '杭州2天1晚秋日漫游 · 距离出发还有 ' + ${/data/countdown/countdownDays} + ' 天' }}\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"details\",\"EventCard\",{\"items\":[{\"title\":\"灵隐寺祈福\",\"time\":\"Day1 09:00-11:30\"},{\"title\":\"知竹素菜馆午餐\",\"time\":\"Day1 11:30-13:00\"},{\"title\":\"浙江省博物馆新馆\",\"time\":\"Day1 13:30-16:30\"},{\"title\":\"清河坊历史文化街区\",\"time\":\"Day1 17:00-19:00\"},{\"title\":\"赵府私厨晚餐\",\"time\":\"Day1 19:00\"},{\"title\":\"入住如家商旅酒店\",\"time\":\"Day1\"},{\"title\":\"小河直街\",\"time\":\"Day2 09:30-11:30\"},{\"title\":\"胜利河美食街午餐\",\"time\":\"Day2 11:30-13:00\"},{\"title\":\"拱宸桥桥西直街\",\"time\":\"Day2 13:30-15:30\"},{\"title\":\"返程\",\"time\":\"Day2 15:30\"}],\"density\":\"compact\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "3dfcdb5a3976d5f18205a3455e19a34bfe525215970656ee5289e64e3c67c1bb",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "InfoBlock",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离目标日期2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30 灵隐寺祈福",
+                "text": "Day1：09:00-11:30灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00 知竹素菜馆午餐",
+                "text": "11:30-13:00知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30 浙江省博物馆新馆",
+                "text": "13:30-16:30浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00 清河坊历史文化街区",
+                "text": "17:00-19:00清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 19:00 赵府私厨晚餐",
+                "text": "19:00赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 入住如家商旅酒店",
+                "text": "入住如家商旅酒店"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30 小河直街",
+                "text": "Day2：09:30-11:30小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00 胜利河美食街午餐",
+                "text": "11:30-13:00胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30 拱宸桥桥西直街",
+                "text": "13:30-15:30拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30 返程",
+                "text": "15:30返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom"
+            ]
+          }
+        },
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-top-bottom\",\"variant\":\"continuous\"},[\"title\",\"primary\",\"details\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"杭州2天1晚秋日漫游\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\n[\"details\",\"SecondaryBody\",{\"columns\":1,\"items\":[{\"label\":\"Day1 \",\"value\":\"09:00-11:30 灵隐寺祈福\"},{\"label\":\"Day1 \",\"value\":\"11:30-13:00 知竹素菜馆午餐\"},{\"label\":\"Day1 \",\"value\":\"13:30-16:30 浙江省博物馆新馆\"},{\"label\":\"Day1 \",\"value\":\"17:00-19:00 清河坊历史文化街区\"},{\"label\":\"Day1 \",\"value\":\"19:00 赵府私厨晚餐\"},{\"label\":\"Day1 \",\"value\":\"入住如家商旅酒店\"},{\"label\":\"Day2 \",\"value\":\"09:30-11:30 小河直街\"},{\"label\":\"Day2 \",\"value\":\"11:30-13:00 胜利河美食街午餐\"},{\"label\":\"Day2 \",\"value\":\"13:30-15:30 拱宸桥桥西直街\"},{\"label\":\"Day2 \",\"value\":\"15:30 返程\"}],\"fontSize\":12}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "9d79efe26265a6089d70746fe3732fe2f1db2fe81c6928b54a25ad12c25717e3",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "InfoBlock",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30 灵隐寺祈福",
+                "text": "09:00-11:30 灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00 知竹素菜馆午餐",
+                "text": "11:30-13:00 知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30 浙江省博物馆新馆",
+                "text": "13:30-16:30 浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00 清河坊历史文化街区",
+                "text": "17:00-19:00 清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 19:00 赵府私厨晚餐",
+                "text": "19:00 赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 入住如家商旅酒店",
+                "text": "入住如家商旅酒店"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30 小河直街",
+                "text": "09:30-11:30 小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00 胜利河美食街午餐",
+                "text": "11:30-13:00 胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30 拱宸桥桥西直街",
+                "text": "13:30-15:30 拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30 返程",
+                "text": "15:30 返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom"
+            ]
+          }
+        },
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"W-top-bottom\",\"variant\":\"continuous\"},[\"title\",\"primary\",\"details\"]]\n[\"title\",\"SingleLineTitle\",{\"title\":\"杭州2天1晚秋日漫游\",\"icon\":\"resources/base/media/ic_calender.svg\",\"fontSize\":12}]\n[\"primary\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\",\"fontSize\":30}]\n[\"details\",\"SummaryList\",{\"items\":[\"Day1 09:00-11:30 灵隐寺祈福\",\"Day1 11:30-13:00 知竹素菜馆午餐\",\"Day1 13:30-16:30 浙江省博物馆新馆\"]}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "c979afc54599acd4d1407a4b4b768fdc19471a6a92c825998aea410fca5366ef",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.ic_calender"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "EmphasizedData",
+                  "InfoBlock",
+                  "EmphasisText"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离2026年10月17日出发的倒计时天数"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 09:00-11:30 灵隐寺祈福",
+                "text": "09:00-11:30 灵隐寺祈福"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 11:30-13:00 知竹素菜馆午餐",
+                "text": "11:30-13:00 知竹素菜馆午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 13:30-16:30 浙江省博物馆新馆",
+                "text": "13:30-16:30 浙江省博物馆新馆"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 17:00-19:00 清河坊历史文化街区",
+                "text": "17:00-19:00 清河坊历史文化街区"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 19:00 赵府私厨晚餐",
+                "text": "19:00 赵府私厨晚餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day1 入住如家商旅酒店",
+                "text": "入住如家商旅酒店"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 09:30-11:30 小河直街",
+                "text": "09:30-11:30 小河直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 11:30-13:00 胜利河美食街午餐",
+                "text": "11:30-13:00 胜利河美食街午餐"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 13:30-15:30 拱宸桥桥西直街",
+                "text": "13:30-15:30 拱宸桥桥西直街"
+              },
+              {
+                "componentHints": [
+                  "EventCard",
+                  "SummaryList"
+                ],
+                "priority": "must",
+                "requirement": "Day2 15:30 返程",
+                "text": "15:30 返程"
+              }
+            ],
+            "layoutHints": [
+              "W-top-bottom"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": null,
+      "deliveredSourceSha256": null
+    },
+    {
+      "id": "Q119",
+      "card": {
+        "dataBindings": [
+          {
+            "arguments": {
+              "targetDate": "2027-02-19"
+            },
+            "capabilityId": "GetCountdownDays",
+            "writeResultTo": "/data/countdown"
+          }
+        ],
+        "description": "倒计时到儿子生日（每年2月19日）。",
+        "imageDomainWhitelist": [
+          "hag-ability-test.obs.cn-north-1.myhuaweicloud.com",
+          "lfcontentcenterdev.hwcloudtest.cn",
+          "hagres-drcn.dbankcdn.com"
+        ],
+        "suggestSize": "2x2",
+        "title": "生日倒计时"
+      },
+      "task": {
+        "appVersion": "11.7.8.337",
+        "assetCandidates": [
+          {
+            "description": "样式：默认黑色的单色实心生日蛋糕图标，顶部带蜡烛，原始尺寸为 24×24；适用：生日、纪念日、节日、庆祝事件与运动目标达成。",
+            "id": "asset.cake_fill",
+            "src": "resources/base/media/cake_fill.svg"
+          },
+          {
+            "description": "样式：黄色到橙色渐变的日历图标，带顶部装订环、分隔栏与日期圆点，原始尺寸为 20×20，SVG 矢量图（保留原色，禁止染色）需保留原始渐变配色，禁止染色；适用：日程概览、近期日历事项或日期倒计时卡片，可结合 GetCalendarEvents 展示日程，也可结合 GetCountdownDays 展示目标日期倒计时，并可作为 event.viewCalendarEvent 的辅助入口图标。图标不表示存在日程、日程已完成或倒计时具体天数。",
+            "id": "asset.ic_calender",
+            "src": "resources/base/media/ic_calender.svg"
+          }
+        ],
+        "dataModelSchema": {
+          "data": {
+            "countdown": {
+              "countdownDays": {
+                "description": "距离目标日期的自然日天数纯整数，返回值不包含“天”。正数表示未来，0 表示今天，负数表示已经过去；若直接用于文本展示，必须在数值后追加“天”。",
+                "sampleValue": 30,
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "eventCandidates": [],
+        "size": "2x2",
+        "userQuery": "帮我添加一张倒计时卡片，倒计时到儿子的生日那天，儿子的生日是每年2月19日"
+      },
+      "sources": [
+        {
+          "source": "[\"root\",\"Layout\",{\"layout\":\"S-center\"},[\"content\"]]\n[\"content\",\"DataDisplay\",{\"icon\":\"resources/base/media/cake_fill.svg\",\"value\":{\"path\":\"/data/countdown/countdownDays\"},\"supportingText\":\"天\"}]\n[\"/data/countdown/countdownDays\",30]",
+          "sourceSha256": "614301e23271d09ab7efefacfe80e3c86ecec5a7d233d918bdf60b9fb3a622a4",
+          "plan": {
+            "assetAssignments": {
+              "actions": [],
+              "title": {
+                "assetId": "asset.cake_fill"
+              }
+            },
+            "info_required": [
+              {
+                "componentHints": [
+                  "DataDisplay",
+                  "EmphasizedData",
+                  "InfoBlock"
+                ],
+                "dataId": "/data/countdown/countdownDays",
+                "priority": "must",
+                "requirement": "距离儿子生日（每年2月19日）的倒计时天数"
+              }
+            ],
+            "layoutHints": [
+              "S-center"
+            ]
+          }
+        }
+      ],
+      "deliveredSource": "[\"root\",\"Layout\",{\"layout\":\"S-title-content\"},[\"content_presentation_title\",\"content\"]]\r\n[\"content_presentation_title\",\"SingleLineTitle\",{\"title\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? ('距离' + '目标日' + (${/data/countdown/countdownDays} >= 0 ? '还剩' : '已经')) : '' }}\",\"icon\":\"resources/base/media/cake_fill.svg\"}]\r\n[\"content\",\"EmphasizedData\",{\"value\":\"{{ ('' + ${/data/countdown/countdownDays}) != '' ? (${/data/countdown/countdownDays} >= 0 ? ${/data/countdown/countdownDays} : -${/data/countdown/countdownDays}) : '' }}\",\"unit\":\"天\"}]\r\n[\"/data/countdown/countdownDays\",30]",
+      "deliveredSourceSha256": "81124567c63a1b461e426ebb28124af8754b323e938fe1016410c1c10a096606"
+    }
+  ]
+}

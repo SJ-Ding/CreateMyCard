@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from services.presentation_expressions import recognize_countdown
+from services.expression_semantics import expression_display_paths, expression_literal_count
 
 from .base import expression_body, expression_references
 
@@ -31,9 +31,9 @@ class DisplayUnitRule:
 
 def display_unit_references(value: str) -> list[str]:
     """程序倒计时的条件引用不是展示值；重复读取同一天数仍只展示一次。"""
-    display = recognize_countdown(value)
-    if display is not None:
-        return [display.path] if display.kind == "number" else []
+    paths = expression_display_paths(value)
+    if paths is not None:
+        return list(paths)
     return expression_references(value)
 
 
@@ -121,6 +121,9 @@ def matching_unit_literal_count(expression: Any, rule: DisplayUnitRule) -> int:
     """统计表达式任意分支中与展示单位匹配的字符串字面量。"""
     if not isinstance(expression, str):
         return 0
+    count = expression_literal_count(expression, lambda value: _value_matches_rule(value, rule))
+    if count is not None:
+        return count
     return sum(
         1
         for literal in _string_literal_values(expression_body(expression))

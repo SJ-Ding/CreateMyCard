@@ -9,10 +9,14 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from services.countdown_contract import clean_countdown_name, countdown_identity
 from services.presentation_expressions import (
     conditional_colors,
+    countdown_input_readout,
+    countdown_input_target,
     countdown_number,
     countdown_prefix,
+    countdown_readout,
     is_color,
     present,
     presentation_policy,
@@ -154,11 +158,15 @@ def presentation_instruction(card: dict, task: dict) -> str:
     for rule in presentation_rules(card, task):
         if rule.kind == "countdown":
             lines.append(
-                f"倒计时{rule.path}保留大号数字与独立单位天，目标名称放同分区的"
-                "SingleLineTitle；标题允许距离目标还剩/已经的完整动态文案，不能放日期或其它事实。"
+                f"倒计时{rule.path}保留具体事件身份与用户明确要求的信息。名称可放同分区标题、"
+                "DataDisplay.label或同对象InfoBlock.secondaryText，不借用其它对象标题。"
+                "不要自行拼动态句子；程序生成还剩/已过/今天及非负天数。"
+                f"本轮唯一目标备用名称：{countdown_identity(card) or '无'}。"
+                "明确分组枚举逐项保留，不能以列表容量为由只取前三项。"
                 f"数字将由程序规范为{countdown_number(rule.path)}，"
-                f"标题参考{countdown_prefix(rule.path, '目标日')}。"
-                "布局必须给两个文案分支留足空间。"
+                "文本读数可使用EmphasisText或InfoBlock，由程序生成完整状态读数；"
+                "独立数字使用EmphasizedData与单位天，同对象说明由程序生成。"
+                "布局必须给全部状态分支留足空间。"
             )
         else:
             lines.append(
@@ -187,7 +195,11 @@ def _target(value: Any, day_path: str) -> tuple[str, bool] | None:
     result: tuple[str, bool] | None = None
     existing = recognize_countdown(value)
     if existing is not None and existing.kind == "prefix":
-        result = existing.target, existing.target_path
+        if existing.path == day_path:
+            result = existing.target or "目标日", existing.target_path
+    input_target = countdown_input_target(value, day_path) if existing is None else None
+    if input_target is not None:
+        result = clean_countdown_name(input_target) or "目标日", False
     paths = _references(value)
     if len(paths) == 1 and day_path not in paths:
         path = paths[0]
@@ -195,24 +207,12 @@ def _target(value: Any, day_path: str) -> tuple[str, bool] | None:
         if simple:
             result = path, True
     if isinstance(value, str) and not paths:
-        text = value.strip()
-        previous = re.fullmatch(r"距离(.+?)(?:还剩|已经)", text)
-        if previous is not None:
-            text = previous.group(1)
-        if not text or text in {"倒计时", "倒数日", "剩余天数"}:
+        text = clean_countdown_name(value)
+        if not text or text in {"倒计时", "倒数日", "剩余天数", "天"}:
             result = "目标日", False
-        elif re.search(r"\d{4}[-年/]\d|还剩|已经|剩余|\{\{", text) is None:
+        elif re.search(r"还剩|已经|剩余|\{\{", text) is None:
             result = text, False
     return result
-
-
-def _simple_countdown_readout(value: Any, path: str) -> bool:
-    if value == {"path": path} or recognize_countdown(value) is not None:
-        return True
-    if not isinstance(value, str):
-        return False
-    pattern = r"\{\{\s*" + re.escape(reference(path)) + r"\s*(?:\+\s*'天')?\s*\}\}"
-    return re.fullmatch(pattern, value.strip()) is not None
 
 
 def _group_ids(component_id: str, components: dict, parents: dict) -> set[str]:
@@ -239,7 +239,9 @@ def _group_ids(component_id: str, components: dict, parents: dict) -> set[str]:
     return result
 
 
-def _normalize_countdown_display_layout(rows: list, rules: list[PresentationRule]) -> None:
+def _normalize_countdown_display_layout(
+    rows: list, rules: list[PresentationRule], fallback_names: dict[str, str],
+) -> None:
     """将独立数字核心换为已有标题数字布局，让文案和单位都有正式预算。"""
     from services.compact_high_level_components import ComponentRow
 
@@ -261,13 +263,19 @@ def _normalize_countdown_display_layout(rows: list, rules: list[PresentationRule
     for rule in rules:
         if _references(display.props.get("value")) != (rule.path,):
             continue
-        name = _target(display.props.get("label"), rule.path)
+        name = _target(display.props.get("label", ""), rule.path)
+        fallback_name = fallback_names.get(rule.path)
+        if name == ("目标日", False) and fallback_name:
+            name = fallback_name, False
         if name is None or name[1]:
             return
         title_id = display.component_id + "_presentation_title"
         if title_id in components:
             raise ValueError("Countdown presentation title ID already exists")
-        title = ComponentRow(title_id, "SingleLineTitle", {"title": name[0]}, ())
+        title_props = {"title": name[0]}
+        if display.props.get("icon"):
+            title_props["icon"] = display.props.get("icon")
+        title = ComponentRow(title_id, "SingleLineTitle", title_props, ())
         value = ComponentRow(display.component_id, "EmphasizedData", {
             "value": display.props.get("value"), "unit": "天",
         }, ())
@@ -275,12 +283,15 @@ def _normalize_countdown_display_layout(rows: list, rules: list[PresentationRule
         replacement = ComponentRow(root.component_id, root.component_type, root.props,
                                    (title_id, display.component_id))
         rows[rows.index(root)] = replacement
-        rows[rows.index(display)] = value
-        rows.append(title)
+        display_index = rows.index(display)
+        rows[display_index] = value
+        rows.insert(display_index, title)
         return
 
 
-def normalize_presentation_source(source: str, card: dict, task: dict) -> str:
+def normalize_presentation_source(
+    source: str, card: dict, task: dict, plan: dict | None = None,
+) -> str:
     """在语义布局展开前改写明确的读数和同分区标题；歧义交给原校验修复链路。"""
     from services.card_validation.base import read_pointer
     from services.card_validation.compact_validation.semantic.display import (
@@ -297,7 +308,10 @@ def normalize_presentation_source(source: str, card: dict, task: dict) -> str:
     if not all_rules:
         return source
     rows = copy.deepcopy(list(parse_compact_dsl_rows(source, expand_layouts=False)))
-    _normalize_countdown_display_layout(rows, rules)
+    fallback_names = {}
+    for rule in rules:
+        fallback_names[rule.path] = countdown_identity(card, plan, path=rule.path)
+    _normalize_countdown_display_layout(rows, rules, fallback_names)
     data_rows = []
     for row in rows:
         if isinstance(row, DataRow):
@@ -324,6 +338,7 @@ def normalize_presentation_source(source: str, card: dict, task: dict) -> str:
             for child in row.children:
                 parents[child] = row.component_id
     for rule in rules:
+        fallback_name = fallback_names.get(rule.path)
         readouts = []
         for row in components.values():
             prop = _READOUTS.get(row.component_type)
@@ -331,12 +346,14 @@ def normalize_presentation_source(source: str, card: dict, task: dict) -> str:
             known = recognize_countdown(value)
             if known is not None and known.kind == "prefix":
                 continue
-            if _references(value) == (rule.path,):
+            paths = _references(value)
+            if paths == (rule.path,):
                 require_countdown_presentation(
-                    row.component_id, mixed_readout=not _simple_countdown_readout(value, rule.path),
+                    row.component_id,
+                    mixed_readout=countdown_input_readout(value, rule.path) is None,
                 )
                 readouts.append((row, prop))
-            elif rule.path in _references(value):
+            elif rule.path in paths:
                 require_countdown_presentation(row.component_id, mixed_readout=True)
         if not readouts:
             require_countdown_presentation("root", readout_count=0, title_count=0)
@@ -348,11 +365,28 @@ def normalize_presentation_source(source: str, card: dict, task: dict) -> str:
                     group_readouts.append(candidate)
             require_countdown_presentation(row.component_id, readout_count=len(group_readouts))
             titles = []
+            if row.component_type == "InfoBlock":
+                target = _target(row.props.get("secondaryText"), rule.path)
+                if target is None and fallback_name:
+                    target = fallback_name, False
+                input_value = countdown_input_readout(row.props.get(prop), rule.path)
+                if input_value is not None and input_value.target:
+                    inline_target = _target(input_value.target, rule.path)
+                    named_local = target is not None and target != ("目标日", False)
+                    require_countdown_presentation(
+                        row.component_id,
+                        mixed_readout=named_local and target != inline_target,
+                    )
+                    target = inline_target
+                if target is not None:
+                    titles.append((row.props, "secondaryText", target))
             for key in group:
                 candidate = components.get(key)
                 if candidate is None:
                     continue
                 if candidate.component_type not in {"SingleLineTitle", "DoubleLineTitle"}:
+                    continue
+                if row.component_type == "InfoBlock" and titles:
                     continue
                 target = _target(candidate.props.get("title"), rule.path)
                 if target is not None and target[1]:
@@ -364,17 +398,47 @@ def normalize_presentation_source(source: str, card: dict, task: dict) -> str:
                 target = _target(row.props.get("label"), rule.path)
                 supporting = row.props.get("supportingText")
                 existing = recognize_countdown(supporting)
-                replaceable = supporting in (None, "", "状态", "倒计时") or existing is not None
+                replaceable = supporting in (None, "", "天", "状态", "倒计时")
+                replaceable = replaceable or existing is not None
                 if target is not None and replaceable:
-                    titles.append((row.props, "supportingText", target))
+                    titles.append((row.props, "label", target))
+            if not titles and row.component_type == "EmphasisText":
+                target = _target(row.props.get("secondaryText"), rule.path)
+                if target is None and fallback_name:
+                    target = fallback_name, False
+                if target is not None:
+                    titles.append((row.props, "secondaryText", target))
             require_countdown_presentation(row.component_id, title_count=len(titles))
             title_props, title_prop, target = titles[0]
+            planned_name = countdown_identity({}, plan, path=rule.path)
+            if planned_name and not target[1]:
+                target = planned_name, False
+            if fallback_name and not target[1]:
+                if target[0] == "目标日" or target[0] in fallback_name:
+                    target = fallback_name, False
+            input_value = countdown_input_readout(row.props.get(prop), rule.path)
+            if input_value is not None and input_value.target:
+                inline_target = _target(input_value.target, rule.path)
+                require_countdown_presentation(
+                    row.component_id, mixed_readout=inline_target != target,
+                )
             owner = title_owners.get(id(title_props))
             require_countdown_presentation(
                 row.component_id, mixed_readout=owner is not None and owner != rule.path,
             )
             title_owners[id(title_props)] = rule.path
             name, dynamic = target
+            text_readout = row.component_type in {"InfoBlock", "EmphasisText", "Text"}
+            if text_readout:
+                title_props[title_prop] = {"path": name} if dynamic else name
+                row.props[prop] = countdown_readout(rule.path)
+                # 辅助日期等字面事实保留；只消除可证明的旧状态包装，不删除其内容。
+                secondary = row.props.get("secondaryText")
+                if title_prop != "secondaryText" or title_props is not row.props:
+                    secondary_name = countdown_input_target(secondary, rule.path)
+                    if secondary_name is not None:
+                        row.props["secondaryText"] = secondary_name
+                continue
             title_props[title_prop] = countdown_prefix(rule.path, name, target_path=dynamic)
             value = row.props.get(prop)
             unit = ""
@@ -383,6 +447,13 @@ def normalize_presentation_source(source: str, card: dict, task: dict) -> str:
             if row.component_type == "EmphasizedData":
                 row.props["unit"] = "天"
                 unit = ""
+            if row.component_type == "DataDisplay":
+                supporting = row.props.get("supportingText")
+                if supporting in (None, "", "天", "状态", "倒计时"):
+                    row.props["supportingText"] = "天"
+                    unit = ""
+                else:
+                    unit = "天"
             row.props[prop] = countdown_number(rule.path, unit)
     output = []
     for row in rows:
