@@ -289,7 +289,10 @@ def _has_content_surface(node: dict, legacy_panels: list[str]) -> bool:
     return background in legacy_panels or bool(node.get("onClick"))
 
 
-def apply_theme(source: str, theme: dict, task: dict, overrides: dict) -> str:
+def apply_theme(
+    source: str, theme: dict, task: dict, overrides: dict,
+    *, presentation_targets: list[Any] | None = None,
+) -> str:
     records = decode(source)
     nodes = components(records)
     reserved_ids = FUSION_IDS | {FUSION_FOREGROUND_ID}
@@ -321,10 +324,19 @@ def apply_theme(source: str, theme: dict, task: dict, overrides: dict) -> str:
     root = next(node for node in nodes if node.get("id") == "root")
     for node in nodes:
         styles = node.setdefault("styles", {})
+        if presentation_targets is not None and node.get("component") == "Text":
+            styles.setdefault("fontColor", "@theme:primary")
         content_surface = bool(surface_style) and _has_content_surface(node, legacy_panels)
         role_keys = set()
         for key in COLOR_FIELDS:
             if is_role(styles.get(key)):
+                if presentation_targets is not None:
+                    from services.presentation.models import PropertyTarget
+
+                    presentation_targets.append(PropertyTarget(
+                        component_id=node.get("id"), property="styles." + key,
+                        role=styles.get(key), source_id=node.get("id"),
+                    ))
                 styles[key] = resolve_role(styles[key], roles, panel)
                 role_keys.add(key)
         for key in ("fontColor", "fillColor", "color", "borderColor"):
@@ -355,6 +367,13 @@ def apply_theme(source: str, theme: dict, task: dict, overrides: dict) -> str:
     background_config = theme.get("background", {})
     if background or kind == "solid":
         root_styles["backgroundColor"] = background or background_config.get("color")
+        if presentation_targets is not None:
+            from services.presentation.models import PropertyTarget
+
+            presentation_targets.append(PropertyTarget(
+                component_id=root.get("id"), property="styles.backgroundColor",
+                role="background", source_id=root.get("id"),
+            ))
     elif kind == "gradient":
         pair = background_config.get("colors")
         root_styles["linearGradient"] = {
@@ -657,7 +676,19 @@ def _validate_theme(artifact: Any, validator: Any, profile: dict, *, fallback: b
 async def theme_artifact(
     artifact: Any, task: dict, client: Any, validator: Any, profile: dict,
     *, allow_expansion: bool = True, final_layout: str | None = None,
+    presentation: dict | None = None, presentation_targets: list[Any] | None = None,
+    presentation_origins: dict[str, str] | None = None,
 ) -> Any:
+    if presentation and presentation.get("rules"):
+        from services.presentation.runtime import compile_with_policy
+
+        dynamic = compile_with_policy(
+            artifact, presentation, validator, profile,
+            targets=presentation_targets, origins=presentation_origins,
+        )
+        if dynamic.presentationPlan is not None:
+            return dynamic
+        artifact = dynamic
     source = artifact.genui
     with trace_span("theme.selection", stage="theme.selection") as span:
         result, audit = await select_theme(

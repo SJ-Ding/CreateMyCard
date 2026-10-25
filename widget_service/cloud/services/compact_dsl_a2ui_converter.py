@@ -2096,13 +2096,13 @@ def _convert_component_rows(
     card_size: str = "2x2",
 ) -> list[dict[str, Any]]:
     if component.component_type == "SingleLineTitle":
-        return _convert_single_line_title(component, card_size)
-    return [
-        _convert_component(
-            component,
-            hide_label=hide_label,
-        )
-    ]
+        nodes = _convert_single_line_title(component, card_size)
+    else:
+        nodes = [_convert_component(component, hide_label=hide_label)]
+    from services.presentation.context import register_nodes
+
+    register_nodes(component.component_id, nodes)
+    return nodes
 
 
 def _convert_component(
@@ -2156,6 +2156,9 @@ def _convert_component(
         _normalize_text_component(styles)
     if styles:
         converted["styles"] = styles
+    from services.presentation.context import resolve_component
+
+    resolve_component(converted)
     return converted
 
 

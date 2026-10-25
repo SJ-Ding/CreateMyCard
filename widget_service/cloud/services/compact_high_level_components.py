@@ -336,6 +336,9 @@ def expand_high_level_component_rows(
         if expander is not None:
             rows = _allocate_expanded_ids(component, rows, existing_ids | generated_ids)
         for index, row in enumerate(rows):
+            from services.presentation.context import register_rows
+
+            register_rows(component.component_id, [row])
             if in_layout_phase() and row.component_type == "Image":
                 if native_asset(row.props.get("src")):
                     props = dict(row.props)

@@ -21,6 +21,7 @@ from services.card_validation.edit_validation.styles import (
     preserve_dynamic_styles,
     validate_edit_style_value,
 )
+from services.presentation.models import PresentationPlan
 from services.single_step_edit import _components, _load_json, _messages, _same, source_digest
 
 EditDimension = Literal["palette", "typography", "spacing", "shape", "layout", "text"]
@@ -77,6 +78,8 @@ class EditIntent(BaseModel):
     backgroundTargets: list[str] = Field(default_factory=list)
     textChanges: list[TextChange] = Field(default_factory=list)
     expectations: list[EditExpectation] = Field(default_factory=list, max_length=64)
+    presentation: PresentationPlan | None = None
+    presentationOnly: bool = False
 
 
 def dump_rows(rows: list[dict]) -> str:
@@ -150,6 +153,11 @@ def _dynamic(value: Any) -> bool:
 def validate_intent(
     intent: EditIntent, original: str, source_size: str, explicit_size: str | None,
 ) -> None:
+    if intent.presentationOnly:
+        valid = intent.presentation is not None and intent.dimensions == ["palette"]
+        valid = valid and not intent.expectations and not intent.textChanges
+        if not valid or intent.targetSize != source_size:
+            raise ValueError("仅规则编辑必须提供新计划，不混入其它视觉或尺寸变更")
     _, nodes = _tree(original)
     if intent.outcome in {"ready", "unchanged"}:
         _validate_expectations(intent, nodes)

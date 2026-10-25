@@ -311,6 +311,9 @@ class SourceArtifactRepository:
                 removedCapabilities=json.loads(blocks["removedcapabilities"]),
                 generationPlan=json.loads(blocks["generationplan"]),
                 meta=json.loads(blocks["meta"]),
+                presentationPlan=(
+                    json.loads(blocks["presentationplan"]) if "presentationplan" in blocks else None
+                ),
             )
         except Exception as exc:
             raise SourceArtifactError(

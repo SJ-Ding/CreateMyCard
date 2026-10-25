@@ -31,12 +31,22 @@ def _system_prompt(stage: Literal["intent", "execute"]) -> str:
 
 def intent_prompt(original: str, query: str, source_size: str,
                   explicit_size: str | None, runtime_changes: dict | None = None,
+                  presentation: dict | None = None,
                   ) -> list[dict[str, str]]:
     payload = {
         "previousGenui": original, "editInstruction": query, "sourceSize": source_size,
         "explicitTargetSize": explicit_size, "outputSchema": EditIntent.model_json_schema(),
         "runtimeChanges": runtime_changes or {}, "editContract": edit_contract(),
     }
+    if presentation is not None:
+        payload["presentation"] = presentation
+        payload["presentationInstruction"] = (
+            "展示规则与静态基础主题分开编辑。无关修改presentation=null；"
+            "修改阈值或主题时提交完整新计划，删除联动提交rules=[]。"
+            "明确请求改规则不得返回unchanged。只调整规则时仍声明palette维度和root目标。"
+            "只调整规则时presentationOnly=true，无需生成静态补丁。"
+            "不直接修改程序表达式，保留原组件ID及已登记文字槽。"
+        )
     return [
         {"role": "system", "content": _system_prompt("intent")},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},

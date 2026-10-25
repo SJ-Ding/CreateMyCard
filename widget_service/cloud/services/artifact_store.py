@@ -125,6 +125,8 @@ class ArtifactStore:
             + "\n```",
             f"```genui\n{artifact.genui}\n```",
         ]
+        if artifact.presentationPlan is not None:
+            json_blocks["presentationplan"] = artifact.presentationPlan.model_dump(mode="json")
         blocks.extend(
             "```" + name + "\n" + json.dumps(value, ensure_ascii=False, indent=2) + "\n```"
             for name, value in json_blocks.items()

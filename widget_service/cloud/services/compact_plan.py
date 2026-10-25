@@ -278,7 +278,19 @@ def build_compact_plan_tool(
         },
     }
     required = ["info_required"]
+    parameter_extensions: dict[str, Any] = {}
+    from services.presentation.release import presentation_enabled
+
+    if presentation_enabled():
+        from services.presentation.planning import plan_tool_schema, planning_instruction
+
+        presentation_schema = plan_tool_schema()
+        parameter_extensions["$defs"] = presentation_schema.pop("$defs", {})
+        plan_properties["presentation"] = presentation_schema
+        required.append("presentation")
     description = "提交卡片信息与操作的优先级；组件和布局只提供软候选。"
+    if presentation_enabled():
+        description += planning_instruction()
     description += (
         "Layout、Region、Group 的名称及 variant 只能逐字使用当前尺寸文档登记的完整值，"
         "不得自行缩写、拼接或增删后缀。选择布局候选前确认全部必要事实与动作都有合法落点。"
@@ -383,6 +395,7 @@ def build_compact_plan_tool(
                 "properties": plan_properties,
                 "required": required,
                 "additionalProperties": False,
+                **parameter_extensions,
             },
         },
     }
@@ -827,6 +840,10 @@ def parse_compact_plan_call(
         raise CompactPlanValidationError(["submit_card_plan.arguments must be an object."])
     asset_ids = compact_plan_asset_ids(task_spec)
     allowed_arguments = {"info_required", "layoutHints"}
+    from services.presentation.release import presentation_enabled
+
+    if presentation_enabled():
+        allowed_arguments.add("presentation")
     if asset_ids:
         allowed_arguments.add("assetAssignments")
     if require_composition:
@@ -842,6 +859,17 @@ def parse_compact_plan_call(
     )
     warnings[:0] = syntax_warnings
     plan: dict[str, Any] = {"info_required": facts}
+    if presentation_enabled():
+        from services.presentation.models import PresentationError
+        from services.presentation.planning import validate_plan
+
+        try:
+            presentation = validate_plan(
+                arguments.get("presentation", {}), task_spec, require_requested=True,
+            )
+        except PresentationError as exc:
+            raise CompactPlanValidationError([str(exc)]) from exc
+        plan["presentation"] = presentation.model_dump(mode="json")
     whole_card_click = None if require_composition else select_whole_card_click(task_spec, facts)
     if whole_card_click is not None:
         plan["wholeCardActionId"] = whole_card_click.action_id
@@ -1079,6 +1107,10 @@ def compact_plan_context(
         if implementation_conflicts is None else implementation_conflicts
     )
     context_plan = dict(plan)
+    if plan.get("presentation"):
+        from services.presentation.planning import planning_instruction
+
+        context_plan["presentationInstruction"] = planning_instruction()
     whole_card_instruction = ""
     if isinstance(plan.get("wholeCardActionId"), str):
         whole_card_instruction = (
@@ -2323,6 +2355,13 @@ def _collect_paths_and_literals(
 ) -> None:
     if isinstance(value, str):
         matches = list(_BINDING_PATH.finditer(value))
+        from services.expression_semantics import expression_display_paths, expression_literals
+
+        display_paths = expression_display_paths(value)
+        if display_paths is not None:
+            paths.update(display_paths)
+            literals.extend(expression_literals(value))
+            return
         if matches:
             paths.update(match.group("path") for match in matches)
         else:
@@ -2349,10 +2388,15 @@ def _collect_visible_path_occurrences(
     occurrences: list[_CompactVisiblePathOccurrence],
 ) -> None:
     if isinstance(value, str):
-        for match in _BINDING_PATH.finditer(value):
+        from services.expression_semantics import expression_display_paths
+
+        visible_paths = expression_display_paths(value)
+        if visible_paths is None:
+            visible_paths = tuple(match.group("path") for match in _BINDING_PATH.finditer(value))
+        for visible_path in visible_paths:
             occurrences.append(
                 _CompactVisiblePathOccurrence(
-                    data_id=match.group("path"),
+                    data_id=visible_path,
                     component_id=component_id,
                     component_type=component_type,
                     property_path=property_path,

@@ -1,0 +1,27 @@
+{
+  "version": "presentation-v1",
+  "presets": [
+    {
+      "id": "countdown-hundred-days",
+      "origin": "user",
+      "requirement": "required",
+      "scope": "card",
+      "states": [
+        {
+          "when": {
+            "op": "&&",
+            "args": [
+              {"op": ">", "args": [{"op": "ref", "value": "/data/countdown/countdownDays"}, {"op": "literal", "value": 0}]},
+              {"op": "==", "args": [{"op": "%", "args": [{"op": "ref", "value": "/data/countdown/countdownDays"}, {"op": "literal", "value": 100}]}, {"op": "literal", "value": 0}]}
+            ]
+          },
+          "priority": "milestone",
+          "theme": "solid-warm",
+          "texts": {}
+        }
+      ],
+      "default": {"theme": "solid-blue", "texts": {}},
+      "unknown": {"theme": "solid-blue", "texts": {}}
+    }
+  ]
+}

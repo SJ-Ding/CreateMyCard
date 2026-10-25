@@ -156,6 +156,9 @@ def expression_references(value: str) -> list[str]:
 
 
 def estimate_text_width(text: str, font_size: float) -> float:
+    from services.presentation.context import marker_preview
+
+    text = marker_preview(text)
     width = 0.0
     for char in text:
         if CJK_RE.match(char):

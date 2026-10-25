@@ -29,6 +29,8 @@ from services.compact_plan import (
 from services.compact_repair_context import bounded_component_capacity_contexts
 from services.compact_wide_recomposition import recompose_wide_card
 from services.generation_trace_recorder import TraceSpan, trace_operation, trace_record, trace_step
+from services.presentation.context import processing_scope, register_origins
+from services.presentation.models import PropertyTarget
 from services.protocol_registry import A2UIProtocolRegistry
 from utils.ops_metrics import report_ops_metrics
 
@@ -100,6 +102,8 @@ class DslProcessingResult:
     source_dsl: str
     standard_dsl: str = ""
     issues: tuple[QualityIssue, ...] = ()
+    presentation_targets: list[PropertyTarget] = field(default_factory=list)
+    presentation_origins: dict[str, str] = field(default_factory=dict)
 
     @property
     def errors(self) -> tuple[QualityIssue, ...]:
@@ -166,6 +170,7 @@ def _capture_processing_result(span: TraceSpan, result: DslProcessingResult) -> 
 
 
 class DesignCompactProcessor:
+    @processing_scope
     @trace_operation("dsl.processing", kind="group", capture=_capture_processing_result)
     def process(
         self,
@@ -246,6 +251,7 @@ class DesignCompactProcessor:
                 source_dsl, size=context.size,
                 skip_compact_dsl_validation=context.skip_compact_dsl_validation,
             )
+            register_origins(layout_origins)
             if layout_origins:
                 trace_step(
                     "dsl.semantic_layout.expanded", stage="dsl.layoutExpansion", status="success",

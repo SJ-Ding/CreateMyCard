@@ -66,7 +66,18 @@ class WidgetEditService:
             return self._response(request, GenerationStatus.FAILED,
                                   "上一版卡片无法安全读取，原卡片不受影响。", exc.error_code)
         original = loaded.artifact.model_copy(deep=True)
+        from services.presentation.release import presentation_enabled
+        from services.presentation.runtime import editing_base, recompile_edit
+
+        if original.presentationPlan is not None and not presentation_enabled():
+            return self._response(
+                request, GenerationStatus.UNSUPPORTED,
+                "当前客户端组合尚未通过动态样式验收，原卡片不受影响。",
+                ErrorCode.WIDGET_EDIT_UNSUPPORTED,
+            )
+        presentation_original = original.model_copy(deep=True)
         try:
+            original = editing_base(original)
             validate_edit_source_structure(original.genui)
         except (ValueError, TypeError, RecursionError) as exc:
             trace_record("edit.source.structure.failed", stage="edit.source", status="failed",
@@ -108,6 +119,10 @@ class WidgetEditService:
                 intent = await self._intent(
                     client, original.genui, normalized.userQuery,
                     source_size, explicit_size, runtime_changes,
+                    presentation=(
+                        presentation_original.presentationPlan.plan.model_dump(mode="json")
+                        if presentation_original.presentationPlan is not None else None
+                    ),
                 )
             runtime_only = intent.outcome == "unchanged" and bool(runtime_changes)
             runtime_only = runtime_only and intent.targetSize == source_size
@@ -123,7 +138,7 @@ class WidgetEditService:
             if before_model_call is not None:
                 await before_model_call(intent.targetSize)
             with trace_span("edit.execute", stage="edit.execute"):
-                if runtime_only:
+                if runtime_only or intent.presentationOnly:
                     # 原组件树没有变更，仍须完整验证新运行配置，不能漏掉参数更新。
                     result = await to_thread.run_sync(
                         validate_edit_artifact, original, candidate, intent,
@@ -135,6 +150,21 @@ class WidgetEditService:
                     final = await self._execute(
                         client, original, candidate, normalized.userQuery, intent,
                     )
+                archive = presentation_original.presentationPlan
+                if archive is not None:
+                    from services.protocol_registry import A2UIProtocolRegistry
+                    from services.widget_generation_service import ArtifactValidator
+
+                    profile = A2UIProtocolRegistry(policy.protocol_profile_id).get_profile()
+                    active_plan = archive.plan
+                    if intent.presentation is not None:
+                        active_plan = intent.presentation
+                    final = recompile_edit(
+                        presentation_original, final, active_plan,
+                        ArtifactValidator(), profile,
+                    )
+                elif intent.presentation is not None:
+                    raise ValueError("历史卡片不能反向推断或新增展示计划，请重新创建")
         except A2UIModelGenerationError:
             return self._response(
                 normalized, GenerationStatus.FAILED,
@@ -165,8 +195,9 @@ class WidgetEditService:
 
     async def _intent(self, client: A2UIModelClient, original: str, query: str,
                       source_size: str, explicit_size: str | None,
-                      runtime_changes: dict) -> EditIntent:
-        messages = intent_prompt(original, query, source_size, explicit_size, runtime_changes)
+                      runtime_changes: dict, presentation: dict | None = None) -> EditIntent:
+        messages = intent_prompt(original, query, source_size, explicit_size, runtime_changes,
+                                 presentation=presentation)
         budget = get_settings().widget_edit_max_repair_attempts
         for attempt in range(budget + 1):
             output = await self._call(client, messages, "edit_intent")

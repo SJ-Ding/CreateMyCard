@@ -111,6 +111,11 @@ def matching_unit_literal_count(expression: Any, rule: DisplayUnitRule) -> int:
     """统计表达式任意分支中与展示单位匹配的字符串字面量。"""
     if not isinstance(expression, str):
         return 0
+    from services.expression_semantics import expression_literal_count
+
+    count = expression_literal_count(expression, lambda literal: _value_matches_rule(literal, rule))
+    if count is not None:
+        return count
     return sum(
         1
         for literal in _string_literal_values(expression_body(expression))

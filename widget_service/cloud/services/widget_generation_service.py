@@ -82,6 +82,7 @@ from services.generation_trace_recorder import (
     trace_step,
 )
 from services.multi_step_generation.core.bridge import JsxA2UIBridge
+from services.presentation.release import presentation_enabled, verified_client_scope
 from services.protocol_registry import (
     A2UI_FORM_PROTOCOL_PROFILE_ID,
     A2UIProtocolRegistry,
@@ -1011,12 +1012,16 @@ class WidgetGenerationService:
             source_generated_by_jsx = False
             source_generated_by_template = False
             original_small_display_roles.clear()
+            from services.presentation.planning import explicit_request
+
+            dynamic_requested = presentation_enabled() and explicit_request(task_spec.userQuery)
             source_fallback_started = template_source_generator is not None or try_jsx
+            source_fallback_started = source_fallback_started and not dynamic_requested
             if source_fallback_started:
                 trace_phase("dsl")
             if before_model_call is not None and not defer_size_notification:
                 await before_model_call(card_spec.suggestSize)
-            if template_source_generator is not None:
+            if template_source_generator is not None and not dynamic_requested:
                 try:
                     logger.info(
                         f"{_MODULE} template_source_generation_started operation={policy.operation}"
@@ -1072,7 +1077,7 @@ class WidgetGenerationService:
                         raise A2UIModelGenerationError(
                             "Template source generation failed without fallback"
                         ) from exc
-            if try_jsx and not template_fallback_to_fusion:
+            if try_jsx and not template_fallback_to_fusion and not dynamic_requested:
                 try:
                     logger.info(f"{_MODULE} jsx_generation_started operation={policy.operation}")
                     bridge = JsxA2UIBridge()
@@ -1107,7 +1112,7 @@ class WidgetGenerationService:
                 policy.processor_kind == DslProcessorKind.DESIGN_COMPACT
                 and policy.operation == "generateWidgetCardCompactDsl"
             )
-            if uses_compact_plan and not model_client.use_mock:
+            if uses_compact_plan and (not model_client.use_mock or dynamic_requested):
                 if source_fallback_started:
                     trace_phase_outcome("degraded", reason="fallback_to_model")
                 accepted_compact_plan = await generate_compact_plan()
@@ -1478,7 +1483,10 @@ class WidgetGenerationService:
                     latest_processing_result,
                 )
                 return conversion_errors
-            if not settings.enable_artifact_validation and not policy.single_step:
+            presentation_plan = (accepted_compact_plan or {}).get("presentation", {})
+            has_presentation = bool(presentation_plan.get("rules"))
+            validation_disabled = not settings.enable_artifact_validation and not policy.single_step
+            if validation_disabled and not has_presentation:
                 logger.info(
                     f"{_MODULE} artifact_validation_skipped operation={policy.operation} "
                     "reason=enable_artifact_validation_false"
@@ -1539,6 +1547,19 @@ class WidgetGenerationService:
                 validation_errors = artifact_validator.validate_layout(artifact, protocol_profile)
             else:
                 validation_errors = artifact_validator.validate(artifact, protocol_profile)
+            if has_presentation and not validation_errors:
+                from services.presentation.models import PresentationError
+                from services.presentation.runtime import compile_with_policy
+
+                try:
+                    compile_with_policy(
+                        artifact, accepted_compact_plan.get("presentation"),
+                        artifact_validator, protocol_profile,
+                        targets=processing_result.presentation_targets,
+                        origins=processing_result.presentation_origins,
+                    )
+                except PresentationError as exc:
+                    validation_errors.append(str(exc))
             if validation_errors:
                 report_ops_metrics(body={"validationScenarioFailure": 1})
             validation_prompt_contexts = getattr(
@@ -1598,6 +1619,8 @@ class WidgetGenerationService:
                 source_dsl=processing_result.source_dsl,
                 standard_dsl=processing_result.standard_dsl,
                 issues=processing_result.issues + validation_issues,
+                presentation_targets=processing_result.presentation_targets,
+                presentation_origins=processing_result.presentation_origins,
             )
             self._append_repair_record(
                 repair_records,
@@ -1865,6 +1888,9 @@ class WidgetGenerationService:
                     ArtifactValidator(asset_mapper.mapping), protocol_profile,
                     allow_expansion=defer_size_notification,
                     final_layout=design_token,
+                    presentation=(accepted_compact_plan or {}).get("presentation"),
+                    presentation_targets=latest_processing_result.presentation_targets,
+                    presentation_origins=latest_processing_result.presentation_origins,
                 )
             final_size = artifact.cardSpec.get("suggestSize", card_spec.suggestSize)
             if defer_size_notification and before_model_call is not None:
@@ -2170,6 +2196,20 @@ class WidgetGenerationService:
             stores_design_token=True,
         )
         is_edit = "sourceArtifactUrl" in request.model_fields_set
+        from services.presentation.planning import explicit_request
+
+        if not is_edit and explicit_request(request.userQuery):
+            supported = (
+                get_settings().enable_dynamic_presentation
+                and policy.operation == "generateWidgetCardCompactDsl"
+            )
+            if not supported:
+                return GenerateWidgetCardResponse(
+                    status=GenerationStatus.UNSUPPORTED,
+                    suggestSize=request.size or DEFAULT_WIDGET_SIZE,
+                    message="当前生成路线尚未开放条件样式联动。",
+                    errorCode=ErrorCode.PROTOCOL_CAPABILITY_UNSUPPORTED.value,
+                )
         try:
             response = await self._generate_widget_card_with_policy(
                 request,
@@ -2275,6 +2315,7 @@ class WidgetGenerationService:
             need_fallback=False,
         )
 
+    @verified_client_scope
     async def _generate_widget_card_with_policy(
         self,
         request: GenerateWidgetCardRequest,
@@ -2288,6 +2329,21 @@ class WidgetGenerationService:
     ) -> GenerateWidgetCardResponse:
         """复制请求并锁定路由对应的协议 profile。"""
         is_edit = "sourceArtifactUrl" in request.model_fields_set
+        from services.presentation.planning import explicit_request
+
+        if not is_edit and explicit_request(request.userQuery):
+            supported = (
+                presentation_enabled()
+                and policy.operation == "generateWidgetCardCompactDsl"
+                and not policy.single_step
+            )
+            if not supported:
+                return GenerateWidgetCardResponse(
+                    status=GenerationStatus.UNSUPPORTED,
+                    suggestSize=request.size or DEFAULT_WIDGET_SIZE,
+                    message="当前生成路线尚未开放条件样式联动。",
+                    errorCode=ErrorCode.PROTOCOL_CAPABILITY_UNSUPPORTED.value,
+                )
         if is_edit and get_settings().enable_semantic_widget_edit:
             from services.widget_edit_service import WidgetEditService
 

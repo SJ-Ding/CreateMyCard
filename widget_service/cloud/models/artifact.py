@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from models.capability import RemovedCapability
 from models.generation import CandidateDataBinding
+from services.presentation.models import PresentationArchive
 
 
 class GenerationPlan(BaseModel):
@@ -42,3 +43,4 @@ class WidgetArtifact(BaseModel):
     removedCapabilities: list[RemovedCapability] = Field(default_factory=list)
     generationPlan: GenerationPlan = Field(default_factory=GenerationPlan)
     meta: ArtifactMeta
+    presentationPlan: PresentationArchive | None = None
