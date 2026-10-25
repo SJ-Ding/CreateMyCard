@@ -77,6 +77,20 @@ debug_tools/batch_output/<runId>/
 每个样本保存请求、终态响应、artifact blocks、`genui.jsonl`、最终结果和各 attempt 的 Trace。运行级
 `trace_blobs/` 按 SHA-256 去重附件；读取时会校验字节数和摘要。
 
+新运行另存 `batch_state.sqlite3`，用于样本增量状态、版本及待收集尝试；运行中以平台 API 为准。
+完整 manifest/summary 在初始化与终结时导出，不逐样本重写，终态导出成功后才开放后处理。
+旧结果没有状态库时继续兼容读取，不批量迁移。HTTP 样本详情为只读，不在浏览时自动恢复附件。
+
+`batch_testing.collection_concurrency` 默认 2，分别限制下载及 Trace 导入并发；
+`collection_capacity` 默认 128，限制未收集尝试数，满时暂停发送前的准入。
+这两个参数只影响调试平台，修改后重启；不改变微服务配置或接口请求重试策略。
+`collection_timeout_seconds` 默认 60，限制单次下载/Trace 收集等待。
+重启在后台恢复已登记响应的收集，未知请求保持中断，不自动重发；恢复结束后才发送新批跑请求。
+
+详情页使用版本化状态和每页 100 条的样本查询；状态与分页支持 ETag/304，未变化时不计算指标或读取 Trace。
+大量变更超过增量窗口时重新取分页快照。指标在收集后合并更新，终态保持原有计算口径。
+旧的完整详情接口仍可供离线工具读取；单次查询显式获取完整历史时可能读取其全部证据。
+
 不要手工依赖未在本 README 中承诺的内部文件层级。需要消费结果时，优先使用页面 API 或稳定的
 `manifest.json`、`summary.json`。
 

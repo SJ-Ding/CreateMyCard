@@ -18,6 +18,7 @@ from urllib.parse import quote
 from jsonschema import Draft202012Validator
 
 from .runner import atomic_write_json, utc_now
+from .state_store import RunStateStore
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 _RESULT_STATUSES = {"success", "partial", "failed", "skipped"}
@@ -141,13 +142,17 @@ class PostprocessManager:
         *,
         rerun: bool = False,
     ) -> dict[str, Any]:
+        run_dir = self._ensure_run_dir(run_id)
+        store = RunStateStore(run_dir)
+        export_ready = not store.path.is_file() or store.overview().get("exportReady") is True
         if "quality-score" in plugin_ids:
+            if not export_ready:
+                raise ValueError("质量评分需等待批跑终态兼容快照导出完成")
             summary = self._read_json(self._run_dir(run_id) / "summary.json")
             if summary.get("status") != "completed":
                 raise ValueError("质量评分仅支持已完成批次")
-        run_dir = self._ensure_run_dir(run_id)
         summary_path = run_dir / "summary.json"
-        run_completed = summary_path.is_file() and (
+        run_completed = export_ready and summary_path.is_file() and (
             self._read_json(summary_path).get("status") == "completed"
         )
         manifests = self._run_manifests(run_id)

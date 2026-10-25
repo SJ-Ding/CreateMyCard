@@ -389,7 +389,12 @@ def _accumulate(totals: MetricTotals, sample: dict[str, Any], evidence: dict[str
         totals.coverage_missing += int(missing > 0)
 
 
-def enrich_run_metrics(summary: dict[str, Any], run_dir: Path) -> dict[str, Any]:
+def enrich_run_metrics(
+    summary: dict[str, Any],
+    run_dir: Path,
+    *,
+    stored_evidence: bool = False,
+) -> dict[str, Any]:
     """按有效证据计算指标；历史批次只在返回值补充，不覆盖原始文件。"""
     enriched = dict(summary)
     totals = MetricTotals()
@@ -403,7 +408,11 @@ def enrich_run_metrics(summary: dict[str, Any], run_dir: Path) -> dict[str, Any]
         if not isinstance(raw_sample, dict):
             continue
         sample = dict(raw_sample)
-        evidence = _sample_metrics(run_dir, sample)
+        if stored_evidence:
+            saved_evidence = sample.get("generationMetrics")
+            evidence = saved_evidence if isinstance(saved_evidence, dict) else {}
+        else:
+            evidence = _sample_metrics(run_dir, sample)
         _merge_retry_parameters(retry_parameters, evidence.get("retryParameters", {}))
         sample["generationMetrics"] = evidence
         samples.append(sample)

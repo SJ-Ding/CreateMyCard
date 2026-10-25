@@ -55,6 +55,7 @@ export type BatchSampleMetrics = {
 };
 
 export type BatchSampleSummary = {
+  revision?: number;
   id: string;
   fileName: string;
   title: string;
@@ -104,6 +105,13 @@ export type DeviceCaptureConfig = {
 };
 
 export type BatchRun = {
+  storageVersion?: number;
+  collectionPending?: number;
+  collectionBackpressure?: boolean;
+  recoveryState?: string;
+  generation?: string;
+  revision?: number;
+  etag?: string;
   effectiveServiceConfig?: Record<string, unknown>;
   configWarnings?: string[];
   runId: string;
@@ -571,8 +579,8 @@ export async function listBatchTasks(): Promise<BatchTask[]> {
   return body.items;
 }
 
-export function getBatchTask(taskId: string): Promise<BatchTask> {
-  return requestJson(`/debug/batch/tasks/${encodeURIComponent(taskId)}`);
+export function getBatchTask(taskId: string, signal?: AbortSignal): Promise<BatchTask> {
+  return requestJson(`/debug/batch/tasks/${encodeURIComponent(taskId)}`, { signal });
 }
 
 export function createBatchTask(input: CreateBatchTaskInput): Promise<BatchTask> {
@@ -612,8 +620,62 @@ export async function listBatchRuns(): Promise<BatchRun[]> {
   return body.items;
 }
 
-export function getBatchRun(runId: string): Promise<BatchRun> {
-  return requestJson(`/debug/batch/runs/${encodeURIComponent(runId)}`);
+export function getBatchRun(runId: string, signal?: AbortSignal): Promise<BatchRun> {
+  return requestJson(`/debug/batch/runs/${encodeURIComponent(runId)}`, {
+    signal, headers: { 'X-Batch-View': 'snapshot' },
+  });
+}
+
+export type BatchSamplePage = {
+  items: BatchSampleSummary[]; total: number; revision: number; offset: number; limit: number;
+  etag?: string;
+};
+
+export async function getBatchSamplePage(
+  runId: string, offset: number, status: string, trace: string, quality: string, signal: AbortSignal,
+  previous?: BatchSamplePage,
+): Promise<BatchSamplePage> {
+  const params = new URLSearchParams({ offset: String(offset), limit: '100' });
+  if (status !== 'all') params.set('status', status);
+  if (trace !== 'all') params.set('trace', trace);
+  if (quality !== 'all') params.set('quality', quality);
+  const response = await fetch(`/debug/batch/runs/${encodeURIComponent(runId)}/samples?${params}`, {
+    signal, headers: previous?.etag ? { 'If-None-Match': previous.etag } : {},
+  });
+  if (response.status === 304 && previous) return previous;
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.detail || `请求失败（${response.status}）`);
+  return { ...body, etag: response.headers?.get('ETag') ?? undefined };
+}
+
+export async function pollBatchRun(current: BatchRun, signal: AbortSignal): Promise<BatchRun> {
+  const response = await fetch(`/debug/batch/runs/${encodeURIComponent(current.runId)}`, {
+    signal,
+    headers: {
+      'X-Batch-View': 'progress', 'X-Batch-Revision': String(current.revision ?? 0),
+      ...(current.generation ? { 'X-Batch-Generation': current.generation } : {}),
+      ...(current.etag ? { 'If-None-Match': current.etag } : {}),
+    },
+  });
+  if (response.status === 304) return current;
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.detail || `请求失败（${response.status}）`);
+  if (body.resetRequired) return getBatchRun(current.runId, signal);
+  let next: BatchRun;
+  if (Array.isArray(body.sampleChanges)) {
+    const updates = new Map<string, BatchSampleSummary>();
+    body.sampleChanges.forEach((sample: BatchSampleSummary) => updates.set(sample.id, sample));
+    const samples = (current.samples ?? []).map((sample) => updates.get(sample.id) ?? sample);
+    next = { ...current, ...body, samples };
+  } else {
+    next = body as BatchRun;
+  }
+  next.etag = response.headers?.get('ETag') ?? undefined;
+  if (['queued', 'preparing', 'running', 'stopping'].includes(current.status)
+      && !['queued', 'preparing', 'running', 'stopping'].includes(next.status)) {
+    return getBatchRun(current.runId, signal);
+  }
+  return next;
 }
 
 export function getQualityEvaluation(): Promise<QualityEvaluation> {
@@ -647,9 +709,12 @@ export function importQualityBatch(input: {
   });
 }
 
-export function getBatchSample(runId: string, sampleId: string): Promise<BatchSampleDetail> {
+export function getBatchSample(
+  runId: string, sampleId: string, signal?: AbortSignal,
+): Promise<BatchSampleDetail> {
   return requestJson(
     `/debug/batch/runs/${encodeURIComponent(runId)}/samples/${encodeURIComponent(sampleId)}`,
+    signal ? { signal } : undefined,
   );
 }
 

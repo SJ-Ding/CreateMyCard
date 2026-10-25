@@ -12,6 +12,7 @@ import shutil
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,7 +35,10 @@ from .artifacts import (
     parse_artifact_blocks,
     write_artifact_blocks,
 )
+from .collection import CollectionPool
 from .metrics import enrich_run_metrics
+from .read_models import evidence_signature
+from .state_store import DATABASE_NAME, RunProgress, RunStateStore
 from .trace_parser import TraceImporter
 
 _OPERATION = "generateWidgetCardCompactDsl"
@@ -320,6 +324,14 @@ class BatchRunState:
     finished_at: str | None = None
     cancel_event: asyncio.Event = field(default_factory=asyncio.Event)
     workers: list[asyncio.Task[None]] = field(default_factory=list)
+    progress: RunProgress | None = None
+    request_slots: asyncio.Semaphore | None = None
+    collector: CollectionPool | None = None
+    error: str = ""
+    sample_index: dict[str, dict[str, Any]] = field(default_factory=dict)
+    generation_metrics: dict[str, Any] = field(default_factory=dict)
+    retry_parameters: dict[str, Any] = field(default_factory=dict)
+    metrics_task: asyncio.Task[None] | None = None
 
     def public_dict(self) -> dict[str, Any]:
         total = len(self.samples)
@@ -390,6 +402,167 @@ class BatchRunManager:
         self.runs: dict[str, BatchRunState] = {}
         self.tasks: dict[str, asyncio.Task[None]] = {}
         self._trace_refresh_lock = RLock()
+        self._writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="batch-state")
+        self._files = ThreadPoolExecutor(max_workers=2, thread_name_prefix="batch-collection")
+        self._metric_cache: dict[str, tuple[object, dict[str, Any]]] = {}
+        self._metric_lock = RLock()
+        self.configure_collection(128, 2)
+
+    def configure_collection(self, capacity: int, concurrency: int, timeout: float = 60.0) -> None:
+        self.collection_capacity = capacity
+        self.collection_concurrency = concurrency
+        self.collection_timeout_seconds = timeout
+        self._artifact_slots = asyncio.Semaphore(concurrency)
+        self._trace_slots = asyncio.Semaphore(concurrency)
+
+    async def _write(self, function: Callable, *args: Any) -> Any:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._writer, function, *args)
+
+    async def _collect_io(self, function: Callable, *args: Any) -> Any:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._files, function, *args)
+
+    async def close(self) -> None:
+        await asyncio.to_thread(self._files.shutdown, wait=True)
+        await asyncio.to_thread(self._writer.shutdown, wait=True)
+
+    async def recover_collections(self) -> dict[str, str]:
+        """恢复已确认响应；损坏运行独立失败，不阻止其它调试功能启动。"""
+        failures: dict[str, str] = {}
+        for database in self.output_root.glob(f"*/{DATABASE_NAME}"):
+            try:
+                await self._recover_collection_store(database)
+            except Exception as exc:
+                message = f"收集恢复失败: {type(exc).__name__}: {exc}"
+                failures[database.parent.name] = message
+                _logger.warning("批跑 %s %s", database.parent.name, message)
+                try:
+                    await self._write(
+                        RunStateStore(database.parent).update,
+                        {
+                            "status": "failed",
+                            "error": message,
+                            "exportReady": False,
+                            "recoveryState": "failed",
+                        },
+                    )
+                except Exception as persist_error:
+                    _logger.warning(
+                        "恢复错误保存失败: %s: %s", type(persist_error).__name__, persist_error
+                    )
+        return failures
+
+    async def _recover_collection_store(self, database: Path) -> None:
+        store = RunStateStore(database.parent)
+        summary = await self._write(store.overview)
+        pending = await self._write(store.pending)
+        terminal = summary.get("status") in {"completed", "cancelled", "failed", "interrupted"}
+        if not pending and terminal and summary.get("exportReady"):
+            return
+        summary = await self._write(store.read)
+        await self._write(store.update, {"recoveryState": "running"})
+        raw_samples = summary.get("samples")
+        if not isinstance(raw_samples, list):
+            raise ValueError("恢复批跑时缺少样本状态")
+        state = BatchRunState(
+            run_id=database.parent.name,
+            run_token=database.parent.name.rsplit("_", 1)[-1],
+            endpoint=str(summary.get("endpoint") or ""),
+            concurrency=int(summary.get("concurrency", 4)),
+            max_retries=int(summary.get("maxRetries", 0)),
+            timeout_seconds=float(summary.get("timeoutSeconds", self.timeout_seconds)),
+            samples=raw_samples,
+            output_dir=database.parent,
+            task_id=str(summary.get("taskId") or ""),
+            dataset_id=str(summary.get("datasetId") or ""),
+            dataset_version=dict(summary.get("datasetVersion") or {}),
+            backend_mode=str(summary.get("backendMode") or "deployed"),
+            status="interrupted",
+            started_at=str(summary.get("startedAt") or utc_now()),
+        )
+        for sample in state.samples:
+            state.sample_index[str(sample.get("id"))] = sample
+            if sample.get("status") in {"running", "queued"}:
+                sample["status"] = "cancelled"
+                sample["traceStatus"] = "missing"
+        state.progress = RunProgress(state.samples)
+        collector = CollectionPool(
+            lambda collection_job, current=state: self._collect_attempt(current, collection_job),
+            concurrency=self.collection_capacity,
+            capacity=self.collection_capacity,
+        )
+        try:
+            for job in pending:
+                await collector.reserve()
+                collector.submit(job)
+        finally:
+            try:
+                await collector.close()
+            finally:
+                await self._finish_metrics(state)
+        state.finished_at = utc_now()
+        await self._write(self._persist_state, state)
+        await self._write(store.update, {"recoveryState": "complete"})
+
+    @staticmethod
+    def _overview(state: BatchRunState) -> dict[str, Any]:
+        if state.progress is None:
+            state.progress = RunProgress(state.samples)
+        return {
+            "runId": state.run_id,
+            "status": state.status,
+            "startedAt": state.started_at,
+            "finishedAt": state.finished_at,
+            "endpoint": state.endpoint,
+            "concurrency": state.concurrency,
+            "maxRetries": state.max_retries,
+            "timeoutSeconds": state.timeout_seconds,
+            "taskId": state.task_id,
+            "datasetId": state.dataset_id,
+            "datasetVersion": state.dataset_version,
+            "backendMode": state.backend_mode,
+            "serviceStatus": state.service_status,
+            "interrupted": state.status == "interrupted",
+            "error": state.error,
+            **state.progress.snapshot(),
+            "generationMetrics": state.generation_metrics,
+            "observedRetryParameters": state.retry_parameters,
+            "collectionPending": state.collector.pending if state.collector is not None else 0,
+            "collectionBackpressure": (
+                state.collector.slots.locked() if state.collector is not None else False
+            ),
+        }
+
+    async def _save_sample(
+        self,
+        state: BatchRunState,
+        sample: dict[str, Any],
+        job: dict[str, Any] | None = None,
+    ) -> None:
+        if state.progress is None:
+            state.progress = RunProgress(state.samples)
+        state.progress.replace(sample)
+        saved = dict(sample)
+        revision = await self._write(
+            self._write_sample,
+            state.output_dir,
+            self._overview(state),
+            saved,
+            job,
+        )
+        sample["revision"] = revision
+
+    @staticmethod
+    def _write_sample(
+        run_dir: Path,
+        overview: dict[str, Any],
+        sample: dict[str, Any],
+        job: dict[str, Any] | None,
+    ) -> int:
+        revision = RunStateStore(run_dir).update(overview, sample, job)
+        atomic_write_json(run_dir / str(sample.get("id")) / "result.json", sample)
+        return revision
 
     def datasets(self) -> list[dict[str, Any]]:
         return [item.public_dict() for item in discover_datasets(self.dataset_root)]
@@ -563,16 +736,53 @@ class BatchRunManager:
     def get_run(self, run_id: str, *, include_metrics: bool = True) -> dict[str, Any]:
         state = self.runs.get(run_id)
         if state is not None:
-            summary = state.public_dict()
             run_dir = state.output_dir
+            if (run_dir / DATABASE_NAME).is_file():
+                summary = RunStateStore(run_dir).read()
+            else:
+                summary = state.public_dict()
         else:
-            summary = self._read_run_file(run_id, "summary.json")
             run_dir = self._safe_run_dir(run_id)
+            if (run_dir / DATABASE_NAME).is_file():
+                summary = RunStateStore(run_dir).read()
+            else:
+                summary = self._read_run_file(run_id, "summary.json")
         if include_metrics:
-            summary = enrich_run_metrics(summary, run_dir)
+            signature = (evidence_signature(run_dir), summary)
+            with self._metric_lock:
+                cached = self._metric_cache.get(run_id)
+                if cached is not None and cached[0] == signature:
+                    summary = copy.deepcopy(cached[1])
+                else:
+                    enriched = enrich_run_metrics(summary, run_dir)
+                    if run_id not in self._metric_cache and len(self._metric_cache) >= 8:
+                        oldest = next(iter(self._metric_cache))
+                        self._metric_cache.pop(oldest, None)
+                    self._metric_cache[run_id] = (copy.deepcopy(signature), enriched)
+                    summary = copy.deepcopy(enriched)
         return summary
 
-    def get_sample(self, run_id: str, sample_id: str) -> dict[str, Any]:
+    def progress(self, run_id: str, after: int = 0) -> dict[str, Any]:
+        run_dir = self._safe_run_dir(run_id)
+        store = RunStateStore(run_dir)
+        if store.path.is_file():
+            return store.read(after)
+        return self.get_run(run_id, include_metrics=False)
+
+    def progress_overview(self, run_id: str) -> dict[str, Any]:
+        run_dir = self._safe_run_dir(run_id)
+        store = RunStateStore(run_dir)
+        if store.path.is_file():
+            return store.overview()
+        return self.get_run(run_id, include_metrics=False)
+
+    def get_sample(
+        self,
+        run_id: str,
+        sample_id: str,
+        *,
+        refresh: bool = True,
+    ) -> dict[str, Any]:
         if not _SAMPLE_ID_PATTERN.fullmatch(sample_id):
             raise KeyError(sample_id)
         run_dir = self._safe_run_dir(run_id)
@@ -590,7 +800,7 @@ class BatchRunManager:
                 path = attempt_dir / f"{name}.json"
                 if path.is_file():
                     attempt[name] = self._read_json(path)
-            if self._refresh_missing_artifact(attempt_dir, attempt):
+            if refresh and self._refresh_missing_artifact(attempt_dir, attempt):
                 result_metadata_updated = True
                 final_attempt = result.get("finalAttempt")
                 if (
@@ -603,7 +813,7 @@ class BatchRunManager:
             trace_view_path = attempt_dir / "trace" / "view.json"
             if trace_view_path.is_file():
                 attempt["trace"] = self._read_json(trace_view_path)
-            if self._refresh_missing_trace(run_dir, attempt_dir, attempt):
+            if refresh and self._refresh_missing_trace(run_dir, attempt_dir, attempt):
                 result_metadata_updated = True
                 final_attempt = result.get("finalAttempt")
                 if isinstance(final_attempt, int) and attempt_dir.name == (
@@ -785,28 +995,34 @@ class BatchRunManager:
         available: dict[str, DatasetItem],
     ) -> None:
         state.status = "running"
-        self._persist_state(state)
-        semaphore = asyncio.Semaphore(state.concurrency)
+        await self._write(RunStateStore(state.output_dir).update, self._overview(state))
+        state.request_slots = asyncio.Semaphore(state.concurrency)
+        state.collector = CollectionPool(
+            lambda job: self._collect_attempt(state, job),
+            concurrency=self.collection_capacity,
+            capacity=self.collection_capacity,
+        )
 
         async def execute_sample(sample: dict[str, Any]) -> None:
             try:
-                async with semaphore:
-                    if state.cancel_event.is_set():
-                        sample["status"] = "cancelled"
-                        return
-                    item = available.get(str(sample.get("id")))
-                    if item is None:
-                        sample["status"] = "failed"
-                        sample["error"] = "数据样本不存在"
-                        return
-                    await self._execute_sample(state, sample, item)
+                if state.cancel_event.is_set():
+                    sample["status"] = "cancelled"
+                    return
+                item = available.get(str(sample.get("id")))
+                if item is None:
+                    sample["status"] = "failed"
+                    sample["error"] = "数据样本不存在"
+                    return
+                await self._execute_sample(state, sample, item)
             except asyncio.CancelledError:
                 if sample.get("status") not in {"success", "degraded", "failed", "unsupported"}:
                     sample["status"] = "cancelled"
             except Exception as exc:
-                sample["status"] = "failed"
-                sample["error"] = f"{type(exc).__name__}: {exc}"
-                self._persist_state(state)
+                state.error = f"{type(exc).__name__}: {exc}"
+                state.cancel_event.set()
+                for worker in state.workers:
+                    if worker is not asyncio.current_task():
+                        worker.cancel()
 
         state.workers = [
             asyncio.create_task(execute_sample(sample))
@@ -814,15 +1030,23 @@ class BatchRunManager:
             if sample.get("status") == "queued"
         ]
         await asyncio.gather(*state.workers, return_exceptions=True)
+        try:
+            await state.collector.close()
+        except Exception as exc:
+            state.error = f"{type(exc).__name__}: {exc}"
+        await self._finish_metrics(state)
         if state.cancel_event.is_set():
             for sample in state.samples:
                 if sample.get("status") in {"queued", "running"}:
                     sample["status"] = "cancelled"
+                    sample["traceStatus"] = "missing"
             state.status = "cancelled"
         else:
             state.status = "completed"
+        if state.error:
+            state.status = "failed"
         state.finished_at = utc_now()
-        self._persist_state(state)
+        await self._write(self._persist_state, state)
         self.tasks.pop(state.run_id, None)
 
     async def _execute_sample(
@@ -832,64 +1056,74 @@ class BatchRunManager:
         item: DatasetItem,
     ) -> None:
         sample["status"] = "running"
-        source = json.loads(item.path.read_text(encoding="utf-8"))
-        generation_elapsed = 0.0
+        source = await self._write(self._read_json, item.path)
+        generation_elapsed = float(sample.get("elapsedMs", 0.0))
         final_attempt: dict[str, Any] | None = None
         start_attempt = int(sample.get("attemptCount") or 0)
         for attempt in range(start_attempt, state.max_retries + 1):
             if state.cancel_event.is_set():
                 sample["status"] = "cancelled"
                 break
-            uid = f"batch-{state.run_token}-{int(sample.get('sequence', 0)):05d}-{attempt:03d}"
-            request = prepare_request(
-                source,
-                uid=uid,
-                run_token=state.run_token,
-                sample_id=str(sample.get("id")),
-                attempt=attempt,
-            )
-            request = apply_request_overrides(request, state.request_overrides)
-            attempt_dir = state.output_dir / str(sample.get("id")) / f"attempt_{attempt:03d}"
-            attempt_dir.mkdir(parents=True, exist_ok=True)
-            atomic_write_json(attempt_dir / "request.json", request)
-            sample["attemptCount"] = attempt + 1
-            sample["status"] = "running"
-            sample["traceStatus"] = "pending"
-            sample["traceRecordCount"] = 0
-            self._persist_state(state)
-
-            def publish_response(
-                response: dict[str, Any],
-                elapsed_ms: float,
-                response_uid: str = uid,
-                response_attempt: int = attempt,
-            ) -> None:
-                nonlocal generation_elapsed
-                generation_elapsed += elapsed_ms
-                sample["uid"] = response_uid
-                sample["status"] = response.get("status") or "failed"
-                sample["errorCode"] = response.get("errorCode") or ""
-                sample["error"] = _error_text(response.get("error"))
-                sample["elapsedMs"] = round(generation_elapsed, 2)
-                atomic_write_json(
-                    state.output_dir / str(sample.get("id")) / "result.json",
-                    {**sample, "finalAttempt": response_attempt},
+            collector = state.collector
+            if collector is None:
+                raise RuntimeError("批跑收集器未初始化")
+            await collector.reserve()
+            submitted = False
+            try:
+                uid = f"batch-{state.run_token}-{int(sample.get('sequence', 0)):05d}-{attempt:03d}"
+                request = prepare_request(
+                    source,
+                    uid=uid,
+                    run_token=state.run_token,
+                    sample_id=str(sample.get("id")),
+                    attempt=attempt,
                 )
-                self._persist_state(state)
+                request = apply_request_overrides(request, state.request_overrides)
+                attempt_dir = state.output_dir / str(sample.get("id")) / f"attempt_{attempt:03d}"
+                await self._write(atomic_write_json, attempt_dir / "request.json", request)
+                sample["attemptCount"] = attempt + 1
+                sample["status"] = "running"
+                sample["traceStatus"] = "pending"
+                sample["traceRecordCount"] = 0
+                sample["finalAttempt"] = attempt
+                await self._save_sample(state, sample)
 
-            final_attempt = await self._execute_attempt(
-                state, request, uid, attempt_dir, attempt, publish_response
-            )
-            sample["uid"] = uid
-            sample["status"] = final_attempt.get("status", "failed")
-            sample["errorCode"] = final_attempt.get("errorCode", "")
-            sample["error"] = final_attempt.get("error", "")
-            sample["artifactAvailable"] = final_attempt.get("artifactAvailable", False)
-            sample["dslAvailable"] = final_attempt.get("dslAvailable", False)
-            sample["traceStatus"] = final_attempt.get("traceStatus", "missing")
-            sample["traceRecordCount"] = final_attempt.get("traceRecordCount", 0)
-            sample["traceSchemaVersion"] = final_attempt.get("traceSchemaVersion", "")
-            sample["traceDurationMs"] = final_attempt.get("traceDurationMs", 0.0)
+                def publish_response(
+                    response: dict[str, Any],
+                    elapsed_ms: float,
+                    response_uid: str = uid,
+                    response_attempt: int = attempt,
+                ) -> None:
+                    nonlocal generation_elapsed
+                    generation_elapsed += elapsed_ms
+                    sample["uid"] = response_uid
+                    sample["status"] = response.get("status") or "failed"
+                    sample["errorCode"] = response.get("errorCode") or ""
+                    sample["error"] = _error_text(response.get("error"))
+                    sample["elapsedMs"] = round(generation_elapsed, 2)
+                    sample["finalAttempt"] = response_attempt
+
+                final_attempt = await self._execute_attempt(
+                    state,
+                    request,
+                    uid,
+                    attempt_dir,
+                    attempt,
+                    publish_response,
+                )
+                job = {
+                    "id": f"{sample.get('id')}/{attempt_dir.name}",
+                    "uid": uid,
+                    "sampleId": sample.get("id"),
+                    "attempt": attempt,
+                    "status": "pending",
+                }
+                await self._save_sample(state, sample, job)
+                collector.submit(job)
+                submitted = True
+            finally:
+                if not submitted:
+                    collector.release()
             if final_attempt.get("completed"):
                 break
             error_code = str(final_attempt.get("errorCode") or "")
@@ -897,13 +1131,7 @@ class BatchRunManager:
                 break
             if error_code in _DETERMINISTIC_ERROR_CODES:
                 break
-        if final_attempt is not None:
-            result = {**sample, "finalAttempt": int(sample.get("attemptCount", 1)) - 1}
-            atomic_write_json(
-                state.output_dir / str(sample.get("id")) / "result.json",
-                result,
-            )
-        self._persist_state(state)
+        await self._save_sample(state, sample)
 
     async def _execute_attempt(
         self,
@@ -917,11 +1145,12 @@ class BatchRunManager:
         started = time.perf_counter()
         response: dict[str, Any] = {}
         error = ""
-        artifact_available = False
-        dsl_available = False
-        blocks: dict[str, Any] = {}
         try:
-            response = await self.invoke(state.endpoint, request, state.timeout_seconds)
+            if state.request_slots is None:
+                raise RuntimeError("请求并发控制未初始化")
+            async with state.request_slots:
+                started = time.perf_counter()
+                response = await self.invoke(state.endpoint, request, state.timeout_seconds)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -930,52 +1159,134 @@ class BatchRunManager:
                 response = {"frames": list(exc.frames)}
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         publish_response(response, elapsed_ms)
-        try:
-            atomic_write_json(attempt_dir / "response.json", response)
-            data = response.get("data")
-            artifact_url = data.get("artifactUrl") if isinstance(data, dict) else None
-            if response.get("status") in {"success", "degraded"} and artifact_url:
-                artifact_text = await asyncio.to_thread(
-                    download_artifact,
-                    str(artifact_url),
-                    attempt_dir / "artifact.md",
-                    self._artifact_roots(state.output_dir),
-                )
-                artifact_available = True
-                blocks = self._save_artifact_preview(attempt_dir, artifact_text)
-                dsl_available = True
-            elif response.get("status") in {"success", "degraded"}:
-                error = "响应未返回 artifactUrl"
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            error = f"{type(exc).__name__}: {exc}"
-        try:
-            trace = await self._import_trace(uid, attempt_dir, state.output_dir)
-        except Exception as exc:
-            trace = {"status": "invalid"}
-            trace_error = f"Trace 导入失败: {type(exc).__name__}: {exc}"
-            error = f"{error}; {trace_error}" if error else trace_error
-        status = str(response.get("status") or "failed")
-        completed = status in {"success", "degraded"}
         result = {
             "attempt": attempt,
             "uid": uid,
-            "status": status,
-            "errorCode": str(response.get("errorCode") or ""),
-            "error": error or _error_text(response.get("error")),
+            "status": response.get("status") or "failed",
+            "errorCode": response.get("errorCode") or "",
+            "error": error,
             "elapsedMs": elapsed_ms,
-            "artifactAvailable": artifact_available,
-            "dslAvailable": dsl_available,
-            "blockNames": sorted(blocks),
-            "traceStatus": trace.get("status", "missing"),
-            "traceRecordCount": trace.get("recordCount", 0),
-            "traceSchemaVersion": trace.get("sourceSchemaVersion", ""),
-            "traceDurationMs": _trace_duration(trace),
-            "completed": completed,
+            "artifactAvailable": False,
+            "dslAvailable": False,
+            "traceStatus": "pending",
+            "completed": response.get("status") in {"success", "degraded"},
         }
-        atomic_write_json(attempt_dir / "result.json", result)
+        await self._write(atomic_write_json, attempt_dir / "response.json", response)
+        await self._write(atomic_write_json, attempt_dir / "result.json", result)
         return result
+
+    async def _collect_attempt(self, state: BatchRunState, job: dict[str, Any]) -> None:
+        sample_id = str(job.get("sampleId"))
+        attempt = int(job.get("attempt", 0))
+        if not _SAMPLE_ID_PATTERN.fullmatch(sample_id) or attempt < 0:
+            raise ValueError("收集任务样本或尝试编号不合法")
+        attempt_dir = state.output_dir / sample_id / f"attempt_{attempt:03d}"
+        response = await self._collect_io(self._read_json, attempt_dir / "response.json")
+        result = await self._collect_io(self._read_json, attempt_dir / "result.json")
+        uid = str(job.get("uid"))
+        error = str(result.get("error") or "")
+        artifact_available = False
+        dsl_available = False
+        blocks: dict[str, Any] = {}
+
+        async def collect_artifact() -> None:
+            nonlocal artifact_available, dsl_available, blocks, error
+            try:
+                data = response.get("data")
+                artifact_url = data.get("artifactUrl") if isinstance(data, dict) else None
+                if response.get("status") not in {"success", "degraded"}:
+                    return
+                if not artifact_url:
+                    error = "响应未返回 artifactUrl"
+                    return
+                async with asyncio.timeout(self.collection_timeout_seconds):
+                    roots = await self._collect_io(self._artifact_roots, state.output_dir)
+                    async with self._artifact_slots:
+                        artifact_text = await asyncio.to_thread(
+                            download_artifact,
+                            str(artifact_url),
+                            attempt_dir / "artifact.md",
+                            roots,
+                        )
+                    artifact_available = True
+                    blocks = await self._collect_io(
+                        self._save_artifact_preview, attempt_dir, artifact_text
+                    )
+                    dsl_available = True
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+
+        async def collect_trace() -> dict[str, Any]:
+            try:
+                return await asyncio.wait_for(
+                    self._import_trace(uid, attempt_dir, state.output_dir),
+                    self.collection_timeout_seconds,
+                )
+            except Exception as exc:
+                return {
+                    "status": "invalid",
+                    "error": f"Trace 导入失败: {type(exc).__name__}: {exc}",
+                }
+
+        _, trace = await asyncio.gather(collect_artifact(), collect_trace())
+        trace_error = trace.get("error")
+        if trace_error:
+            error = f"{error}; {trace_error}" if error else str(trace_error)
+        result.update(
+            {
+                "artifactAvailable": artifact_available,
+                "dslAvailable": dsl_available,
+                "blockNames": sorted(blocks),
+                "error": error or _error_text(response.get("error")),
+                "traceStatus": trace.get("status", "missing"),
+                "traceRecordCount": trace.get("recordCount", 0),
+                "traceSchemaVersion": trace.get("sourceSchemaVersion", ""),
+                "traceDurationMs": _trace_duration(trace),
+            }
+        )
+        await self._collect_io(atomic_write_json, attempt_dir / "result.json", result)
+        sample = state.sample_index.get(sample_id)
+        completed_job = {**job, "status": "complete"}
+        analysis: dict[str, Any] = {}
+        if sample is not None:
+            analysis = await self._collect_io(
+                enrich_run_metrics,
+                {"samples": [dict(sample)]},
+                state.output_dir,
+            )
+        if sample is not None:
+            if sample.get("finalAttempt") == attempt:
+                self._copy_result_metadata(result, sample)
+            analyzed_samples = analysis.get("samples") or []
+            if analyzed_samples:
+                sample["generationMetrics"] = analyzed_samples[0].get("generationMetrics", {})
+            await self._save_sample(state, sample, completed_job)
+        else:
+            await self._write(RunStateStore(state.output_dir).update, {}, None, completed_job)
+        if state.metrics_task is None or state.metrics_task.done():
+            state.metrics_task = asyncio.create_task(self._refresh_metrics(state))
+
+    async def _refresh_metrics(self, state: BatchRunState) -> None:
+        await asyncio.sleep(0.5)
+        samples = [dict(sample) for sample in state.samples]
+        analysis = await self._collect_io(self._aggregate_metrics, samples, state.output_dir)
+        state.generation_metrics = analysis.get("generationMetrics", {})
+        state.retry_parameters = analysis.get("observedRetryParameters", {})
+        await self._write(RunStateStore(state.output_dir).update, self._overview(state))
+
+    @staticmethod
+    async def _finish_metrics(state: BatchRunState) -> None:
+        if state.metrics_task is not None:
+            if not state.metrics_task.done():
+                state.metrics_task.cancel()
+            results = await asyncio.gather(state.metrics_task, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    state.error = f"指标更新失败: {type(result).__name__}: {result}"
+
+    @staticmethod
+    def _aggregate_metrics(samples: list[dict[str, Any]], run_dir: Path) -> dict[str, Any]:
+        return enrich_run_metrics({"samples": samples}, run_dir, stored_evidence=True)
 
     async def _import_trace(
         self,
@@ -983,17 +1294,21 @@ class BatchRunManager:
         attempt_dir: Path,
         run_dir: Path,
     ) -> dict[str, Any]:
-        importer = self._trace_importer_for_run(run_dir)
-        for _ in range(50):
-            if await asyncio.to_thread(importer.is_terminal, uid):
+        importer = await self._collect_io(self._trace_importer_for_run, run_dir)
+        deadline = time.monotonic() + 5.0
+        while True:
+            async with self._trace_slots:
+                terminal = await asyncio.to_thread(importer.is_terminal, uid)
+            if terminal or time.monotonic() >= deadline:
                 break
             await asyncio.sleep(0.1)
-        return await asyncio.to_thread(
-            importer.import_trace,
-            uid,
-            attempt_dir / "trace",
-            run_dir / "trace_blobs",
-        )
+        async with self._trace_slots:
+            return await asyncio.to_thread(
+                importer.import_trace,
+                uid,
+                attempt_dir / "trace",
+                run_dir / "trace_blobs",
+            )
 
     def _effective_service_config(self, run_dir: Path) -> dict[str, Any]:
         path = self.output_root / "executions" / f"{run_dir.name}.json"
@@ -1080,14 +1395,33 @@ class BatchRunManager:
 
     def _persist_state(self, state: BatchRunState) -> None:
         summary = state.public_dict()
+        for sample in state.samples:
+            state.sample_index[str(sample.get("id"))] = sample
+        state.progress = RunProgress(state.samples)
+        store = RunStateStore(state.output_dir)
+        if not store.path.is_file():
+            store.initialize(summary)
+        elif state.status in {"completed", "cancelled", "failed", "interrupted"}:
+            for sample in state.samples:
+                store.update({}, sample)
+            store.update(self._overview(state))
+        else:
+            store.update(self._overview(state))
+            return
         if state.status in {"completed", "cancelled", "failed", "interrupted"}:
             summary = enrich_run_metrics(summary, state.output_dir)
+        summary["error"] = state.error
         atomic_write_json(state.output_dir / "manifest.json", summary)
         atomic_write_json(state.output_dir / "summary.json", summary)
         (state.output_dir / "summary.md").write_text(
             self._summary_markdown(summary),
             encoding="utf-8",
         )
+        if state.status in {"completed", "cancelled", "failed", "interrupted"}:
+            exported = dict(summary)
+            exported.pop("samples", None)
+            exported["exportReady"] = True
+            store.update(exported)
 
     @staticmethod
     def _summary_markdown(summary: dict[str, Any]) -> str:
@@ -1118,8 +1452,10 @@ class BatchRunManager:
                     lines.append(
                         f"- {label}: {display}（{rate.get('numerator')}/{rate.get('denominator')}）"
                     )
-            lines.append(f"- 生成前失败 / 首稿证据缺失: {metrics.get('preDslFailed')} / "
-                         f"{metrics.get('firstDslUnknown')}")
+            lines.append(
+                f"- 生成前失败 / 首稿证据缺失: {metrics.get('preDslFailed')} / "
+                f"{metrics.get('firstDslUnknown')}"
+            )
             for key, label in (
                 ("qualityRepairAttempts", "内部修复尝试"),
                 ("modelPhysicalCalls", "模型物理调用"),
@@ -1130,11 +1466,13 @@ class BatchRunManager:
             observed = metrics.get("coverageObserved", 0)
             missing = metrics.get("coverageMissing") if observed else "未知"
             lines.append(f"- 交付信息缺失告警: {missing} 个样本，覆盖检查证据 {observed} 个样本")
-        lines.extend([
-            "",
-            "| 样本 | 状态 | 尝试 | 耗时(ms) | Trace | 错误码 |",
-            "|---|---|---:|---:|---|---|",
-        ])
+        lines.extend(
+            [
+                "",
+                "| 样本 | 状态 | 尝试 | 耗时(ms) | Trace | 错误码 |",
+                "|---|---|---:|---:|---|---|",
+            ]
+        )
         samples = summary.get("samples")
         if isinstance(samples, list):
             for sample in samples:

@@ -41,6 +41,9 @@ _BATCH_CONFIG: dict[str, tuple[str, type, Any]] = {
     "maxRetries": ("max_retries", int, 0),
     "requestTimeoutSeconds": ("request_timeout_seconds", float, 300.0),
     "traceRoot": ("trace_root", str, "workspace/traces"),
+    "collectionConcurrency": ("collection_concurrency", int, 2),
+    "collectionCapacity": ("collection_capacity", int, 128),
+    "collectionTimeoutSeconds": ("collection_timeout_seconds", float, 60.0),
 }
 
 
@@ -144,6 +147,15 @@ def load_batch_defaults(project_root: Path) -> dict[str, Any]:
     trace_root = result.get("traceRoot")
     if not isinstance(trace_root, str) or not trace_root.strip():
         raise ValueError("debug_tool.yaml 中 batch_testing.trace_root 不能为空")
+    for name, maximum in (("collectionConcurrency", 16), ("collectionCapacity", 4096)):
+        value = result.get(name)
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(f"批跑 {name} 必须为整数")
+        if not 1 <= value <= maximum:
+            raise ValueError(f"批跑 {name} 必须在 1 到 {maximum} 之间")
+    collection_timeout = result.get("collectionTimeoutSeconds")
+    if not isinstance(collection_timeout, (int, float)) or not 1 <= collection_timeout <= 3600:
+        raise ValueError("批跑 collection_timeout_seconds 必须在 1 到 3600 之间")
     return result
 
 

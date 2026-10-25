@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -302,9 +303,27 @@ def register_batch_routes(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/debug/batch/runs/{run_id}")
-    async def batch_run(run_id: str) -> dict[str, Any]:
+    async def batch_run(run_id: str, request: Request) -> Response:
         try:
-            return await run_in_threadpool(task_manager.get_run, run_id)
+            if request.headers.get("x-batch-view") == "progress":
+                overview = await run_in_threadpool(task_manager.progress, run_id)
+                digest = hashlib.sha256(
+                    json.dumps(overview, sort_keys=True, ensure_ascii=False).encode("utf-8")
+                ).hexdigest()
+                etag = f'"{digest}"'
+                generation = request.headers.get("x-batch-generation")
+                if generation and generation != overview.get("generation"):
+                    return JSONResponse({"resetRequired": True}, headers={"ETag": etag})
+                if request.headers.get("if-none-match") == etag:
+                    return Response(status_code=304, headers={"ETag": etag})
+                raw_revision = request.headers.get("x-batch-revision", "0")
+                if not raw_revision.isdigit():
+                    raise HTTPException(status_code=400, detail="批跑版本必须为非负整数")
+                result = await run_in_threadpool(task_manager.progress, run_id, int(raw_revision))
+                return JSONResponse(result, headers={"ETag": etag})
+            if request.headers.get("x-batch-view") == "snapshot":
+                return JSONResponse(await run_in_threadpool(task_manager.snapshot, run_id))
+            return JSONResponse(await run_in_threadpool(task_manager.get_run, run_id))
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="批跑记录不存在") from exc
 
@@ -431,13 +450,46 @@ def register_batch_routes(
         return FileResponse(path)
 
     @app.get("/debug/batch/runs/{run_id}/samples/{sample_id}")
-    async def batch_sample(run_id: str, sample_id: str) -> dict[str, Any]:
+    async def batch_sample(run_id: str, sample_id: str, request: Request) -> dict[str, Any]:
         try:
-            result = await asyncio.to_thread(run_manager.get_sample, run_id, sample_id)
+            result = await asyncio.to_thread(
+                run_manager.get_sample,
+                run_id,
+                sample_id,
+                refresh=False,
+            )
             result["deviceCapture"] = task_manager.sample_device_capture(run_id, sample_id)
             return result
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="批跑样本结果不存在") from exc
+
+    @app.get("/debug/batch/runs/{run_id}/samples")
+    async def batch_sample_page(
+        run_id: str,
+        request: Request,
+        offset: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=500),
+        status: str = "",
+        trace: str = "",
+        quality: str = "",
+    ) -> Response:
+        from .state_store import RunStateStore
+
+        try:
+            store = RunStateStore(run_manager._safe_run_dir(run_id))
+            if not store.path.is_file():
+                raise HTTPException(status_code=409, detail="历史运行使用兼容样本列表")
+            overview = await run_in_threadpool(store.overview)
+            signature = json.dumps(
+                [overview.get("revision"), offset, limit, status, trace, quality]
+            )
+            etag = f'"{hashlib.sha256(signature.encode()).hexdigest()}"'
+            if request.headers.get("if-none-match") == etag:
+                return Response(status_code=304, headers={"ETag": etag})
+            page = await run_in_threadpool(store.page, offset, limit, status, trace, quality)
+            return JSONResponse(page, headers={"ETag": etag})
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="批跑记录不存在") from exc
 
     @app.post("/debug/batch/runs/{run_id}/stop")
     async def stop_batch(run_id: str) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CardRenderer, resolveAppVersion, resolveCardSize } from '@widget-debug/card-renderer';
 import { openRendererSnapshot } from '../rendererSnapshot';
@@ -9,11 +9,14 @@ import {
   getBatchRun,
   getBatchSample,
   getBatchTask,
+  getBatchSamplePage,
+  pollBatchRun,
   type BatchAttempt,
   type BatchRun,
   type BatchSampleDetail,
   type BatchSampleSummary,
   type BatchTask,
+  type BatchSamplePage,
 } from '../batchApi';
 import { DEFAULT_ASSET_BASE_URL } from '../config';
 import { PostprocessPanel } from '../components/PostprocessPanel';
@@ -94,63 +97,153 @@ export function BatchRoute() {
   const [busy, setBusy] = useState(false);
   const [showCustomParams, setShowCustomParams] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(220);
+  const [samplePage, setSamplePage] = useState(0);
+  const [samplePageData, setSamplePageData] = useState<BatchSamplePage | null>(null);
+  const currentRun = useRef(run);
+  currentRun.current = run;
+  const refreshInFlight = useRef<Promise<void> | null>(null);
+  const refreshController = useRef<AbortController | null>(null);
+  const pollInFlight = useRef<Promise<BatchRun> | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (taskId) {
-      const nextTask = await getBatchTask(taskId);
-      setTask(nextTask);
-      const latestRun = nextTask.runs?.[0];
-      const preferredRunId = latestRun && ACTIVE_STATUSES.has(latestRun.status)
-        ? latestRun.runId
-        : run?.runId && nextTask.runs?.some((item) => item.runId === run.runId)
-          ? run.runId
-          : latestRun?.runId;
-      if (preferredRunId) setRun(await getBatchRun(preferredRunId)); else setRun(null);
-    } else if (legacyRunId) {
-      setRun(await getBatchRun(legacyRunId));
-    }
-  }, [legacyRunId, run?.runId, taskId]);
+  const refresh = useCallback((): Promise<void> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const controller = new AbortController();
+    refreshController.current = controller;
+    const request = (async () => {
+      if (pollInFlight.current) await Promise.allSettled([pollInFlight.current]);
+      if (controller.signal.aborted) return;
+      if (taskId) {
+        const nextTask = await getBatchTask(taskId, controller.signal);
+        if (controller.signal.aborted) return;
+        setTask(nextTask);
+        const latestRun = nextTask.runs?.[0];
+        const preferredRunId = latestRun && ACTIVE_STATUSES.has(latestRun.status)
+          ? latestRun.runId
+          : currentRun.current?.runId && nextTask.runs?.some((item) => item.runId === currentRun.current?.runId)
+            ? currentRun.current.runId
+            : latestRun?.runId;
+        if (preferredRunId) {
+          const next = await getBatchRun(preferredRunId, controller.signal);
+          if (!controller.signal.aborted) setRun(next);
+        } else setRun(null);
+      } else if (legacyRunId) {
+        const next = await getBatchRun(legacyRunId, controller.signal);
+        if (!controller.signal.aborted) setRun(next);
+      }
+    })().finally(() => { if (refreshInFlight.current === request) refreshInFlight.current = null; });
+    refreshInFlight.current = request;
+    return request;
+  }, [legacyRunId, taskId]);
 
   useEffect(() => {
-    refresh().catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
-  }, [taskId, legacyRunId]);
+    currentRun.current = null;
+    setRun(null);
+    setTask(null);
+    refresh().catch((reason) => {
+      if (reason?.name !== 'AbortError') setError(reason instanceof Error ? reason.message : String(reason));
+    });
+    return () => {
+      refreshController.current?.abort();
+      refreshInFlight.current = null;
+    };
+  }, [refresh]);
+
+  const polling = Boolean(run && (ACTIVE_STATUSES.has(run.status)
+    || run.recoveryState === 'running'
+    || run.gallery?.status === 'generating'
+    || ACTIVE_CAPTURE_STATUSES.has(run.deviceCapture?.status ?? '')
+    || run.postprocessExecutions?.some((item) => ['queued', 'running'].includes(item.status))));
+  useEffect(() => {
+    if (!polling) return;
+    const controller = new AbortController();
+    let timer: number;
+    const tick = async () => {
+      const previous = currentRun.current;
+      if (!previous || controller.signal.aborted) return;
+      try {
+        if (!refreshInFlight.current) {
+          const pending = pollBatchRun(previous, controller.signal);
+          pollInFlight.current = pending;
+          const next = await pending;
+          if (!controller.signal.aborted && currentRun.current?.runId === previous.runId) {
+            currentRun.current = next;
+            setRun(next);
+          }
+        }
+      } catch (reason) {
+        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+      } finally {
+        pollInFlight.current = null;
+        if (!controller.signal.aborted) timer = window.setTimeout(tick, document.hidden ? 3000 : 750);
+      }
+    };
+    timer = window.setTimeout(tick, 750);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [polling, run?.runId]);
 
   useEffect(() => {
-    if (!run || (!ACTIVE_STATUSES.has(run.status)
-      && run.gallery?.status !== 'generating'
-      && !ACTIVE_CAPTURE_STATUSES.has(run.deviceCapture?.status ?? '')
-      && !run.postprocessExecutions?.some((item) => ['queued', 'running'].includes(item.status)))) return;
-    const timer = window.setInterval(() => {
-      Promise.all([getBatchRun(run.runId), taskId ? getBatchTask(taskId) : Promise.resolve(null)])
-        .then(([nextRun, nextTask]) => { setRun(nextRun); if (nextTask) setTask(nextTask); })
-        .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
-    }, 750);
-    return () => window.clearInterval(timer);
-  }, [run?.deviceCapture?.status, run?.gallery?.status, run?.postprocessExecutions, run?.runId, run?.status, taskId]);
+    setSamplePage(0);
+    setSelectedSampleId('');
+  }, [run?.runId, statusFilter, traceFilter, generationFilter]);
+
+  useEffect(() => {
+    if (run?.storageVersion !== 2) return;
+    const controller = new AbortController();
+    let timer: number | undefined;
+    let previous: BatchSamplePage | undefined;
+    setSamplePageData(null);
+    const read = async () => {
+      try {
+        const page = await getBatchSamplePage(
+          run.runId, samplePage * 100, statusFilter, traceFilter, generationFilter, controller.signal, previous,
+        );
+        previous = page;
+        if (!controller.signal.aborted) setSamplePageData(page);
+      } catch (reason) {
+        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+      } finally {
+        if (!controller.signal.aborted && polling) timer = window.setTimeout(read, document.hidden ? 3000 : 750);
+      }
+    };
+    void read();
+    return () => { controller.abort(); if (timer !== undefined) window.clearTimeout(timer); };
+  }, [run?.runId, run?.storageVersion, samplePage, statusFilter, traceFilter, generationFilter, polling]);
+
+  const selectedSample = (samplePageData?.items ?? run?.samples)?.find((item) => item.id === selectedSampleId);
+  const captureVersion = run?.postprocessExecutions?.map((execution) => ({
+    id: execution.executionId,
+    plugins: execution.plugins.filter((plugin) => ['device-capture', 'device-gallery'].includes(plugin.id))
+      .map((plugin) => ({ id: plugin.id, status: plugin.status })),
+  })).filter((execution) => execution.plugins.length > 0);
+  const detailVersion = JSON.stringify([selectedSample ?? null, captureVersion, run?.deviceCapture?.status]);
 
   useEffect(() => {
     if (!run || !selectedSampleId) { setDetail(null); return; }
-    const sample = run.samples?.find((item) => item.id === selectedSampleId);
+    const sample = selectedSample;
     if (!sample || ACTIVE_STATUSES.has(sample.status)) { setDetail(null); return; }
     if (isCollectingTrace(sample, run.status)) { setDetail(null); return; }
     let cancelled = false;
-    getBatchSample(run.runId, selectedSampleId)
+    const controller = new AbortController();
+    getBatchSample(run.runId, selectedSampleId, controller.signal)
       .then((nextDetail) => { if (!cancelled) setDetail(nextDetail); })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
-    return () => { cancelled = true; };
-  }, [run, selectedSampleId]);
+      .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)); });
+    return () => { cancelled = true; controller.abort(); };
+  }, [run?.runId, run?.status, detailVersion, selectedSampleId]);
 
-  const visibleSamples = useMemo(() => (run?.samples ?? []).filter((sample) => {
-    if (statusFilter !== 'all' && sample.status !== statusFilter) return false;
-    if (traceFilter === 'warning' && !['missing', 'partial', 'invalid'].includes(sample.traceStatus)) return false;
-    if (traceFilter === 'available' && sample.traceStatus !== 'complete') return false;
-    const metrics = sample.generationMetrics;
-    if (generationFilter === 'first_failed' && metrics?.firstDsl !== 'failed') return false;
-    if (generationFilter === 'before_dsl_failure' && metrics?.firstDsl !== 'before_dsl_failure') return false;
-    if (generationFilter === 'retried' && sample.attemptCount < 2) return false;
-    if (generationFilter === 'missing_information' && !(metrics?.missingInformationWarnings)) return false;
-    return true;
-  }), [run, statusFilter, traceFilter, generationFilter]);
+  const visibleSamples = useMemo(() => {
+    if (run?.storageVersion === 2) return samplePageData?.items ?? [];
+    return (run?.samples ?? []).filter((sample) => {
+      if (statusFilter !== 'all' && sample.status !== statusFilter) return false;
+      if (traceFilter === 'warning' && !['missing', 'partial', 'invalid'].includes(sample.traceStatus)) return false;
+      if (traceFilter === 'available' && sample.traceStatus !== 'complete') return false;
+      const metrics = sample.generationMetrics;
+      if (generationFilter === 'first_failed' && metrics?.firstDsl !== 'failed') return false;
+      if (generationFilter === 'before_dsl_failure' && metrics?.firstDsl !== 'before_dsl_failure') return false;
+      if (generationFilter === 'retried' && sample.attemptCount < 2) return false;
+      if (generationFilter === 'missing_information' && !(metrics?.missingInformationWarnings)) return false;
+      return true;
+    });
+  }, [run, statusFilter, traceFilter, generationFilter, samplePageData]);
 
   const activeAttempt = finalAttempt(detail);
   const activeCardSize = resolveCardSize(
@@ -168,6 +261,21 @@ export function BatchRoute() {
     setBusy(true); setError('');
     try { await action(); await refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
+  };
+  const selectRun = (nextId: string) => {
+    refreshController.current?.abort();
+    const controller = new AbortController();
+    refreshController.current = controller;
+    currentRun.current = null;
+    setRun(null);
+    setSelectedSampleId('');
+    if (!nextId) return;
+    const request = getBatchRun(nextId, controller.signal).then((next) => {
+      if (!controller.signal.aborted) setRun(next);
+    }).catch((reason) => {
+      if (!controller.signal.aborted) setError(String(reason));
+    }).finally(() => { if (refreshInFlight.current === request) refreshInFlight.current = null; });
+    refreshInFlight.current = request;
   };
 
   return (
@@ -188,7 +296,7 @@ export function BatchRoute() {
               {showCustomParams ? '收起自定义参数' : '查看自定义参数'}
             </button>}
           </div>
-          {task && <div className="batch-run-switcher"><label>执行记录<select value={run?.runId ?? ''} onChange={(event) => { const nextId = event.target.value; if (!nextId) { setRun(null); return; } getBatchRun(nextId).then(setRun).catch((reason) => setError(String(reason))); setSelectedSampleId(''); }}><option value="">尚无执行</option>{task.runs?.map((item) => <option key={item.runId} value={item.runId}>{item.runId} · {statusLabel(item.status)}</option>)}</select></label><span>并发 {task.concurrency} · 重试 {task.maxRetries} · 超时 {task.timeoutSeconds}s</span></div>}
+          {task && <div className="batch-run-switcher"><label>执行记录<select value={run?.runId ?? ''} onChange={(event) => selectRun(event.target.value)}><option value="">尚无执行</option>{task.runs?.map((item) => <option key={item.runId} value={item.runId}>{item.runId} · {statusLabel(item.status)}</option>)}</select></label><span>并发 {task.concurrency} · 重试 {task.maxRetries} · 超时 {task.timeoutSeconds}s</span></div>}
         </div>
       </header>
       {error && <div className="batch-error" role="alert">{error}</div>}
@@ -253,6 +361,7 @@ export function BatchRoute() {
           {run.serviceLogPath && <p className="batch-log-path">服务日志：{run.serviceLogPath}</p>}
         </section>
       )}
+      {run?.collectionBackpressure && <div role="status">收集积压已达上限，正在等待容量后继续发送请求。</div>}
       <main className="batch-results">
         <section className="batch-summary">
           <div className="batch-progress"><span style={{ width: `${progress}%` }} /></div>
@@ -265,6 +374,11 @@ export function BatchRoute() {
           <div className="batch-table-panel">
             <div className="batch-table-toolbar">
               <strong>样本结果</strong>
+              {run?.storageVersion === 2 && <span>
+                <button disabled={samplePage === 0} onClick={() => { setSelectedSampleId(''); setSamplePage((page) => page - 1); }}>上一页</button>
+                {samplePage + 1} / {Math.max(1, Math.ceil((samplePageData?.total ?? 0) / 100))}
+                <button disabled={!samplePageData || (samplePage + 1) * 100 >= samplePageData.total} onClick={() => { setSelectedSampleId(''); setSamplePage((page) => page + 1); }}>下一页</button>
+              </span>}
               <select aria-label="样本状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 <option value="all">全部状态</option><option value="success">成功</option>
                 <option value="degraded">降级</option><option value="failed">失败</option>

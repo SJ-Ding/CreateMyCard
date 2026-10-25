@@ -53,6 +53,12 @@ main_agent:
 batch_testing:
   # 批跑并发数，1 到 16
   concurrency: 4
+  # 产物下载与 Trace 导入各自的并发数，1 到 16；不占用请求并发
+  collection_concurrency: 2
+  # 未收集请求尝试的容量，1 到 4096；满时暂停新请求准入
+  collection_capacity: 128
+  # 单次产物/Trace 收集的等待上限（含收集槽位等待），1 到 3600 秒
+  collection_timeout_seconds: 60
   # 批跑失败重试次数，0 到 5
   max_retries: 0
   # 请求超时秒数

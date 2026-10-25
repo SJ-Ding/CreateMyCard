@@ -29,6 +29,7 @@ from ..postprocess_plugins.validation_failure_gallery import (
 from .managed_config import canonical_name, read_configuration, sensitive
 from .metrics import retry_config_snapshot
 from .postprocess import PostprocessManager
+from .read_models import ExecutionIndex
 from .runner import BatchRunManager, atomic_write_json, discover_datasets, utc_now
 from .service_manager import (
     ManagedServiceController,
@@ -36,6 +37,7 @@ from .service_manager import (
     load_service_defaults,
     validate_service_config,
 )
+from .state_store import DATABASE_NAME, RunStateStore
 
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 _TERMINAL_STATUSES = {"completed", "cancelled", "failed", "interrupted"}
@@ -65,12 +67,19 @@ class BatchTaskManager:
         self.batch_defaults = load_batch_defaults(self.project_root)
         self.tasks_root = self.output_root / "tasks"
         self.executions_root = self.output_root / "executions"
+        self._execution_index = ExecutionIndex(self.executions_root)
+        self._execution_index_dirty = True
         self.scheduler_path = self.output_root / "scheduler.json"
         self.run_manager = run_manager or BatchRunManager(
             self.datasets_root,
             self.output_root,
             trace_root,
             cloud_root,
+        )
+        self.run_manager.configure_collection(
+            int(self.batch_defaults.get("collectionCapacity", 128)),
+            int(self.batch_defaults.get("collectionConcurrency", 2)),
+            float(self.batch_defaults.get("collectionTimeoutSeconds", 60.0)),
         )
         self.service_controller = service_controller or ManagedServiceController(
             self.project_root,
@@ -112,6 +121,7 @@ class BatchTaskManager:
         self.paused = False
         self._wake = asyncio.Event()
         self._scheduler_task: asyncio.Task[None] | None = None
+        self._recovery_task: asyncio.Task[None] | None = None
         self._closing = False
         self._load_scheduler_state()
 
@@ -119,8 +129,18 @@ class BatchTaskManager:
         await self.service_controller.recover_orphan()
         await self.device_capture_manager.start()
         await self.postprocess_manager.start()
+        if self._recovery_task is None:
+            self._recovery_task = asyncio.create_task(self._recover_runs())
         if self._scheduler_task is None:
             self._scheduler_task = asyncio.create_task(self._scheduler_loop())
+
+    async def _recover_runs(self) -> None:
+        failures = await self.run_manager.recover_collections()
+        for run_id, message in failures.items():
+            execution = self._read_execution_optional(run_id)
+            if execution is not None:
+                execution.update({"status": "failed", "error": message})
+                await asyncio.to_thread(self._write_execution, execution)
 
     async def close(self) -> None:
         self._closing = True
@@ -128,14 +148,15 @@ class BatchTaskManager:
         if self.active_run_id is not None:
             try:
                 await self.run_manager.cancel_run(self.active_run_id)
-            except KeyError:
-                pass
+            except KeyError as exc:
+                logging.getLogger(__name__).warning("关闭时活动批跑已不存在: %s", exc)
         if self._scheduler_task is not None:
             await self._scheduler_task
         await self.postprocess_manager.close()
         await self.device_capture_manager.close()
         await self.gallery_manager.close()
         await self.service_controller.stop()
+        await self.run_manager.close()
 
     def list_datasets(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
@@ -158,7 +179,9 @@ class BatchTaskManager:
                 item["versionError"] = str(exc)
                 logging.getLogger(__name__).warning(
                     "数据集 %s 版本信息不可用，保留样本与历史任务访问：%s: %s",
-                    path.name, type(exc).__name__, exc,
+                    path.name,
+                    type(exc).__name__,
+                    exc,
                 )
             else:
                 if version:
@@ -253,10 +276,14 @@ class BatchTaskManager:
         return self.create_task(copied)
 
     def list_tasks(self) -> list[dict[str, Any]]:
+        self._execution_index.refresh()
+        self._execution_index_dirty = False
         tasks = [self._task_public(task) for task in self._all_tasks()]
         return sorted(tasks, key=lambda item: str(item.get("updatedAt", "")), reverse=True)
 
     def get_task(self, task_id: str) -> dict[str, Any]:
+        self._execution_index.refresh()
+        self._execution_index_dirty = False
         task = self._task_public(self._read_task(task_id))
         task["runs"] = self._task_runs(task_id)
         return task
@@ -438,6 +465,37 @@ class BatchTaskManager:
         run["postprocessExecutions"] = self.postprocess_manager.executions(run_id)
         return run
 
+    def progress(self, run_id: str, after: int | None = None) -> dict[str, Any]:
+        if after is None:
+            run = self.run_manager.progress_overview(run_id)
+        else:
+            run = self.run_manager.progress(run_id, after)
+        execution = self._read_execution_optional(run_id)
+        if execution is not None:
+            for name in ("status", "queuePosition", "serviceStatus", "error"):
+                if name in execution:
+                    run[name] = execution.get(name)
+        run["postprocessExecutions"] = self.postprocess_manager.executions(run_id)
+        return run
+
+    def snapshot(self, run_id: str) -> dict[str, Any]:
+        store = RunStateStore(self.run_manager._safe_run_dir(run_id))
+        if not store.path.is_file():
+            return self.get_run(run_id)
+        run = self.progress(run_id)
+        run["samples"] = store.page(0, 100).get("items", [])
+        execution = self._read_execution_optional(run_id) or {}
+        names = (
+            "effectiveServiceConfig",
+            "configWarnings",
+            "serviceOverrides",
+            "retryConfigSnapshot",
+        )
+        for name in names:
+            if name in execution:
+                run[name] = execution.get(name)
+        return run
+
     def gallery_path(self, run_id: str) -> Path:
         path = self._latest_plugin_file(run_id, "browser-gallery", "gallery.html")
         return path if path is not None else self.gallery_manager.gallery_path(run_id)
@@ -505,6 +563,8 @@ class BatchTaskManager:
         return self.device_capture_manager.sample(run_id, sample_id)
 
     async def _scheduler_loop(self) -> None:
+        if self._recovery_task is not None:
+            await self._recovery_task
         while not self._closing:
             if self.paused or self.active_run_id is not None or not self.queue:
                 self._wake.clear()
@@ -609,9 +669,11 @@ class BatchTaskManager:
                 "cancelled",
                 "averageElapsedMs",
                 "traceWarnings",
+                "error",
             ):
                 execution[field_name] = summary.get(field_name, execution.get(field_name))
-            execution["summary"] = summary
+            execution.pop("summary", None)
+            execution["summaryPath"] = f"{run_id}/summary.json"
             execution["continueRun"] = False
             if execution["status"] == "completed":
                 self.postprocess_manager.activate_waiting(run_id)
@@ -622,7 +684,8 @@ class BatchTaskManager:
         except Exception as exc:
             execution["status"] = "failed"
             execution["finishedAt"] = utc_now()
-            execution["serviceStatus"] = "failed"
+            if execution.get("serviceStatus") in {"starting", "pending"}:
+                execution["serviceStatus"] = "failed"
             execution["error"] = f"{type(exc).__name__}: {exc}"
             service_log_path = getattr(self.service_controller, "last_log_path", None)
             if service_log_path is not None:
@@ -699,16 +762,10 @@ class BatchTaskManager:
         return sorted(runs, key=lambda item: str(item.get("createdAt", "")), reverse=True)
 
     def _task_execution_records(self, task_id: str) -> list[dict[str, Any]]:
-        executions: list[dict[str, Any]] = []
-        if self.executions_root.is_dir():
-            for path in self.executions_root.glob("*.json"):
-                try:
-                    execution = json.loads(path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    continue
-                if isinstance(execution, dict) and execution.get("taskId") == task_id:
-                    executions.append(execution)
-        return executions
+        if self._execution_index_dirty:
+            self._execution_index.refresh()
+            self._execution_index_dirty = False
+        return self._execution_index.records(task_id)
 
     def _has_active_postprocess(self, run_id: str) -> bool:
         if not run_id:
@@ -721,7 +778,11 @@ class BatchTaskManager:
     def _execution_public(self, run_id: str) -> dict[str, Any]:
         execution = self._read_execution(run_id)
         try:
-            summary = self.run_manager.get_run(run_id, include_metrics=False)
+            store = RunStateStore(self.output_root / run_id)
+            if store.path.is_file():
+                summary = store.overview()
+            else:
+                summary = self.run_manager.get_run(run_id, include_metrics=False)
         except KeyError:
             summary = execution.get("summary")
         if isinstance(summary, dict):
@@ -754,6 +815,8 @@ class BatchTaskManager:
 
     def _mark_persisted_run_interrupted(self, run_id: str) -> None:
         run_dir = self.output_root / run_id
+        if (run_dir / DATABASE_NAME).is_file():
+            return
         for name in ("manifest.json", "summary.json"):
             path = run_dir / name
             if not path.is_file():
@@ -801,6 +864,7 @@ class BatchTaskManager:
     def _write_execution(self, execution: dict[str, Any]) -> None:
         self.executions_root.mkdir(parents=True, exist_ok=True)
         atomic_write_json(self.executions_root / f"{execution['runId']}.json", execution)
+        self._execution_index_dirty = True
 
     def _read_execution(self, run_id: str) -> dict[str, Any]:
         value = self._read_execution_optional(run_id)
