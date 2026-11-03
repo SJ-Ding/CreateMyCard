@@ -1,0 +1,77 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "小提琴课排在每周三，弄张倒计时卡，数到最近一次。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetRecurringCountdownDays",
+        "arguments": {
+          "rule": "* * 3 *"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "乐器课倒计时",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "小提琴课排在每周三，弄张倒计时卡，数到最近一次。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261107090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "035",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "小提琴课排在每周三，弄张倒计时卡，数到最近一次。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "小提琴课排在每周三，弄张倒计时卡，数到最近一次。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetRecurringCountdownDays",
+      "arguments": {
+        "rule": "* * 3 *"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "乐器课倒计时",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "小提琴课排在每周三，弄张倒计时卡，数到最近一次。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "和朋友约好以后每逢星期三散步，把到下一回见面的倒数日做成一张卡吧。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetRecurringCountdownDays",
+        "arguments": {
+          "rule": "* * 3 *"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "周中散步倒计时",
+    "size": "2x4",
+    "candidateEventCandidates": [],
+    "description": "和朋友约好以后每逢星期三散步，把到下一回见面的倒数日做成一张卡吧。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261103090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "060",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "和朋友约好以后每逢星期三散步，把到下一回见面的倒数日做成一张卡吧。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "和朋友约好以后每逢星期三散步，把到下一回见面的倒数日做成一张卡吧。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetRecurringCountdownDays",
+      "arguments": {
+        "rule": "* * 3 *"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "周中散步倒计时",
+  "size": "2x4",
+  "candidateEventCandidates": [],
+  "description": "和朋友约好以后每逢星期三散步，把到下一回见面的倒数日做成一张卡吧。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

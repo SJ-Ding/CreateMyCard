@@ -1,0 +1,77 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "每周三做计划，今天周三就先显示今天这次的倒计时，不要跳到下周，帮我做卡片。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetCountdownDays",
+        "arguments": {
+          "targetDate": "2026-11-04"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "周三计划倒计时",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "每周三做计划，今天周三就先显示今天这次的倒计时，不要跳到下周，帮我做卡片。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261104090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "053",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "每周三做计划，今天周三就先显示今天这次的倒计时，不要跳到下周，帮我做卡片。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "每周三做计划，今天周三就先显示今天这次的倒计时，不要跳到下周，帮我做卡片。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetCountdownDays",
+      "arguments": {
+        "targetDate": "2026-11-04"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "周三计划倒计时",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "每周三做计划，今天周三就先显示今天这次的倒计时，不要跳到下周，帮我做卡片。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

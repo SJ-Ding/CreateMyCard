@@ -1,0 +1,79 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "妹妹的生日每年11月10日，不是11月1日，帮我创建下次生日倒数卡。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetCountdownDays",
+        "arguments": {
+          "targetDate": "2026-11-10"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "生日日期纠正倒计时",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "妹妹的生日每年11月10日，不是11月1日，帮我创建下次生日倒数卡。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill",
+      "asset.cake_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261103090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "119",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "妹妹的生日每年11月10日，不是11月1日，帮我创建下次生日倒数卡。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "妹妹的生日每年11月10日，不是11月1日，帮我创建下次生日倒数卡。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetCountdownDays",
+      "arguments": {
+        "targetDate": "2026-11-10"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "生日日期纠正倒计时",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "妹妹的生日每年11月10日，不是11月1日，帮我创建下次生日倒数卡。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill",
+    "asset.cake_fill"
+  ]
+}

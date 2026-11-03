@@ -1,0 +1,77 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "每月最后一个周六玩桌游，帮我做下一局活动日的倒计时卡。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetCountdownDays",
+        "arguments": {
+          "targetDate": "2028-03-25"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "月末桌游倒计时",
+    "size": "2x4",
+    "candidateEventCandidates": [],
+    "description": "每月最后一个周六玩桌游，帮我做下一局活动日的倒计时卡。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20280229090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "080",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "每月最后一个周六玩桌游，帮我做下一局活动日的倒计时卡。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "每月最后一个周六玩桌游，帮我做下一局活动日的倒计时卡。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetCountdownDays",
+      "arguments": {
+        "targetDate": "2028-03-25"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "月末桌游倒计时",
+  "size": "2x4",
+  "candidateEventCandidates": [],
+  "description": "每月最后一个周六玩桌游，帮我做下一局活动日的倒计时卡。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

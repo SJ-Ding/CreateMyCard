@@ -1,0 +1,77 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "培训每月最后一个周六举行，今天就是本月培训日，卡片显示到今天的倒计时。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetRecurringCountdownDays",
+        "arguments": {
+          "rule": "* * 6L *"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "月末培训倒计时",
+    "size": "2x4",
+    "candidateEventCandidates": [],
+    "description": "培训每月最后一个周六举行，今天就是本月培训日，卡片显示到今天的倒计时。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20280226090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "078",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "培训每月最后一个周六举行，今天就是本月培训日，卡片显示到今天的倒计时。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "培训每月最后一个周六举行，今天就是本月培训日，卡片显示到今天的倒计时。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetRecurringCountdownDays",
+      "arguments": {
+        "rule": "* * 6L *"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "月末培训倒计时",
+  "size": "2x4",
+  "candidateEventCandidates": [],
+  "description": "培训每月最后一个周六举行，今天就是本月培训日，卡片显示到今天的倒计时。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

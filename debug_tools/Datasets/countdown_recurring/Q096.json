@@ -1,0 +1,79 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "2016年11月3日创业，周年日昨天刚过，帮我做下一个周年纪念日倒计时卡。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetRecurringCountdownDays",
+        "arguments": {
+          "rule": "3 11 * *"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "创业纪念日倒计时",
+    "size": "2x4",
+    "candidateEventCandidates": [],
+    "description": "2016年11月3日创业，周年日昨天刚过，帮我做下一个周年纪念日倒计时卡。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill",
+      "asset.cake_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261104090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "096",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "2016年11月3日创业，周年日昨天刚过，帮我做下一个周年纪念日倒计时卡。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "2016年11月3日创业，周年日昨天刚过，帮我做下一个周年纪念日倒计时卡。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetRecurringCountdownDays",
+      "arguments": {
+        "rule": "3 11 * *"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "创业纪念日倒计时",
+  "size": "2x4",
+  "candidateEventCandidates": [],
+  "description": "2016年11月3日创业，周年日昨天刚过，帮我做下一个周年纪念日倒计时卡。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill",
+    "asset.cake_fill"
+  ]
+}

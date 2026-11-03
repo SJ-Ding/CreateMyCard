@@ -1,0 +1,79 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "每年3月8日庆祝加入社团，做张清爽浅绿的周年倒计时卡。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetRecurringCountdownDays",
+        "arguments": {
+          "rule": "8 3 * *"
+        },
+        "writeResultTo": "/data/countdown",
+        "candidateOutputFields": [
+          "/countdownDays"
+        ]
+      }
+    ],
+    "title": "周年清爽版倒计时",
+    "size": "2x4",
+    "candidateEventCandidates": [],
+    "description": "每年3月8日庆祝加入社团，做张清爽浅绿的周年倒计时卡。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill",
+      "asset.cake_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261103090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "116",
+    "isNew": true,
+    "sessionId": "countdown-comparison-v1"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "每年3月8日庆祝加入社团，做张清爽浅绿的周年倒计时卡。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "每年3月8日庆祝加入社团，做张清爽浅绿的周年倒计时卡。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetRecurringCountdownDays",
+      "arguments": {
+        "rule": "8 3 * *"
+      },
+      "writeResultTo": "/data/countdown",
+      "candidateOutputFields": [
+        "/countdownDays"
+      ]
+    }
+  ],
+  "title": "周年清爽版倒计时",
+  "size": "2x4",
+  "candidateEventCandidates": [],
+  "description": "每年3月8日庆祝加入社团，做张清爽浅绿的周年倒计时卡。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill",
+    "asset.cake_fill"
+  ]
+}

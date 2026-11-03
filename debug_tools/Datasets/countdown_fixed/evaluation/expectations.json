@@ -1,0 +1,2472 @@
+{
+  "datasets": [
+    "countdown_fixed",
+    "countdown_recurring"
+  ],
+  "version": "v1",
+  "sourceDescription": "两套数据集共用的120条倒计时语料，原始query与参考日期完整保存在samples中。",
+  "referencePolicy": "使用逐条参考日、Asia/Shanghai；匹配包含当天；闰日只取实际存在的2月29日。",
+  "comparisonPolicy": "120条全部保留；90条周期样本只修改接口标识和入参；30条一次性样本完全相同。",
+  "samples": [
+    {
+      "sampleId": "Q001",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "考试",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-19",
+      "expectedCountdownDays": 46,
+      "size": "2x2",
+      "focus": "完整日期",
+      "userQuery": "帮我做张考试倒计时卡，考试定在2026年12月19日。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-12-19"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q002",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "出差",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-18",
+      "expectedCountdownDays": 15,
+      "size": "2x4",
+      "focus": "数字日期",
+      "userQuery": "2026-11-18出差，桌面上放个出发倒计时。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-18"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q003",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "搬家",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "斜杠日期",
+      "userQuery": "想要一张到2026/11/28搬家的倒数日卡片。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q004",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "项目交付",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-15",
+      "expectedCountdownDays": 42,
+      "size": "2x4",
+      "focus": "公文表达",
+      "userQuery": "请创建项目交付倒计时卡片，截止日期为2026年12月15日。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-12-15"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q005",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "演出",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-21",
+      "expectedCountdownDays": 18,
+      "size": "2x2",
+      "focus": "口语疑问",
+      "userQuery": "我2026年11月21日去看演出，还有几天？做成卡片吧。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-21"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q006",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "旅行",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-01-09",
+      "expectedCountdownDays": 67,
+      "size": "2x4",
+      "focus": "跨年",
+      "userQuery": "明年1月9日去旅行，给我弄个出发倒计时小卡。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2027-01-09"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q007",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "论文答辩",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-30",
+      "expectedCountdownDays": 27,
+      "size": "2x2",
+      "focus": "省略年份",
+      "userQuery": "11月30日论文答辩，帮我做个倒数日。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-30"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q008",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "入职",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "相对明天",
+      "userQuery": "明天入职啦，来张倒计时卡片。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q009",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "复诊",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-05",
+      "expectedCountdownDays": 2,
+      "size": "2x2",
+      "focus": "相对后天",
+      "userQuery": "后天要复诊，帮我放一张倒计时卡在桌面。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-05"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q010",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "课程开班",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-10",
+      "expectedCountdownDays": 7,
+      "size": "2x4",
+      "focus": "相对天数",
+      "userQuery": "七天后课程开班，做个开班倒计时。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-10"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q011",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "签约",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-03",
+      "expectedCountdownDays": 0,
+      "size": "2x2",
+      "focus": "当天零天",
+      "userQuery": "今天签约，想做张签约倒计时卡，日期就是今天。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-03"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q012",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "展览开幕",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-02",
+      "expectedCountdownDays": -1,
+      "size": "2x4",
+      "focus": "过去一天",
+      "userQuery": "展览2026年11月2日已经开幕了，做张以这个日期为目标的倒计时卡，过期时显示已开始。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-02"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q013",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "结课",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-10-27",
+      "expectedCountdownDays": -7,
+      "size": "2x2",
+      "focus": "过去七天",
+      "userQuery": "结课日是2026年10月27日，给我做倒数日卡，日期已经过去也要正确说明。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-10-27"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q014",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "面试",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-06",
+      "expectedCountdownDays": 3,
+      "size": "2x4",
+      "focus": "临近三天",
+      "userQuery": "面试在2026年11月6日，卡片突出还剩多少天。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-06"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q015",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "家庭聚会",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 8,
+      "size": "2x2",
+      "focus": "八天边界",
+      "userQuery": "2026年11月11日家庭聚会，帮忙做张简洁的倒计时卡。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q016",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "开工",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-02-11",
+      "expectedCountdownDays": 100,
+      "size": "2x4",
+      "focus": "整百天",
+      "userQuery": "给2027年2月11日的开工做倒计时，正好剩整百天时换个醒目的主题。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2027-02-11"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q017",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "作品发布",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-05-22",
+      "expectedCountdownDays": 200,
+      "size": "2x2",
+      "focus": "两百天",
+      "userQuery": "作品计划2027年5月22日发布，做一张发布倒计时卡。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2027-05-22"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q018",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-12-31",
+      "timezone": "Asia/Shanghai",
+      "eventName": "出发",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-01-01",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "年末明天",
+      "userQuery": "明天就是2027年1月1日出发的日子，给我做个倒计时。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2027-01-01"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q019",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2027-01-31",
+      "timezone": "Asia/Shanghai",
+      "eventName": "提交材料",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-02-01",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "月末明天",
+      "userQuery": "明天交材料，用一张桌面卡片倒数剩余天数。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2027-02-01"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q020",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2028-02-28",
+      "timezone": "Asia/Shanghai",
+      "eventName": "资格考试",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2028-02-29",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "闰日目标",
+      "userQuery": "考试时间是2028年2月29日，帮我做倒计时卡片。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2028-02-29"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q021",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2027-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "毕业",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2028-06-30",
+      "expectedCountdownDays": 240,
+      "size": "2x2",
+      "focus": "长周期",
+      "userQuery": "离2028年6月30日毕业还有多久？我想每天在卡片上看到天数。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2028-06-30"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q022",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "体检",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-07",
+      "expectedCountdownDays": 4,
+      "size": "2x4",
+      "focus": "含时刻按天",
+      "userQuery": "2026年11月7日早上8点体检，卡片按天倒计时，并写上体检时间。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-07"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q023",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "航班出发",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-15",
+      "expectedCountdownDays": 12,
+      "size": "2x2",
+      "focus": "静态时间",
+      "userQuery": "做张航班倒计时卡，2026年11月15日14:30出发，显示日期、起飞时间和剩余天数。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-15"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q024",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "比赛",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-06",
+      "expectedCountdownDays": 33,
+      "size": "2x4",
+      "focus": "否定干扰",
+      "userQuery": "请做比赛倒计时，目标是2026年12月6日，不是12月5日。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-12-06"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q025",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "婚礼",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-05-01",
+      "expectedCountdownDays": 179,
+      "size": "2x2",
+      "focus": "样式偏好",
+      "userQuery": "我们的婚礼定在2027年5月1日，想要一张温柔浅色的倒数日卡。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2027-05-01"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q026",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "培训结束",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-20",
+      "expectedCountdownDays": 17,
+      "size": "2x4",
+      "focus": "极简",
+      "userQuery": "培训结束倒计时：2026.11.20。做成桌面卡片。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-20"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q027",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "答辩材料截止",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-10",
+      "expectedCountdownDays": 7,
+      "size": "2x2",
+      "focus": "较长标题",
+      "userQuery": "帮我做“研究生毕业答辩材料最终提交截止”倒计时卡，截止日2026年11月10日，标题完整显示。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-11-10"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q028",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "假期开始",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-25",
+      "expectedCountdownDays": 52,
+      "size": "2x4",
+      "focus": "信息主次",
+      "userQuery": "假期2026年12月25日开始，倒计时天数放大，目标日期放下面，做张卡片。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-12-25"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q029",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "新家交付",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-03-31",
+      "expectedCountdownDays": 148,
+      "size": "2x2",
+      "focus": "无提醒动作",
+      "userQuery": "新家2027年3月31日交付，只想看倒数天数，帮我做桌面卡，不用提醒。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2027-03-31"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q030",
+      "type": "确定日程",
+      "rule": "once",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "纪念展",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-12",
+      "expectedCountdownDays": 39,
+      "size": "2x4",
+      "focus": "一次性纪念",
+      "userQuery": "2026年12月12日有一场纪念展，只举行这一次，做当天的倒计时卡，不要按年循环。",
+      "comparisonEligible": false,
+      "fixedArguments": {
+        "targetDate": "2026-12-12"
+      },
+      "recurringArguments": null
+    },
+    {
+      "sampleId": "Q031",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周三例会",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "周二到周三",
+      "userQuery": "每周三都开例会，帮我做一张到下一次例会的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q032",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-04",
+      "timezone": "Asia/Shanghai",
+      "eventName": "瑜伽课",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 0,
+      "size": "2x4",
+      "focus": "周三当天",
+      "userQuery": "每个星期三上瑜伽课，今天也是上课日，做张包含今天的下一次上课倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q033",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-05",
+      "timezone": "Asia/Shanghai",
+      "eventName": "读书会",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 6,
+      "size": "2x2",
+      "focus": "本周已过",
+      "userQuery": "每周三有读书会，想在桌面看到离下一场还有几天。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q034",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-06",
+      "timezone": "Asia/Shanghai",
+      "eventName": "游泳课",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 5,
+      "size": "2x4",
+      "focus": "星期写法",
+      "userQuery": "星期三固定去游泳，给我来个每周循环的倒数日小卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q035",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-07",
+      "timezone": "Asia/Shanghai",
+      "eventName": "乐器课",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 4,
+      "size": "2x2",
+      "focus": "周六参照",
+      "userQuery": "小提琴课排在每周三，弄张倒计时卡，数到最近一次。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q036",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-08",
+      "timezone": "Asia/Shanghai",
+      "eventName": "技术分享",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 3,
+      "size": "2x4",
+      "focus": "周日参照",
+      "userQuery": "周三是每周技术分享日，帮我把下一次分享的倒计时做成卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q037",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-09",
+      "timezone": "Asia/Shanghai",
+      "eventName": "跑团活动",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 2,
+      "size": "2x2",
+      "focus": "周一参照",
+      "userQuery": "周周三参加跑团，想要距离下次活动的桌面倒计时。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q038",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "舞蹈课",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "礼貌请求",
+      "userQuery": "麻烦创建舞蹈课倒计时卡，课程每星期三一次。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q039",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "家庭电影夜",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "口语",
+      "userQuery": "我们家一到礼拜三就看电影，做张等下一次电影夜的倒数卡呗。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q040",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "项目复盘",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "简短指令",
+      "userQuery": "每周三项目复盘，下一场倒计时，做成桌面卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q041",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "英语角",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "询问表达",
+      "userQuery": "离下一个周三英语角还有几天？这是每周固定活动，想用卡片看。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q042",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "垃圾分类整理",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "生活事务",
+      "userQuery": "每周三整理可回收物，做个到下次整理日的倒计时卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q043",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "实验室讨论",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "含静态时间",
+      "userQuery": "实验室讨论每周三下午3点，做张按天倒计时的卡，顺便写上15:00。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q044",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "社区志愿活动",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "时间修饰",
+      "userQuery": "每个周三上午去做志愿服务，卡片显示到下次周三的天数。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q045",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-12-30",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周三训练",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-30",
+      "expectedCountdownDays": 0,
+      "size": "2x2",
+      "focus": "年末当天",
+      "userQuery": "每周三训练一次，今天2026年12月30日也算本次目标，帮我创建倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-12-30"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q046",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-12-31",
+      "timezone": "Asia/Shanghai",
+      "eventName": "每周采购",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-01-06",
+      "expectedCountdownDays": 6,
+      "size": "2x4",
+      "focus": "跨年",
+      "userQuery": "固定星期三采购，年底也照常，帮我做下次采购的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-06"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q047",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2027-01-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "线上研讨",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-01-06",
+      "expectedCountdownDays": 5,
+      "size": "2x2",
+      "focus": "新年",
+      "userQuery": "每周三开线上研讨会，做个下一期倒计时，不需要会议跳转。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-06"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q048",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2027-01-31",
+      "timezone": "Asia/Shanghai",
+      "eventName": "亲子阅读",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-02-03",
+      "expectedCountdownDays": 3,
+      "size": "2x4",
+      "focus": "跨月",
+      "userQuery": "每周三陪孩子阅读，下一次还有多久？做一张卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-02-03"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q049",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2028-02-29",
+      "timezone": "Asia/Shanghai",
+      "eventName": "篮球训练",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2028-03-01",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "闰日参照",
+      "userQuery": "每周三有篮球训练，给我一张到最近训练日的倒数日卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2028-03-01"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q050",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周中盘点",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "数字星期",
+      "userQuery": "每周3做仓库盘点，做一个下次盘点的倒计时桌面卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q051",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "花艺课",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "否定对照",
+      "userQuery": "花艺课是每周三，不是每周四，帮我创建下一节课的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q052",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "固定聚餐",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "非一次性",
+      "userQuery": "我们每周三聚餐，不是只约这周一次，想要聚餐倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q053",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-04",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周三计划",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 0,
+      "size": "2x2",
+      "focus": "当日不跳周",
+      "userQuery": "每周三做计划，今天周三就先显示今天这次的倒计时，不要跳到下周，帮我做卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q054",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-05",
+      "timezone": "Asia/Shanghai",
+      "eventName": "播客录制",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 6,
+      "size": "2x4",
+      "focus": "过日顺延",
+      "userQuery": "播客每周三录制，本周三已经过了，卡片请倒数到下周三。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q055",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周中拉伸",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "视觉简洁",
+      "userQuery": "每周三拉伸打卡，倒数到下一次，卡片只留活动名、日期和天数。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q056",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "绘画课",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "视觉偏好",
+      "userQuery": "画画课每周三上，想用浅蓝配色的倒计时卡等下一堂课。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q057",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "团队午餐",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "信息层级",
+      "userQuery": "每周三团队午餐，做张卡把离下一次还有几天放中间，下面标周三。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q058",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "远程答疑",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "完整名称",
+      "userQuery": "做“研究方法课程线上集中答疑”倒计时卡，每周三进行，活动名称要保留。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q059",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "宠物梳毛",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "委婉表达",
+      "userQuery": "想让桌面有个小卡数着日子，提醒我离每周三给猫梳毛的日子还有多远，只展示倒计时就行。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q060",
+      "type": "每周三",
+      "rule": "weekly_wednesday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周中散步",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-04",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "自然叙述",
+      "userQuery": "和朋友约好以后每逢星期三散步，把到下一回见面的倒数日做成一张卡吧。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-04"
+      },
+      "recurringArguments": {
+        "rule": "* * 3 *"
+      }
+    },
+    {
+      "sampleId": "Q061",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月末大扫除",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "基础",
+      "userQuery": "每个月最后一个星期六大扫除，帮我做下次大扫除的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q062",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "家庭聚餐",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "口语",
+      "userQuery": "我家每月最后一个周六聚餐，做张卡数数离下一顿还有几天。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q063",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月度读书会",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "简短",
+      "userQuery": "月度读书会：每月最后一个周六。请创建倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q064",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "志愿服务",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "礼拜写法",
+      "userQuery": "每个月的最后一个礼拜六做志愿服务，想在桌面看下一次的倒计时。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q065",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "家庭理财复盘",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "解释末周",
+      "userQuery": "每月最后一个周六复盘家庭账目，帮我做倒数日卡；按最后一次星期六算。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q066",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "徒步",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "询问",
+      "userQuery": "离下一次月末周六徒步还有多少天？每个月都在最后一个周六，做成卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q067",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-27",
+      "timezone": "Asia/Shanghai",
+      "eventName": "旧物整理",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "前一天",
+      "userQuery": "每月最后一个周六整理旧物，给我做下一次整理日的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q068",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-28",
+      "timezone": "Asia/Shanghai",
+      "eventName": "社区集市",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 0,
+      "size": "2x4",
+      "focus": "目标当天",
+      "userQuery": "社区集市每月最后一个星期六举办，今天正好是本月这天，卡片先倒计时到今天。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q069",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-29",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月末观影",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-26",
+      "expectedCountdownDays": 27,
+      "size": "2x2",
+      "focus": "已过顺延",
+      "userQuery": "每月最后一个周六观影，本月那场已经过去，倒数到下个月那场，做张卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-12-26"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q070",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-30",
+      "timezone": "Asia/Shanghai",
+      "eventName": "车库整理",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-12-26",
+      "expectedCountdownDays": 26,
+      "size": "2x4",
+      "focus": "月末非周六",
+      "userQuery": "每月最后一个周六整理车库，创建最近一次还没过去的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-12-26"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q071",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2027-07-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "摄影活动",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-07-31",
+      "expectedCountdownDays": 30,
+      "size": "2x2",
+      "focus": "月末恰逢周六",
+      "userQuery": "每月最后一个周六参加摄影活动，做下次倒计时卡，不能漏掉月末当天是周六的情况。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-07-31"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q072",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2027-07-31",
+      "timezone": "Asia/Shanghai",
+      "eventName": "家庭烘焙",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-07-31",
+      "expectedCountdownDays": 0,
+      "size": "2x4",
+      "focus": "月末当日",
+      "userQuery": "每个月最后一个周六烘焙，今天7月31日正好也是周六，创建含今天的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-07-31"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q073",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2027-08-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月度采购",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-08-28",
+      "expectedCountdownDays": 27,
+      "size": "2x2",
+      "focus": "月末次日",
+      "userQuery": "每月最后一个星期六集中采购，昨天那次已过，做下一次采购的倒数日卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-08-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q074",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-12-27",
+      "timezone": "Asia/Shanghai",
+      "eventName": "公园写生",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-01-30",
+      "expectedCountdownDays": 34,
+      "size": "2x4",
+      "focus": "跨年",
+      "userQuery": "每月最后一个周六去公园写生，本月已经结束活动，做下一回的倒计时。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-30"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q075",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-12-31",
+      "timezone": "Asia/Shanghai",
+      "eventName": "年度最后采购",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-01-30",
+      "expectedCountdownDays": 30,
+      "size": "2x2",
+      "focus": "年末",
+      "userQuery": "每个月最后一个周六采购生活用品，今天年底了，帮我倒数到下一次并做成卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-30"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q076",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2027-02-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "二月聚会",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-02-27",
+      "expectedCountdownDays": 26,
+      "size": "2x4",
+      "focus": "平年二月",
+      "userQuery": "每月最后一个周六同学聚会，做一张到最近聚会的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-02-27"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q077",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2028-02-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "二月运动日",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2028-02-26",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "闰年二月",
+      "userQuery": "运动日固定每月最后一个星期六，给我下次运动日的倒数卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2028-02-26"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q078",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2028-02-26",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月末培训",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2028-02-26",
+      "expectedCountdownDays": 0,
+      "size": "2x4",
+      "focus": "闰年当天",
+      "userQuery": "培训每月最后一个周六举行，今天就是本月培训日，卡片显示到今天的倒计时。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2028-02-26"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q079",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2028-02-27",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月度手作",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2028-03-25",
+      "expectedCountdownDays": 27,
+      "size": "2x2",
+      "focus": "闰年顺延",
+      "userQuery": "每月最后一个周六一起做手工，本月活动昨天已过，想看下月那次的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2028-03-25"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q080",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2028-02-29",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月末桌游",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2028-03-25",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "闰月末",
+      "userQuery": "每月最后一个周六玩桌游，帮我做下一局活动日的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2028-03-25"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q081",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "绿植养护",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "避免最后一天误解",
+      "userQuery": "绿植集中养护在每月最后一个周六，不是每月最后一天，请做下次养护的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q082",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月度复盘",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "避免第四周误解",
+      "userQuery": "月度复盘选每月最后一个周六，不固定为第四个周六，创建下次复盘倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q083",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2027-05-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "五周六月份活动",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-05-29",
+      "expectedCountdownDays": 28,
+      "size": "2x2",
+      "focus": "五个周六",
+      "userQuery": "每月最后一个周六办手工交流会，五月有五个周六也取最后那个，帮我做倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-05-29"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q084",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2027-04-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "四周六月份活动",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2027-04-24",
+      "expectedCountdownDays": 23,
+      "size": "2x4",
+      "focus": "四个周六",
+      "userQuery": "每月最后一个周六参加社区棋会，帮我把到下次棋会的天数放到卡片上。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-04-24"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q085",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月末讲座",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "静态时刻",
+      "userQuery": "讲座每月最后一个周六14:00开始，卡片按天倒计时，并保留开始时间。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q086",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "家人团圆",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "温暖风格",
+      "userQuery": "每个月最后一个周六回家吃饭，做个温暖配色的下次团聚倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q087",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月度清单",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "极简显示",
+      "userQuery": "每月最后一个周六整理生活清单，卡片显示活动名、下次日期和倒数天数即可。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q088",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "器材保养",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "正式表达",
+      "userQuery": "请创建摄影器材保养倒计时卡，保养周期为每月最后一个星期六。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q089",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月末茶会",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x2",
+      "focus": "否定对照",
+      "userQuery": "茶会在每个月最后一个周六，不是最后一个周日，帮我做下一场的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q090",
+      "type": "月末周六",
+      "rule": "monthly_last_saturday",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "家庭会议",
+      "annualMonthDay": null,
+      "expectedTargetDate": "2026-11-28",
+      "expectedCountdownDays": 25,
+      "size": "2x4",
+      "focus": "较长表达",
+      "userQuery": "我们约定每个月过到最后一个星期六就开家庭会议，希望桌面有张卡，一眼能看到离下一次会议还有几天。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-28"
+      },
+      "recurringArguments": {
+        "rule": "* * 6L *"
+      }
+    },
+    {
+      "sampleId": "Q091",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "结婚纪念日",
+      "annualMonthDay": "05-20",
+      "expectedTargetDate": "2027-05-20",
+      "expectedCountdownDays": 198,
+      "size": "2x2",
+      "focus": "历史起点",
+      "userQuery": "我们2020年5月20日结婚，帮我做每年结婚纪念日的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-05-20"
+      },
+      "recurringArguments": {
+        "rule": "20 5 * *"
+      }
+    },
+    {
+      "sampleId": "Q092",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "相识纪念日",
+      "annualMonthDay": "11-11",
+      "expectedTargetDate": "2026-11-11",
+      "expectedCountdownDays": 8,
+      "size": "2x4",
+      "focus": "今年未过",
+      "userQuery": "我和伴侣在2018年11月11日相识，做个每年相识纪念日倒数卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-11"
+      },
+      "recurringArguments": {
+        "rule": "11 11 * *"
+      }
+    },
+    {
+      "sampleId": "Q093",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "入职纪念日",
+      "annualMonthDay": "03-15",
+      "expectedTargetDate": "2027-03-15",
+      "expectedCountdownDays": 132,
+      "size": "2x2",
+      "focus": "今年已过",
+      "userQuery": "2019年3月15日入职的，每年这天纪念一下，帮我做下次周年日倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-03-15"
+      },
+      "recurringArguments": {
+        "rule": "15 3 * *"
+      }
+    },
+    {
+      "sampleId": "Q094",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "毕业纪念日",
+      "annualMonthDay": "06-30",
+      "expectedTargetDate": "2027-06-30",
+      "expectedCountdownDays": 239,
+      "size": "2x4",
+      "focus": "周期明示",
+      "userQuery": "毕业纪念日固定每年6月30日，想在桌面看到下一次还有几天。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-06-30"
+      },
+      "recurringArguments": {
+        "rule": "30 6 * *"
+      }
+    },
+    {
+      "sampleId": "Q095",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "领证纪念日",
+      "annualMonthDay": "11-03",
+      "expectedTargetDate": "2026-11-03",
+      "expectedCountdownDays": 0,
+      "size": "2x2",
+      "focus": "当天",
+      "userQuery": "每年11月3日是领证纪念日，今天也是，卡片先显示今天这次倒计时。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-03"
+      },
+      "recurringArguments": {
+        "rule": "3 11 * *"
+      }
+    },
+    {
+      "sampleId": "Q096",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-04",
+      "timezone": "Asia/Shanghai",
+      "eventName": "创业纪念日",
+      "annualMonthDay": "11-03",
+      "expectedTargetDate": "2027-11-03",
+      "expectedCountdownDays": 364,
+      "size": "2x4",
+      "focus": "次日顺延",
+      "userQuery": "2016年11月3日创业，周年日昨天刚过，帮我做下一个周年纪念日倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-11-03"
+      },
+      "recurringArguments": {
+        "rule": "3 11 * *"
+      }
+    },
+    {
+      "sampleId": "Q097",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "生日",
+      "annualMonthDay": "02-19",
+      "expectedTargetDate": "2027-02-19",
+      "expectedCountdownDays": 108,
+      "size": "2x2",
+      "focus": "生日",
+      "userQuery": "儿子每年公历2月19日过生日，给我一张到下次生日的倒数日卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-02-19"
+      },
+      "recurringArguments": {
+        "rule": "19 2 * *"
+      }
+    },
+    {
+      "sampleId": "Q098",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "妈妈生日",
+      "annualMonthDay": "12-08",
+      "expectedTargetDate": "2026-12-08",
+      "expectedCountdownDays": 35,
+      "size": "2x4",
+      "focus": "亲情",
+      "userQuery": "妈妈生日是公历12月8日，每年都过，帮我做生日倒计时卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-12-08"
+      },
+      "recurringArguments": {
+        "rule": "8 12 * *"
+      }
+    },
+    {
+      "sampleId": "Q099",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "恋爱纪念日",
+      "annualMonthDay": "09-09",
+      "expectedTargetDate": "2027-09-09",
+      "expectedCountdownDays": 310,
+      "size": "2x2",
+      "focus": "口语",
+      "userQuery": "我们2017年9月9日在一起啦，想做张等下一个恋爱周年日的小卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-09-09"
+      },
+      "recurringArguments": {
+        "rule": "9 9 * *"
+      }
+    },
+    {
+      "sampleId": "Q100",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "新家入住纪念日",
+      "annualMonthDay": "07-01",
+      "expectedTargetDate": "2027-07-01",
+      "expectedCountdownDays": 240,
+      "size": "2x4",
+      "focus": "叙述",
+      "userQuery": "2022年7月1日搬进新家，以后每年这一天都庆祝，来张下次纪念日倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-07-01"
+      },
+      "recurringArguments": {
+        "rule": "1 7 * *"
+      }
+    },
+    {
+      "sampleId": "Q101",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "领养纪念日",
+      "annualMonthDay": "04-17",
+      "expectedTargetDate": "2027-04-17",
+      "expectedCountdownDays": 165,
+      "size": "2x2",
+      "focus": "宠物纪念",
+      "userQuery": "小猫是2021年4月17日领养的，做每年领养纪念日的倒数卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-04-17"
+      },
+      "recurringArguments": {
+        "rule": "17 4 * *"
+      }
+    },
+    {
+      "sampleId": "Q102",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "第一次旅行纪念日",
+      "annualMonthDay": "08-16",
+      "expectedTargetDate": "2027-08-16",
+      "expectedCountdownDays": 286,
+      "size": "2x4",
+      "focus": "较长名称",
+      "userQuery": "帮我做“第一次共同旅行纪念日”倒计时卡，每年8月16日，名称完整展示。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-08-16"
+      },
+      "recurringArguments": {
+        "rule": "16 8 * *"
+      }
+    },
+    {
+      "sampleId": "Q103",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "店庆",
+      "annualMonthDay": "12-01",
+      "expectedTargetDate": "2026-12-01",
+      "expectedCountdownDays": 28,
+      "size": "2x2",
+      "focus": "周年活动",
+      "userQuery": "小店2015年12月1日开业，每年店庆都在这天，做下一次店庆倒计时。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-12-01"
+      },
+      "recurringArguments": {
+        "rule": "1 12 * *"
+      }
+    },
+    {
+      "sampleId": "Q104",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "团队成立纪念日",
+      "annualMonthDay": "01-01",
+      "expectedTargetDate": "2027-01-01",
+      "expectedCountdownDays": 59,
+      "size": "2x4",
+      "focus": "新年周年",
+      "userQuery": "团队2014年1月1日成立，每年元旦是成立纪念日，帮我做倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-01"
+      },
+      "recurringArguments": {
+        "rule": "1 1 * *"
+      }
+    },
+    {
+      "sampleId": "Q105",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-12-30",
+      "timezone": "Asia/Shanghai",
+      "eventName": "年末纪念日",
+      "annualMonthDay": "12-31",
+      "expectedTargetDate": "2026-12-31",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "年末前一天",
+      "userQuery": "每年12月31日是我们的相识纪念日，做下一次纪念日倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-12-31"
+      },
+      "recurringArguments": {
+        "rule": "31 12 * *"
+      }
+    },
+    {
+      "sampleId": "Q106",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-12-31",
+      "timezone": "Asia/Shanghai",
+      "eventName": "元旦领证周年",
+      "annualMonthDay": "01-01",
+      "expectedTargetDate": "2027-01-01",
+      "expectedCountdownDays": 1,
+      "size": "2x4",
+      "focus": "跨年一天",
+      "userQuery": "我们每年1月1日庆祝领证周年，给我做一张下次纪念日的倒数卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-01"
+      },
+      "recurringArguments": {
+        "rule": "1 1 * *"
+      }
+    },
+    {
+      "sampleId": "Q107",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2027-01-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "元旦当天周年",
+      "annualMonthDay": "01-01",
+      "expectedTargetDate": "2027-01-01",
+      "expectedCountdownDays": 0,
+      "size": "2x2",
+      "focus": "年初当天",
+      "userQuery": "今天1月1日正是每年一次的入职周年日，卡片就以今天为目标，帮我创建。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-01"
+      },
+      "recurringArguments": {
+        "rule": "1 1 * *"
+      }
+    },
+    {
+      "sampleId": "Q108",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "月末生日",
+      "annualMonthDay": "01-31",
+      "expectedTargetDate": "2027-01-31",
+      "expectedCountdownDays": 89,
+      "size": "2x4",
+      "focus": "31日",
+      "userQuery": "爸爸生日每年公历1月31日，做下次生日倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-01-31"
+      },
+      "recurringArguments": {
+        "rule": "31 1 * *"
+      }
+    },
+    {
+      "sampleId": "Q109",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2027-02-27",
+      "timezone": "Asia/Shanghai",
+      "eventName": "二月末纪念日",
+      "annualMonthDay": "02-28",
+      "expectedTargetDate": "2027-02-28",
+      "expectedCountdownDays": 1,
+      "size": "2x2",
+      "focus": "平年二月末",
+      "userQuery": "每年2月28日是项目成立纪念日，帮我做下次周年纪念的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-02-28"
+      },
+      "recurringArguments": {
+        "rule": "28 2 * *"
+      }
+    },
+    {
+      "sampleId": "Q110",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2028-02-29",
+      "timezone": "Asia/Shanghai",
+      "eventName": "二月末生日",
+      "annualMonthDay": "02-28",
+      "expectedTargetDate": "2029-02-28",
+      "expectedCountdownDays": 365,
+      "size": "2x4",
+      "focus": "闰年已过",
+      "userQuery": "生日每年公历2月28日，今天是2028年2月29日，今年生日已过，请做下次生日倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2029-02-28"
+      },
+      "recurringArguments": {
+        "rule": "28 2 * *"
+      }
+    },
+    {
+      "sampleId": "Q111",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2027-03-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "闰日纪念日",
+      "annualMonthDay": "02-29",
+      "expectedTargetDate": "2028-02-29",
+      "expectedCountdownDays": 365,
+      "size": "2x2",
+      "focus": "闰日跳至合法年份",
+      "userQuery": "纪念日定在2月29日，只在有这一天的年份纪念，不折算2月28日，帮我做下次纪念日倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2028-02-29"
+      },
+      "recurringArguments": {
+        "rule": "29 2 * *"
+      }
+    },
+    {
+      "sampleId": "Q112",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2028-02-29",
+      "timezone": "Asia/Shanghai",
+      "eventName": "闰日当天纪念",
+      "annualMonthDay": "02-29",
+      "expectedTargetDate": "2028-02-29",
+      "expectedCountdownDays": 0,
+      "size": "2x4",
+      "focus": "闰日当天",
+      "userQuery": "我们的纪念日只认2月29日，今天正是这天，先做今天的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2028-02-29"
+      },
+      "recurringArguments": {
+        "rule": "29 2 * *"
+      }
+    },
+    {
+      "sampleId": "Q113",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2028-03-01",
+      "timezone": "Asia/Shanghai",
+      "eventName": "闰日次日纪念",
+      "annualMonthDay": "02-29",
+      "expectedTargetDate": "2032-02-29",
+      "expectedCountdownDays": 1460,
+      "size": "2x2",
+      "focus": "闰日四年后",
+      "userQuery": "每逢2月29日纪念第一次见面，不提前也不顺延到别的日子，这次已过，做下一次的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2032-02-29"
+      },
+      "recurringArguments": {
+        "rule": "29 2 * *"
+      }
+    },
+    {
+      "sampleId": "Q114",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周年非正计时",
+      "annualMonthDay": "10-01",
+      "expectedTargetDate": "2027-10-01",
+      "expectedCountdownDays": 332,
+      "size": "2x4",
+      "focus": "倒计时方向",
+      "userQuery": "2010年10月1日结婚，每年都庆祝，想看离下个结婚纪念日还有几天，不要显示已经结婚多少天，做成卡片。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-10-01"
+      },
+      "recurringArguments": {
+        "rule": "1 10 * *"
+      }
+    },
+    {
+      "sampleId": "Q115",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "公历生日",
+      "annualMonthDay": "08-15",
+      "expectedTargetDate": "2027-08-15",
+      "expectedCountdownDays": 285,
+      "size": "2x2",
+      "focus": "公历限定",
+      "userQuery": "生日是公历每年8月15日，不是农历，给我做下一个生日的倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-08-15"
+      },
+      "recurringArguments": {
+        "rule": "15 8 * *"
+      }
+    },
+    {
+      "sampleId": "Q116",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "周年清爽版",
+      "annualMonthDay": "03-08",
+      "expectedTargetDate": "2027-03-08",
+      "expectedCountdownDays": 125,
+      "size": "2x4",
+      "focus": "样式偏好",
+      "userQuery": "每年3月8日庆祝加入社团，做张清爽浅绿的周年倒计时卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-03-08"
+      },
+      "recurringArguments": {
+        "rule": "8 3 * *"
+      }
+    },
+    {
+      "sampleId": "Q117",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "领证周年极简",
+      "annualMonthDay": "05-21",
+      "expectedTargetDate": "2027-05-21",
+      "expectedCountdownDays": 199,
+      "size": "2x2",
+      "focus": "数字日期",
+      "userQuery": "领证纪念日05-21，每年重复。做倒计时卡，数字醒目一点。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2027-05-21"
+      },
+      "recurringArguments": {
+        "rule": "21 5 * *"
+      }
+    },
+    {
+      "sampleId": "Q118",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "公司周年",
+      "annualMonthDay": "12-20",
+      "expectedTargetDate": "2026-12-20",
+      "expectedCountdownDays": 47,
+      "size": "2x4",
+      "focus": "正式请求",
+      "userQuery": "请创建公司成立周年纪念日倒计时卡，纪念日期为每年12月20日。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-12-20"
+      },
+      "recurringArguments": {
+        "rule": "20 12 * *"
+      }
+    },
+    {
+      "sampleId": "Q119",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "生日日期纠正",
+      "annualMonthDay": "11-10",
+      "expectedTargetDate": "2026-11-10",
+      "expectedCountdownDays": 7,
+      "size": "2x2",
+      "focus": "否定干扰",
+      "userQuery": "妹妹的生日每年11月10日，不是11月1日，帮我创建下次生日倒数卡。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-10"
+      },
+      "recurringArguments": {
+        "rule": "10 11 * *"
+      }
+    },
+    {
+      "sampleId": "Q120",
+      "type": "周年纪念日",
+      "rule": "yearly_anniversary",
+      "referenceDate": "2026-11-03",
+      "timezone": "Asia/Shanghai",
+      "eventName": "两人纪念日",
+      "annualMonthDay": "11-09",
+      "expectedTargetDate": "2026-11-09",
+      "expectedCountdownDays": 6,
+      "size": "2x4",
+      "focus": "信息层次",
+      "userQuery": "我们每年11月9日庆祝相恋周年，做张卡上面写纪念日名字，中间突出剩余天数，下面放下次日期。",
+      "comparisonEligible": true,
+      "fixedArguments": {
+        "targetDate": "2026-11-09"
+      },
+      "recurringArguments": {
+        "rule": "9 11 * *"
+      }
+    }
+  ]
+}
