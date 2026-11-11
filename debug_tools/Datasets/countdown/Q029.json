@@ -1,0 +1,81 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "新家2027年3月31日交付，只想看倒数天数，帮我做桌面卡，不用提醒。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetDateCounter",
+        "arguments": {
+          "targetDate": "2027-03-31"
+        },
+        "writeResultTo": "/data/dateCounter",
+        "candidateOutputFields": [
+          "/days",
+          "/relationText",
+          "/targetDateText"
+        ]
+      }
+    ],
+    "title": "新家交付倒计时",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "新家2027年3月31日交付，只想看倒数天数，帮我做桌面卡，不用提醒。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261103090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "Q029",
+    "isNew": true,
+    "sessionId": "countdown-v2"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "新家2027年3月31日交付，只想看倒数天数，帮我做桌面卡，不用提醒。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "新家2027年3月31日交付，只想看倒数天数，帮我做桌面卡，不用提醒。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetDateCounter",
+      "arguments": {
+        "targetDate": "2027-03-31"
+      },
+      "writeResultTo": "/data/dateCounter",
+      "candidateOutputFields": [
+        "/days",
+        "/relationText",
+        "/targetDateText"
+      ]
+    }
+  ],
+  "title": "新家交付倒计时",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "新家2027年3月31日交付，只想看倒数天数，帮我做桌面卡，不用提醒。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

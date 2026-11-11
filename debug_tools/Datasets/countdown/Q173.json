@@ -1,0 +1,83 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "计划2027年农历三月初八开始健身，帮我做张记录坚持天数的卡吧。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetDateCounter",
+        "arguments": {
+          "targetDate": "2027-03-08",
+          "calendar": "lunar"
+        },
+        "writeResultTo": "/data/dateCounter",
+        "candidateOutputFields": [
+          "/days",
+          "/relationText",
+          "/targetDateText"
+        ]
+      }
+    ],
+    "title": "健身开始累计时",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "计划2027年农历三月初八开始健身，帮我做张记录坚持天数的卡吧。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261105090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "Q173",
+    "isNew": true,
+    "sessionId": "countdown-v2"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "计划2027年农历三月初八开始健身，帮我做张记录坚持天数的卡吧。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "计划2027年农历三月初八开始健身，帮我做张记录坚持天数的卡吧。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetDateCounter",
+      "arguments": {
+        "targetDate": "2027-03-08",
+        "calendar": "lunar"
+      },
+      "writeResultTo": "/data/dateCounter",
+      "candidateOutputFields": [
+        "/days",
+        "/relationText",
+        "/targetDateText"
+      ]
+    }
+  ],
+  "title": "健身开始累计时",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "计划2027年农历三月初八开始健身，帮我做张记录坚持天数的卡吧。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

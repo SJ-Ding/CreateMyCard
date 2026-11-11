@@ -1,0 +1,87 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "星期三固定去游泳，给我来个每周循环的倒数日小卡。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetDateCounter",
+        "arguments": {
+          "targetDate": "2026-11-11",
+          "repeat": {
+            "unit": "week"
+          }
+        },
+        "writeResultTo": "/data/dateCounter",
+        "candidateOutputFields": [
+          "/days",
+          "/relationText",
+          "/targetDateText"
+        ]
+      }
+    ],
+    "title": "游泳课倒计时",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "星期三固定去游泳，给我来个每周循环的倒数日小卡。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261106090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "Q034",
+    "isNew": true,
+    "sessionId": "countdown-v2"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "星期三固定去游泳，给我来个每周循环的倒数日小卡。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "星期三固定去游泳，给我来个每周循环的倒数日小卡。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetDateCounter",
+      "arguments": {
+        "targetDate": "2026-11-11",
+        "repeat": {
+          "unit": "week"
+        }
+      },
+      "writeResultTo": "/data/dateCounter",
+      "candidateOutputFields": [
+        "/days",
+        "/relationText",
+        "/targetDateText"
+      ]
+    }
+  ],
+  "title": "游泳课倒计时",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "星期三固定去游泳，给我来个每周循环的倒数日小卡。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

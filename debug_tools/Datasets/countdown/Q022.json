@@ -1,0 +1,81 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "2026年11月7日早上8点体检，卡片按天倒计时，并写上体检时间。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetDateCounter",
+        "arguments": {
+          "targetDate": "2026-11-07"
+        },
+        "writeResultTo": "/data/dateCounter",
+        "candidateOutputFields": [
+          "/days",
+          "/relationText",
+          "/targetDateText"
+        ]
+      }
+    ],
+    "title": "体检倒计时",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "2026年11月7日早上8点体检，卡片按天倒计时，并写上体检时间。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261103090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "Q022",
+    "isNew": true,
+    "sessionId": "countdown-v2"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "2026年11月7日早上8点体检，卡片按天倒计时，并写上体检时间。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "2026年11月7日早上8点体检，卡片按天倒计时，并写上体检时间。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetDateCounter",
+      "arguments": {
+        "targetDate": "2026-11-07"
+      },
+      "writeResultTo": "/data/dateCounter",
+      "candidateOutputFields": [
+        "/days",
+        "/relationText",
+        "/targetDateText"
+      ]
+    }
+  ],
+  "title": "体检倒计时",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "2026年11月7日早上8点体检，卡片按天倒计时，并写上体检时间。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

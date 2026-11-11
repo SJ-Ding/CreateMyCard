@@ -1,0 +1,93 @@
+{
+  "content": {
+    "bundleName": "com.omega_w_0823.hmservice",
+    "userQuery": "从农历2024-09-24（非闰月）起，每年这天是家庭纪念日，做一张到下次的倒计时卡。",
+    "candidateDataBindings": [
+      {
+        "capabilityId": "GetDateCounter",
+        "arguments": {
+          "targetDate": "2024-09-24",
+          "calendar": "lunar",
+          "isLeapMonth": false,
+          "repeat": {
+            "unit": "year",
+            "interval": 1
+          }
+        },
+        "writeResultTo": "/data/dateCounter",
+        "candidateOutputFields": [
+          "/days",
+          "/relationText",
+          "/targetDateText"
+        ]
+      }
+    ],
+    "title": "农历纪念日",
+    "size": "2x2",
+    "candidateEventCandidates": [],
+    "description": "从农历2024-09-24（非闰月）起，每年这天是家庭纪念日，做一张到下次的倒计时卡。",
+    "candidateAssetIds": [
+      "asset.stopwatch_fill",
+      "asset.calendar_fill"
+    ]
+  },
+  "deviceInfo": {
+    "countryCode": "CN",
+    "deviceFormation": "HDSpeaker",
+    "deviceType": 0,
+    "locale": "zh-CN",
+    "phoneType": "SGT-AL10",
+    "prdVer": "11.9.9.342",
+    "sysVer": "EmotionUI_9.0.0",
+    "time": "20261103090000000"
+  },
+  "pagination": {
+    "limit": 5,
+    "start": ""
+  },
+  "session": {
+    "interactionId": "Q067",
+    "isNew": true,
+    "sessionId": "countdown-v2"
+  },
+  "userAuth": {
+    "user": {
+      "userId": ""
+    }
+  },
+  "utterance": {
+    "original": "从农历2024-09-24（非闰月）起，每年这天是家庭纪念日，做一张到下次的倒计时卡。",
+    "type": "text"
+  },
+  "version": "1.0",
+  "bundleName": "com.omega_w_0823.hmservice",
+  "userQuery": "从农历2024-09-24（非闰月）起，每年这天是家庭纪念日，做一张到下次的倒计时卡。",
+  "candidateDataBindings": [
+    {
+      "capabilityId": "GetDateCounter",
+      "arguments": {
+        "targetDate": "2024-09-24",
+        "calendar": "lunar",
+        "isLeapMonth": false,
+        "repeat": {
+          "unit": "year",
+          "interval": 1
+        }
+      },
+      "writeResultTo": "/data/dateCounter",
+      "candidateOutputFields": [
+        "/days",
+        "/relationText",
+        "/targetDateText"
+      ]
+    }
+  ],
+  "title": "农历纪念日",
+  "size": "2x2",
+  "candidateEventCandidates": [],
+  "description": "从农历2024-09-24（非闰月）起，每年这天是家庭纪念日，做一张到下次的倒计时卡。",
+  "candidateAssetIds": [
+    "asset.stopwatch_fill",
+    "asset.calendar_fill"
+  ]
+}

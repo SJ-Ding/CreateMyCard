@@ -1,0 +1,14 @@
+{
+  "current_version": "v2",
+  "update_date": "2026-11-09",
+  "history_versions": [
+    {
+      "version": "v1",
+      "update_date": "2026-11-09",
+      "commits": [],
+      "changes": [
+        "汇总三套来源并按原文去重，统一为2×2及GetDateCounter。"
+      ]
+    }
+  ]
+}
