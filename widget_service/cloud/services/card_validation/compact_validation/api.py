@@ -27,6 +27,7 @@ from services.card_validation.compact_validation.semantic.display import (
     _collect_action_label_length_errors,
     _collect_ambiguous_metric_text_errors,
     _collect_compound_duration_component_errors,
+    _collect_date_counter_relation_text_errors,
     _collect_progress_readout_object_errors,
     _collect_raw_boolean_text_errors,
     _collect_semantic_text_errors,
@@ -199,6 +200,7 @@ def validate_compact_dsl(
     _collect_model_asset_source_errors(components, task_spec, original_errors)
     _collect_asset_color_errors(components, task_spec, original_errors)
     _collect_numeric_component_errors(components, task_spec, original_errors)
+    _collect_date_counter_relation_text_errors(components, card_spec, original_errors)
     if original_errors and not has_static_group_errors:
         original_errors.extend(layout_errors)
         raise _validation_error(original_errors, context, repair_context)

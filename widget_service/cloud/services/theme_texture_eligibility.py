@@ -9,6 +9,11 @@ from services.content_business import subtree as subtree
 from services.display_text import concatenated_display_text
 from services.post_layout_theme_registry import load_theme_registry
 
+_COUNTDOWN_FIELDS = {
+    "/data/countdown/": {"countdownDays"},
+    "/data/dateCounter/": {"days", "relationText"},
+}
+
 
 def visible_business(rows: list[ComponentRow]) -> str | None:
     return BusinessContext().visible(rows).single
@@ -84,15 +89,18 @@ def holiday_countdown(
     by_id = {row.component_id: row for row in rows}
     names: dict[str, list[str]] = {}
     for path in _compact_visible_state(rows).paths:
-        if path.startswith("/data/countdown/") and path.endswith("/countdownDays"):
-            names[path.rsplit("/", 1)[0]] = []
+        parent, _, field_name = path.rpartition("/")
+        for prefix, fields in _COUNTDOWN_FIELDS.items():
+            if path.startswith(prefix) and field_name in fields:
+                names[parent] = []
+                break
     for row in rows:
         scoped = subtree(row.component_id, by_id)
         scoped = [item for item in scoped if not item.component_type.endswith("Button")]
         state = _compact_visible_state(scoped)
         prefixes = set()
         for path in state.paths:
-            if path.startswith("/data/countdown/"):
+            if path.startswith(tuple(_COUNTDOWN_FIELDS)):
                 prefixes.add(path.rsplit("/", 1)[0])
         if len(prefixes) != 1:
             continue

@@ -59,6 +59,13 @@
     },
     {
       "module": "semantic/display.py",
+      "function": "_check_date_counter_display_value",
+      "code": "COMPACT_DISPLAY_DATE_COUNTER_RELATION_TEXT",
+      "class": "semantic",
+      "category": "display"
+    },
+    {
+      "module": "semantic/display.py",
       "function": "_collect_raw_boolean_text_errors",
       "code": "COMPACT_DISPLAY_RAW_BOOLEAN",
       "class": "semantic",

@@ -72,7 +72,8 @@ def _path_business(path: str) -> str | None:
     prefixes = {
         "/data/calendar/": "calendar", "/data/phoneBattery/": "battery",
         "/data/earphone/": "earphone", "/data/weather/": "weather",
-        "/data/countdown/": "countdown", "/data/travel/": "travel",
+        "/data/countdown/": "countdown", "/data/dateCounter/": "countdown",
+        "/data/travel/": "travel",
         "/data/flight/": "travel", "/data/news/": "information",
         "/data/information/": "information", "/data/smartHome/": "smart-home",
         "/data/music/": "music",

@@ -402,6 +402,105 @@
     "dataModelSkeleton": {}
   },
   {
+    "id": "GetDateCounter",
+    "type": "data",
+    "description": "计算目标日期与今天之间的自然日天数，支持公历、农历及周期重复。单次计时支持倒计时和正计时；周期计时返回距离今天或之后最近一个周期日期的天数。日期须有可靠来源，模型不自行换算公农历。",
+    "defaultWriteResultTo": "/data/dateCounter",
+    "dependencies": {
+      "requiredPackages": []
+    },
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetDate": {
+          "type": "string",
+          "description": "目标日期，格式为YYYY-MM-DD，按calendar指定的历法解释。农历五月初五的月日填写05-05。周期计时以该日期为首个节点，不向此前推算，如果用户要求每周三重复，需要保证目标日期为周三。日期缺失或有歧义时先确认，不得猜测。"
+        },
+        "calendar": {
+          "type": "string",
+          "enum": [
+            "gregorian",
+            "lunar"
+          ],
+          "default": "gregorian",
+          "description": "gregorian表示公历，lunar表示农历；省略时为公历。"
+        },
+        "isLeapMonth": {
+          "type": "boolean",
+          "default": false,
+          "description": "目标日期是否为农历闰月，省略时为false。仅calendar=lunar时允许为true。"
+        },
+        "repeat": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "可选。不传表示单次计时。传入后，从targetDate开始按指定周期查找下一个目标日期。",
+          "properties": {
+            "unit": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ],
+              "description": "周期单位：天、周、月、年。天和周按连续自然日推进，月和年按指定历法推进。"
+            },
+            "interval": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "description": "周期间隔，省略时为1。例如unit=week、interval=2表示每两周一次。"
+            }
+          },
+          "required": [
+            "unit"
+          ]
+        }
+      },
+      "required": [
+        "targetDate"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "今天与本次实际目标日期之间的非负自然日天数，不包含单位。大于0时可搭配relationText和“天”展示；等于0时仅展示relationText。",
+          "sampleValue": 3,
+          "displayUnits": [
+            "天"
+          ],
+          "unitIncluded": false
+        },
+        "relationText": {
+          "type": "string",
+          "enum": [
+            "还剩",
+            "已过",
+            "就是今天"
+          ],
+          "description": "枚举字符串：['还剩','已过','就是今天']。根据当前日期与目标日期的关系，返回一个关联文本，必须用于直接拼接构成具有语义的短句。例如与倒计时事件名称拼接为“xx 还剩”，与天数拼接为“已有xx天”。",
+          "sampleValue": "还剩"
+        },
+        "targetDateText": {
+          "type": "string",
+          "description": "本次实际目标的公历日期，格式为YYYY/MM/DD。单次计时返回目标日期对应的公历日期；周期计时返回本次选中的周期日期对应的公历日期。",
+          "sampleValue": "2026/11/09"
+        }
+      },
+      "required": [
+        "days",
+        "relationText",
+        "targetDateText"
+      ]
+    },
+    "dataModelSkeleton": {}
+  },
+  {
     "id": "GetEarphoneInfo",
     "description": "查询当前手机通过蓝牙连接的耳机状态，包括耳机名称、主盒与左右耳的当前独立剩余电量百分比，以及它们各自的充电状态。注意：本能力仅支持蓝牙连接，不支持星闪连接；耳机通过星闪连接时无法获取实际数据。使用本能力时须明确告知用户这一限制，并提示使用蓝牙连接耳机。对于非华为耳机设备，只能查询到名称，其它信息均查询不到，返回为\"--\"，须在适用时告知用户这一限制。",
     "defaultWriteResultTo": "/data/earphone",

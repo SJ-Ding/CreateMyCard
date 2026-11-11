@@ -308,6 +308,7 @@ def test_invalid_model_choice_keeps_original_gradient_fallback(response):
     ("earphone-status", "/data/earphone/name", "fusion-ball-battery-teal"),
     ("battery-readout", "/data/phoneBattery/level", "fusion-ball-battery-teal"),
     ("countdown", "/data/countdown/0/countdownDays", "fusion-ball-sport-orange"),
+    ("countdown", "/data/dateCounter/days", "fusion-ball-sport-orange"),
     ("calendar-event", "/data/calendar/0/title", "fusion-ball-schedule-blue"),
     ("health-readout", "/data/healthSport/sleepScore", "fusion-ball-sleep-violet"),
     ("health-readout", "/data/healthSport/dailySteps", "fusion-ball-sport-orange"),

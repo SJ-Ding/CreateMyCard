@@ -59,11 +59,37 @@ def test_a12_requires_visible_holiday_not_user_query(title, allowed):
     assert rejection(saved, "photo-ux-texture-orange-diamond-square") is None
 
 
-def double_countdown(first="国庆", second="中秋", lines=1):
+@pytest.mark.parametrize("title,allowed", [("国庆", True), ("考试", False)])
+@pytest.mark.parametrize("show_days", [True, False])
+def test_a12_recognizes_date_counter_title(title, allowed, show_days):
+    relation = "/data/dateCounter/relationText"
+    days = "/data/dateCounter/days"
+    heading = "{{ '" + title + " ' + ${" + relation + "} }}"
+    rows = [[relation, "还剩" if show_days else "就是今天"]]
+    if show_days:
+        date = "/data/dateCounter/targetDateText"
+        rows.extend([
+            ["root", "Layout", {"layout": "S-center"}, ["display"]],
+            ["display", "DataDisplay", {
+                "label": heading, "secondaryInfo": {"path": date}, "value": {"path": days},
+                "unit": "天",
+            }],
+            [days, 30],
+            [date, "2026/10/01"],
+        ])
+    else:
+        rows.append(["root", "Text", {"content": heading}])
+    saved = expanded(rows, {"size": "2x2", "userQuery": "国庆倒计时", "appVersion": "99.0.0"})
+    assert (rejection(saved, BIRDS) is None) is allowed
+
+
+def double_countdown(first="国庆", second="中秋", lines=1, mixed=False):
     rows = [["root", "Column", {"width": "matchParent", "height": "matchParent",
                                   "alignItems": "start"}, ["first", "second"]]]
     for identity, name in (("first", first), ("second", second)):
         path = f"/data/countdown/{identity}/countdownDays"
+        if mixed and identity == "second":
+            path = "/data/dateCounter/days"
         content = "{{ '" + name + " ' + ${" + path + "} }}"
         rows.extend([
             [identity, "Column", {"surfaceRole": "panel", "alignItems": "start"},
@@ -77,8 +103,9 @@ def double_countdown(first="国庆", second="中秋", lines=1):
 @pytest.mark.parametrize("second,lines,allowed", [
     ("中秋", 1, True), ("中秋", 2, True), ("考试", 1, False), ("待办", 1, False),
 ])
-def test_a12_dual_panels_need_all_holidays_without_line_limit(second, lines, allowed):
-    saved = double_countdown(second=second, lines=lines)
+@pytest.mark.parametrize("mixed", [False, True])
+def test_a12_dual_panels_need_all_holidays_without_line_limit(second, lines, allowed, mixed):
+    saved = double_countdown(second=second, lines=lines, mixed=mixed)
     flow = evidence(saved).get("photoBodyTextFlow", {}).get("root", {})
     assert flow.get("lineCount") == 2 * lines
     assert (rejection(saved, BIRDS) is None) is allowed

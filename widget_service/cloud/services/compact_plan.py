@@ -2479,6 +2479,14 @@ def _compact_visible_state(
         if has_separate_progress_readout:
             visible_props.pop("value", None)
         _collect_paths_and_literals(visible_props, visible_paths, visible_literals)
+        if component.component_type == "DataDisplay":
+            from services.compact_composition_context import small_card_display_text
+
+            numeric_value = visible_props.get("value")
+            if type(numeric_value) in {int, float}:
+                numeric_text = small_card_display_text(numeric_value, {}, bounded_only=True)
+                if numeric_text is not None:
+                    visible_literals.append(numeric_text)
         _collect_structured_item_literals(
             component,
             item_literals,

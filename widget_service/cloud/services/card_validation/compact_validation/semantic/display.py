@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from typing import Any
 
 from services.card_validation.compact_validation.constants import (
@@ -13,6 +14,7 @@ from services.card_validation.compact_validation.constants import (
     _EXPRESSION_PATTERN,
     _MEASUREMENT_SAMPLE_PATTERN,
     _NUMERIC_SCHEMA_TYPES,
+    _REFERENCE_PATTERN,
     _STRING_LITERAL_PATTERN,
 )
 from services.card_validation.compact_validation.diagnostics import (
@@ -33,6 +35,10 @@ from services.compact_dsl_a2ui_converter import (
 
 _ACTION_LABEL_COMPONENTS = frozenset({"PillButton", "CardButton"})
 _MAX_ACTION_LABEL_VISIBLE_CHARACTERS = 6
+_DATE_COUNTER_TEXT_PROPERTIES = (
+    "content", "title", "subtitle", "label", "value", "supportingText",
+    "mainText", "primaryText", "secondaryText", "text",
+)
 
 
 def _collect_action_label_length_errors(
@@ -75,6 +81,87 @@ def _collect_action_label_length_errors(
                     "action wording while preserving the complete onClick handler and action "
                     "target; for example, replace '一键导航去公司' with '导航去公司'."
                 ),
+            ),
+        )
+
+
+def _date_counter_text_issue(content: Any, relation_path: str, date_path: str) -> str | None:
+    issue: str | None = None
+    if _pure_binding_path(content) == relation_path:
+        issue = "关系词 relationText 被单独展示。"
+    elif isinstance(content, str):
+        expression = _EXPRESSION_PATTERN.fullmatch(content.strip())
+        if expression is not None:
+            # 忽略引号内的路径和加号，也不把条件表达式两侧的字段算成拼接。
+            body = _STRING_LITERAL_PATTERN.sub("''", expression.group("body"))
+            for branch in re.split(r"[?:]", body):
+                paths = {path.strip() for path in _REFERENCE_PATTERN.findall(branch)}
+                if "+" in branch and relation_path in paths and date_path in paths:
+                    issue = "关系词 relationText 与目标日期 targetDateText 拼接。"
+                    break
+    return issue
+
+
+def _date_counter_display_values(props: dict[str, Any]) -> Iterator[tuple[str, Any]]:
+    for name in _DATE_COUNTER_TEXT_PROPERTIES:
+        value = props.get(name)
+        if value is not None:
+            yield f"/{name}", value
+    items = props.get("items")
+    if not isinstance(items, list):
+        return
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        for name in _DATE_COUNTER_TEXT_PROPERTIES:
+            value = item.get(name)
+            if value is not None:
+                yield f"/items/{index}/{name}", value
+
+
+def _collect_date_counter_relation_text_errors(
+    components: list[ComponentRow], card_spec: dict[str, Any], errors: list[str],
+) -> None:
+    bindings = card_spec.get("dataBindings")
+    if not isinstance(bindings, list):
+        return
+    roots: set[str] = set()
+    for binding in bindings:
+        if not isinstance(binding, dict) or binding.get("capabilityId") != "GetDateCounter":
+            continue
+        root = binding.get("writeResultTo")
+        if isinstance(root, str) and root.startswith("/data/"):
+            roots.add(root.rstrip("/"))
+    if not roots:
+        return
+    for component in components:
+        for property_path, content in _date_counter_display_values(component.props):
+            _check_date_counter_display_value(component, property_path, content, roots, errors)
+
+
+def _check_date_counter_display_value(
+    component: ComponentRow, property_path: str, content: Any, roots: set[str], errors: list[str],
+) -> None:
+    for root in sorted(roots):
+        relation_path = f"{root}/relationText"
+        issue = _date_counter_text_issue(content, relation_path, f"{root}/targetDateText")
+        if issue is None:
+            continue
+        emit_error(
+            errors,
+            CompactDiagnostic(
+                code="COMPACT_DISPLAY_DATE_COUNTER_RELATION_TEXT",
+                validation_class="semantic",
+                category="display",
+                message=issue,
+                expected={
+                    "relationRole": "eventNameOrCountModifier",
+                    "targetDateMustBeSeparate": True,
+                },
+                actual={"content": content, "dataPath": relation_path},
+                component_id=component.component_id,
+                property_path=property_path,
+                legacy_message=f"component {component.component_id}{property_path}: {issue}",
             ),
         )
 

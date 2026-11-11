@@ -207,7 +207,7 @@ _COUNTDOWN_DISPLAY_ROUTE_LOCK = """# 本次请求固定场景路由（最高优�
 
 本次 TaskSpec 已由程序识别为 2x2 单目标倒计时，参考 FEWSHOT_2x2 的 V23，
 并遵守下列标题单内容结构：
-不得重新套用普通 S1/S2/S3/S4，也不得按 `/data/countdown` 与 `/data/calendar`
+不得重新套用普通 S1/S2/S3/S4，也不得按倒计时数据根与 `/data/calendar`
 拆成两个业务对象。两者在本场景中共同描述同一个倒计时目标。
 
 - 没有可见按钮、也没有额外展示数据时使用 `S-title-content`。
@@ -225,7 +225,7 @@ _COUNTDOWN_ACTION_ROUTE_LOCK = """# 本次请求固定场景路由（最高优�
 
 本次 TaskSpec 已由程序识别为带显式动作的 2x2 单目标倒计时，必须参考
 FEWSHOT_2x2 的 V25，使用标题主次内容单按钮结构，
-不得重新套用普通 S1/S2/S3/S4，也不得按 `/data/countdown`
+不得重新套用普通 S1/S2/S3/S4，也不得按倒计时数据根
 与 `/data/calendar` 拆成两个业务对象。两者共同描述同一个倒计时目标。
 
 - root 依次包含 `SingleLineTitle` 和自适应 body；body 与 content 使用
@@ -269,7 +269,7 @@ _TWO_BY_FOUR_COUNTDOWN_MULTI_ROUTE_LOCK = """# 本次 2x4 倒计时双业务路�
   显式天气详情动作以完整短标签“查看天气”固定沉底；日程列表使用 event-led，
   事项标题与时间成组排列，
   若动作只查看第一场日程，绑定第一场事项行，不额外生成挤占列表空间的重复 CTA。
-- 每个背板只能引用一个 `/data` 一级业务根。倒计时背板只引用 `/data/countdown`，
+- 每个背板只能引用一个 `/data` 一级业务根。倒计时背板只引用本轮倒计时数据根，
   天气、日程等数据和动作必须留在各自背板。"""
 
 _TWO_BY_FOUR_FOCUS_AUX_ROUTE_LOCK = """# 本次 2x4 主焦点双辅助路由（高优先级）
@@ -478,7 +478,13 @@ _GENERIC_MULTI_FEW_SHOT_IDS = {
     "2x4": ("2x4-V13",),
 }
 _VISUAL_ROUTE_INSTRUCTIONS = {
-    "countdown": "本卡是量化主值路由：让倒计时数字成为唯一第一焦点，标题和单位只做上下文。",
+    "countdown": (
+        "无动作且只有单个计时读数时，使用 S-center + DataDisplay："
+        "label 组合事件名称与动态 relationText，value 绑定 days，unit 为“天”。"
+        "需要展示目标日期时，用 secondaryInfo 独立绑定 targetDateText。"
+        "带动作或独立补充信息时，按对应布局在标题中组合事件名称与动态 relationText，"
+        "主值绑定 days，单位为“天”，其它字段独立展示。"
+    ),
     "earphone-status": (
         "本卡是状态主导路由：先读连接/充电状态，再读设备名称或电量，按钮保持次级。"
         "用户明确要求右下图标入口且具备准确素材时参考 2x2-V08；否则优先使用带文字的 PillButton。"
@@ -614,18 +620,12 @@ class PromptBuilder:
     @staticmethod
     def _data_block_count(task_spec: TaskSpec) -> int:
         """按校验器相同的业务对象口径统计数据块。"""
-        roots = PromptBuilder._data_roots(task_spec)
-        is_countdown_target = (
-            task_spec.size == "2x2"
-            and set(roots).issubset({"countdown", "calendar"})
-            and PromptBuilder._schema_has_field(task_spec, ("countdownDays",))
-            and _contains_any(task_spec.userQuery, _COUNTDOWN_QUERY_MARKERS)
-        )
-        if is_countdown_target:
+        if PromptBuilder._uses_single_countdown(task_spec):
             return 1
         metric_grid_count = PromptBuilder._two_by_four_metric_grid_count(task_spec)
         if metric_grid_count >= 4:
             return metric_grid_count
+        roots = PromptBuilder._data_roots(task_spec)
         count = len(roots)
         if task_spec.size != "2x4" or "healthSport" not in roots:
             return count
@@ -651,7 +651,7 @@ class PromptBuilder:
         normalized_roots = {str(root).casefold() for root in data_schema}
         if "weather" not in normalized_roots:
             return 0
-        if normalized_roots.intersection({"countdown", "calendar", "earphone"}):
+        if normalized_roots.intersection({"countdown", "datecounter", "calendar", "earphone"}):
             return 0
         if not normalized_roots.issubset({"weather", "healthsport", "phonebattery"}):
             return 0
@@ -1295,6 +1295,10 @@ class PromptBuilder:
         data_schema = task_spec.dataModelSchema.get("data")
         if not isinstance(data_schema, dict) or not data_schema:
             return False
+        if "dateCounter" in data_schema:
+            return set(data_schema) <= {"dateCounter", "calendar"} and (
+                PromptBuilder._has_date_counter_fields(data_schema)
+            )
         if set(data_schema) - {"countdown", "calendar"}:
             return False
         if not PromptBuilder._contains_schema_field(data_schema, "countdownDays"):
@@ -1304,6 +1308,11 @@ class PromptBuilder:
         if any(marker in query for marker in _COUNTDOWN_QUERY_MARKERS):
             return True
         return "天" in query and any(marker in query for marker in ("还有", "剩余", "距离", "多久"))
+
+    @staticmethod
+    def _has_date_counter_fields(data_schema: dict[str, Any]) -> bool:
+        counter = data_schema.get("dateCounter")
+        return isinstance(counter, dict) and {"days", "relationText"} <= counter.keys()
 
     @staticmethod
     def _uses_expanded_countdown_layout(task_spec: TaskSpec) -> bool:
@@ -1317,7 +1326,11 @@ class PromptBuilder:
         if PromptBuilder._uses_wide_full_width_list(task_spec):
             return False
         roots = PromptBuilder._data_roots(task_spec)
-        if len(roots) != 2 or "countdown" not in roots:
+        if len(roots) != 2:
+            return False
+        if "dateCounter" in roots:
+            return PromptBuilder._has_date_counter_fields(task_spec.dataModelSchema["data"])
+        if "countdown" not in roots:
             return False
         return PromptBuilder._contains_schema_field(
             task_spec.dataModelSchema.get("data"),
@@ -1329,6 +1342,8 @@ class PromptBuilder:
         if task_spec.size != "2x2":
             return False
         roots = {root.casefold() for root in PromptBuilder._data_roots(task_spec)}
+        if roots == {"datecounter", "weather"}:
+            return PromptBuilder._has_date_counter_fields(task_spec.dataModelSchema["data"])
         return roots == {"countdown", "weather"}
 
     @staticmethod
@@ -1464,7 +1479,9 @@ class PromptBuilder:
             return False
         roots = PromptBuilder._data_roots(task_spec)
         normalized_roots = {root.casefold() for root in roots}
-        if not roots or "countdown" in normalized_roots or len(roots) > 2:
+        if not roots or len(roots) > 2:
+            return False
+        if normalized_roots.intersection({"countdown", "datecounter"}):
             return False
 
         data_schema = task_spec.dataModelSchema.get("data")
@@ -2308,6 +2325,12 @@ class PromptBuilder:
                 implementation_conflicts=conflicts,
                 execution_selected=True,
             )
+        )
+        context_parts.append(
+            "S-center数值DataDisplay保持唯一内容：label主标题，secondaryInfo可选紧密相关次信息，"
+            "value唯一数值，unit可选单位。按已接受的展示事实填充，缺少相关次信息时省略secondaryInfo。"
+            "标题44vp、16fp，数值56fp及单位16fp均由程序展开，不提交字号或内部布局。"
+            "新数值模式不输出supportingText；文本结论模式仍使用原supportingText合同。"
         )
         if runtime_context_enabled:
             context_parts.append(

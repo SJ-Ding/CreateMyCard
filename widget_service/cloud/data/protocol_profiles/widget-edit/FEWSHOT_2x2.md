@@ -30,17 +30,18 @@
 干扰候选示范：输入虽含一个歌单事件和音符素材，但本次只要求倒计时；输出不生成按钮、图标或隐式点击，不把候选数量当作用户意图。
 ### user
 ```json
-{"userQuery":"帮我做张运动会倒计时卡片，看看离运动会还有多少天。","size":"2x2","eventCandidates":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=a001&type=4"}}],"dataModelSchema":{"data":{"countdown":{"countdownDays":{"type":"integer","description":"距离目标日期的自然日天数","sampleValue":32}}}},"assetCandidates":[{"src":"resources/base/media/music_fill.svg","description":"样式：音乐音符实心图标，默认黑色，图形为双音符连接造型；适用：音乐播放卡片、音频功能入口、歌单展示。"}]}
+{"userQuery":"帮我做张运动会倒计时卡片，看看离运动会还有多少天。","size":"2x2","eventCandidates":[{"call":"clickToDeeplink","args":{"intentName":"Music","bundleName":"","abilityName":"","uri":"hwmusic://com.huawei.hmsapp.music/showMusicList?code=a001&type=4"}}],"dataModelSchema":{"data":{"dateCounter":{"days":{"type":"integer","description":"距离目标日期的自然日天数","sampleValue":32},"relationText":{"type":"string","description":"目标日期关系词","sampleValue":"还剩"}}}},"assetCandidates":[{"src":"resources/base/media/music_fill.svg","description":"样式：音乐音符实心图标，默认黑色，图形为双音符连接造型；适用：音乐播放卡片、音频功能入口、歌单展示。"}]}
 ```
 ### assistant
 ```genui
 ["root","Column",{"width":"matchParent","height":"matchParent","padding":12,"borderRadius":20,"clip":true,"justifyContent":"start","alignItems":"center","itemMargin":8,"design":"fusion-ball-sport-orange"},["title_area","value_group"]]
 ["title_area","Row",{"width":126,"height":20,"justifyContent":"center","alignItems":"center","flexShrink":0},["title_text"]]
-["title_text","Text",{"content":"运动会倒计时","width":102,"fontSize":12,"fontWeight":400,"fontColor":"#CCFFFFFF","textAlign":"center","maxLines":1}]
+["title_text","Text",{"content":"{{ '运动会 ' + ${/data/dateCounter/relationText} }}","width":102,"fontSize":12,"fontWeight":400,"fontColor":"#CCFFFFFF","textAlign":"center","maxLines":1}]
 ["value_group","Column",{"width":126,"layoutWeight":1,"justifyContent":"center","alignItems":"center","itemMargin":2,"flexShrink":1},["value_num","value_unit"]]
-["value_num","Text",{"content":{"path":"/data/countdown/countdownDays"},"fontSize":38,"fontWeight":700,"fontColor":"#FFFFFFFF","maxLines":1}]
+["value_num","Text",{"content":{"path":"/data/dateCounter/days"},"fontSize":38,"fontWeight":700,"fontColor":"#FFFFFFFF","maxLines":1}]
 ["value_unit","Text",{"content":"天","fontSize":12,"fontWeight":500,"fontColor":"#FFFFFFFF","textAlign":"center","maxLines":1}]
-["/data/countdown/countdownDays",32]
+["/data/dateCounter/days",32]
+["/data/dateCounter/relationText","还剩"]
 ```
 
 ## 示例二（2x2-V02）：FreeBuds 状态 + 蓝牙设置（S2 状态亚型·蓝色微渐变）
@@ -184,25 +185,26 @@
 
 ## 示例八（2x2-V08）：发布会倒计时（左对齐主值·开始时间·单动作）
 倒计时存在底部按钮或另一类可见数据时，不再使用 V01 的居中数字与纵向单位。标题、主值组和辅助信息
-统一左对齐；数字与单位放在同一 `value_row`，开始时间独占第二行，底部动作沉底。`/data/countdown`
+统一左对齐；数字与单位放在同一 `value_row`，开始时间独占第二行，底部动作沉底。`/data/dateCounter`
 与 `/data/calendar` 在这里共同描述同一个发布会目标，不拆成 S4 两个业务对象。
 ### user
 ```json
-{"userQuery":"下一场日程是18天后的产品发布会，显示离发布会还有几天、日程标题和开始时间，并提供查看详情按钮。","size":"2x2","eventCandidates":[{"call":"clickToIntent","args":{"intentName":"ViewCalendarEvent","params":{"entityId":"{{ ${/data/calendar/events/0/entityId} }}"}}}],"dataModelSchema":{"data":{"countdown":{"countdownDays":{"type":"integer","description":"距离目标日期的自然日天数纯整数，返回值不包含‘天’","sampleValue":18}},"calendar":{"events":[{"title":{"type":"string","description":"日程标题","sampleValue":"产品发布会"},"dtStart":{"type":"string","description":"格式化后的日程开始时间短文本","sampleValue":"上午10:00"},"entityId":{"type":"string","description":"系统日程的全局唯一实体ID","sampleValue":"event-001"}}]}}},"assetCandidates":[]}
+{"userQuery":"下一场日程是18天后的产品发布会，显示离发布会还有几天、日程标题和开始时间，并提供查看详情按钮。","size":"2x2","eventCandidates":[{"call":"clickToIntent","args":{"intentName":"ViewCalendarEvent","params":{"entityId":"{{ ${/data/calendar/events/0/entityId} }}"}}}],"dataModelSchema":{"data":{"dateCounter":{"days":{"type":"integer","description":"距离目标日期的自然日天数纯整数，返回值不包含‘天’","sampleValue":18},"relationText":{"type":"string","description":"目标日期关系词","sampleValue":"还剩"}},"calendar":{"events":[{"title":{"type":"string","description":"日程标题","sampleValue":"产品发布会"},"dtStart":{"type":"string","description":"格式化后的日程开始时间短文本","sampleValue":"上午10:00"},"entityId":{"type":"string","description":"系统日程的全局唯一实体ID","sampleValue":"event-001"}}]}}},"assetCandidates":[]}
 ```
 ### assistant
 ```genui
 ["root","Column",{"width":"matchParent","height":"matchParent","padding":12,"borderRadius":20,"clip":true,"justifyContent":"start","alignItems":"center","itemMargin":0,"design":"fusion-ball-sport-orange"},["title_area","value_group","action_area"]]
 ["title_area","Row",{"width":136,"height":20,"justifyContent":"start","alignItems":"center","flexShrink":0},["title_text"]]
-["title_text","Text",{"content":{"path":"/data/calendar/events/0/title"},"width":136,"fontSize":12,"fontWeight":400,"fontColor":"#FFFFFFFF","textAlign":"start","maxLines":1}]
+["title_text","Text",{"content":"{{ ${/data/calendar/events/0/title} + ' ' + ${/data/dateCounter/relationText} }}","width":136,"fontSize":12,"fontWeight":400,"fontColor":"#FFFFFFFF","textAlign":"start","maxLines":1}]
 ["value_group","Column",{"width":126,"layoutWeight":1,"justifyContent":"center","alignItems":"start","itemMargin":0,"flexShrink":1},["value_row","start_time"]]
 ["value_row","Row",{"width":126,"height":48,"justifyContent":"start","alignItems":"bottom","itemMargin":0,"flexShrink":0},["value_num","value_unit"]]
-["value_num","Text",{"content":{"path":"/data/countdown/countdownDays"},"fontSize":38,"fontWeight":700,"fontColor":"#FFFFFFFF","maxLines":1}]
+["value_num","Text",{"content":{"path":"/data/dateCounter/days"},"fontSize":38,"fontWeight":700,"fontColor":"#FFFFFFFF","maxLines":1}]
 ["value_unit","Text",{"content":"天","fontSize":16,"fontWeight":400,"fontColor":"#FFFFFFFF","padding":{"bottom":6},"maxLines":1}]
 ["start_time","Text",{"content":{"path":"/data/calendar/events/0/dtStart"},"width":126,"height":16,"fontSize":12,"fontWeight":400,"fontColor":"#FFFFFFFF","textAlign":"start","maxLines":1}]
 ["action_area","Column",{"width":136,"height":36,"flexShrink":0},["action"]]
 ["action","ActionUnit",{"state":"capsule","label":"查看详情","actionSurface":"#33FFFFFF","actionInk":"#E6FFFFFF","fontSize":14,"fontWeight":400,"onClick":[{"call":"clickToIntent","args":{"intentName":"ViewCalendarEvent","params":{"entityId":"{{ ${/data/calendar/events/0/entityId} }}"}}}]}]
-["/data/countdown/countdownDays",18]
+["/data/dateCounter/days",18]
+["/data/dateCounter/relationText","还剩"]
 ["/data/calendar/events/0/title","产品发布会"]
 ["/data/calendar/events/0/dtStart","上午10:00"]
 ["/data/calendar/events/0/entityId","event-001"]

@@ -28,7 +28,7 @@ _FUSION_BALL_DISABLED_INSTRUCTION = """# 本次请求运行时限制
 _COUNTDOWN_V01_ROUTE_LOCK = """# 本次请求固定场景路由（最高优先级）
 
 本次 TaskSpec 已由程序识别为 2x2 单目标倒计时，默认参考 FEWSHOT_2x2 的 V01，
-不得重新套用普通 S1/S2/S3/S4，也不得按 `/data/countdown` 与 `/data/calendar`
+不得重新套用普通 S1/S2/S3/S4，也不得按倒计时数据根与 `/data/calendar`
 拆成两个业务对象。两者在本场景中共同描述同一个倒计时目标；如果用户明确要求展示
 时间等额外数据，按本提示词的 V08 左对齐规则调整实际构图。
 
@@ -50,7 +50,7 @@ _COUNTDOWN_V01_ROUTE_LOCK = """# 本次请求固定场景路由（最高优先�
 _COUNTDOWN_V08_ROUTE_LOCK = """# 本次请求固定场景路由（最高优先级）
 
 本次 TaskSpec 已由程序识别为带显式动作或额外展示数据的 2x2 单目标倒计时，必须锁定
-FEWSHOT_2x2 的 V08，不得重新套用普通 S1/S2/S3/S4，也不得按 `/data/countdown`
+FEWSHOT_2x2 的 V08，不得重新套用普通 S1/S2/S3/S4，也不得按倒计时数据根
 与 `/data/calendar` 拆成两个业务对象。两者共同描述同一个倒计时目标。
 
 - 只要最终保留可见按钮，或显示开始时间、日期、状态等另一类数据，标题、主值组和辅助信息
@@ -97,7 +97,7 @@ _TWO_BY_FOUR_COUNTDOWN_MULTI_ROUTE_LOCK = """# 本次 2x4 倒计时双业务路�
   字段。显式天气详情动作以完整短标签“查看天气”固定沉底；日程列表使用 event-led，
   事项标题与时间成组排列，
   若动作只查看第一场日程，绑定第一场事项行，不额外生成挤占列表空间的重复 CTA。
-- 每个背板只能引用一个 `/data` 一级业务根。倒计时背板只引用 `/data/countdown`，
+- 每个背板只能引用一个 `/data` 一级业务根。倒计时背板只引用本轮倒计时数据根，
   天气、日程等数据和动作必须留在各自背板。"""
 
 _TWO_BY_FOUR_FOCUS_AUX_ROUTE_LOCK = """# 本次 2x4 主焦点双辅助路由（高优先级）
@@ -332,7 +332,10 @@ _GENERIC_MULTI_FEW_SHOT_IDS = {
     "2x4": ("2x4-V13",),
 }
 _VISUAL_ROUTE_INSTRUCTIONS = {
-    "countdown": "本卡是量化主值路由：让倒计时数字成为唯一第一焦点，标题和单位只做上下文。",
+    "countdown": (
+        "本卡是量化主值路由：GetDateCounter 的标题用事件名称拼接动态 relationText，"
+        "主值只绑定 days，单位或 supportingText 仅为“天”；其余字段另行展示。"
+    ),
     "earphone-status": "本卡是状态主导路由：先读连接/充电状态，再读设备名称或电量，按钮保持次级。",
     "battery-readout": (
         "本卡是量化主值路由：电量、温度、电流、电压、功率等测量值中只选择一个主读数使用最大安全字号，"
@@ -447,18 +450,12 @@ class PromptBuilder:
     @staticmethod
     def _data_block_count(task_spec: TaskSpec) -> int:
         """按校验器相同的业务对象口径统计数据块。"""
-        roots = PromptBuilder._data_roots(task_spec)
-        is_countdown_target = (
-            task_spec.size == "2x2"
-            and set(roots).issubset({"countdown", "calendar"})
-            and PromptBuilder._schema_has_field(task_spec, ("countdownDays",))
-            and _contains_any(task_spec.userQuery, _COUNTDOWN_QUERY_MARKERS)
-        )
-        if is_countdown_target:
+        if PromptBuilder._uses_countdown_v01(task_spec):
             return 1
         metric_grid_count = PromptBuilder._two_by_four_metric_grid_count(task_spec)
         if metric_grid_count >= 4:
             return metric_grid_count
+        roots = PromptBuilder._data_roots(task_spec)
         count = len(roots)
         if task_spec.size != "2x4" or "healthSport" not in roots:
             return count
@@ -482,7 +479,7 @@ class PromptBuilder:
         normalized_roots = {str(root).casefold() for root in data_schema}
         if "weather" not in normalized_roots:
             return 0
-        if normalized_roots.intersection({"countdown", "calendar", "earphone"}):
+        if normalized_roots.intersection({"countdown", "datecounter", "calendar", "earphone"}):
             return 0
         if not normalized_roots.issubset(
             {"weather", "healthsport", "phonebattery"}
@@ -980,6 +977,10 @@ class PromptBuilder:
         data_schema = task_spec.dataModelSchema.get("data")
         if not isinstance(data_schema, dict) or not data_schema:
             return False
+        if "dateCounter" in data_schema:
+            return set(data_schema) <= {"dateCounter", "calendar"} and (
+                PromptBuilder._has_date_counter_fields(data_schema)
+            )
         if set(data_schema) - {"countdown", "calendar"}:
             return False
         if not PromptBuilder._contains_schema_field(data_schema, "countdownDays"):
@@ -993,6 +994,11 @@ class PromptBuilder:
         )
 
     @staticmethod
+    def _has_date_counter_fields(data_schema: dict[str, Any]) -> bool:
+        counter = data_schema.get("dateCounter")
+        return isinstance(counter, dict) and {"days", "relationText"} <= counter.keys()
+
+    @staticmethod
     def _uses_expanded_countdown_layout(task_spec: TaskSpec) -> bool:
         """只用明确动作选择 V08；额外可见数据由模型输出和校验器最终判定。"""
         return PromptBuilder._query_requests_action(task_spec)
@@ -1002,7 +1008,11 @@ class PromptBuilder:
         if task_spec.size != "2x4":
             return False
         roots = PromptBuilder._data_roots(task_spec)
-        if len(roots) != 2 or "countdown" not in roots:
+        if len(roots) != 2:
+            return False
+        if "dateCounter" in roots:
+            return PromptBuilder._has_date_counter_fields(task_spec.dataModelSchema["data"])
+        if "countdown" not in roots:
             return False
         return PromptBuilder._contains_schema_field(
             task_spec.dataModelSchema.get("data"),
@@ -1016,6 +1026,8 @@ class PromptBuilder:
         roots = {
             root.casefold() for root in PromptBuilder._data_roots(task_spec)
         }
+        if roots == {"datecounter", "weather"}:
+            return PromptBuilder._has_date_counter_fields(task_spec.dataModelSchema["data"])
         return roots == {"countdown", "weather"}
 
     @staticmethod
@@ -1116,7 +1128,9 @@ class PromptBuilder:
             return False
         roots = PromptBuilder._data_roots(task_spec)
         normalized_roots = {root.casefold() for root in roots}
-        if not roots or "countdown" in normalized_roots or len(roots) > 2:
+        if not roots or len(roots) > 2:
+            return False
+        if normalized_roots.intersection({"countdown", "datecounter"}):
             return False
 
         data_schema = task_spec.dataModelSchema.get("data")
