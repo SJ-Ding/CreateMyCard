@@ -102,6 +102,9 @@ description: 共用单组件的语义、Props、容量和示例；尺寸差异�
 ```
 
 
+S-center 数值 DataDisplay 内部借用专属标题配方：主副标题16fp/21vp、间距2vp、44vp区域居中；
+副标题可选。此配方不作为公共 DoubleLineTitle 的可选模型属性，不改变上文12fp默认合同。
+
 ### 3. `Badge`
 
 #### 选择条件

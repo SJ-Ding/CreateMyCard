@@ -125,3 +125,10 @@ drop_optional_component 从第4次修复起且当前有结构/容量错误和合
 除明确授权省略项外，全部 Plan must/should 在生成、局部修复、重组和无损紧凑阶段都必须保留。最后输出完整修复 DSL，不原样重交已知失败候选。
 动态进度类型错误时，绑定展示字段 numericSource 指向的有效数值字段；未登记关系时不猜测，不把字符串样例解析为常数或私有数据。若仅能展示文字，保留全部事实并改用文字组件。
 <!-- /prompt:contract -->
+
+S-center新数值模式使用label/secondaryInfo?/value/unit?，标题区44vp，主副标题各21vp、间距2vp。
+副标题仅为已接受Plan中同核心的次级信息，不补造、不通过字数决定；动态绑定不能冻结为样例。
+旧supportingText只兼容原底部说明，不与secondaryInfo/unit混用；迁移时根据原含义保留信息。
+
+新数值display填满父内容区，不恢复固定122vp。标题区44vp、间距8vp；数值承载区用剩余高度，
+内部数字单位行74vp居中。保留数字Text70vp、56/16fp字号和既有字底补偿，不以裁切或压缩闭合容量。
